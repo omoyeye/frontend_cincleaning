@@ -1,0 +1,212 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Cool off-white page + deeper borders for stronger forms and cards */
+    --background: 220 24% 97%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Indigo-violet primary: reads bolder than default shadcn blue at a glance */
+    --primary: 243 75% 48%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 18% 93%;
+    --secondary-foreground: 222 40% 18%;
+
+    --muted: 220 16% 93%;
+    --muted-foreground: 220 12% 38%;
+
+    --accent: 38 92% 50%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 72% 48%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 16% 82%;
+    --input: 220 16% 82%;
+    --ring: 243 75% 48%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 228 24% 9%;
+    --foreground: 210 30% 96%;
+
+    --card: 226 22% 13%;
+    --card-foreground: 210 30% 96%;
+
+    --popover: 226 22% 13%;
+    --popover-foreground: 210 30% 96%;
+
+    --primary: 239 84% 62%;
+    --primary-foreground: 228 24% 9%;
+
+    --secondary: 226 18% 18%;
+    --secondary-foreground: 210 30% 96%;
+
+    --muted: 226 16% 20%;
+    --muted-foreground: 218 12% 72%;
+
+    --accent: 38 92% 54%;
+    --accent-foreground: 228 24% 9%;
+
+    --destructive: 0 62% 48%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 226 16% 24%;
+    --input: 226 16% 24%;
+    --ring: 239 84% 62%;
+  }
+}
+
+@layer base {
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Fluid base font-size so Tailwind's rem-based sizes scale down on small screens
+       (14px at ~320px viewport → 16px at ~1024px+). */
+    font-size: clamp(14px, 13px + 0.3vw, 16px);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  html,
+  body {
+    min-height: 100%;
+    min-height: 100dvh;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-tap-highlight-color: hsl(var(--primary) / 0.12);
+  }
+}
+
+@layer utilities {
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .safe-area-pl {
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+
+  .safe-area-pr {
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  .safe-area-px {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+/* Booking wizard - progress shimmer (used by arbitrary animation class) */
+@keyframes wizard-shimmer {
+  0% {
+    transform: translateX(-120%) skewX(-12deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-12deg);
+  }
+}
+
+.animate-wizard-shimmer {
+  animation: wizard-shimmer 2.4s ease-in-out infinite;
+}
+
+/* Marketing site — subtle hero glow + card lift (respects reduced motion) */
+@keyframes nn-hero-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.nn-marketing-hero-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(ellipse 100% 55% at 50% 0%, rgba(20, 184, 166, 0.14), transparent 58%);
+  animation: nn-hero-glow-pulse 14s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nn-marketing-hero-glow::before {
+    animation: none;
+    opacity: 0.9;
+  }
+
+  .nn-card-lift {
+    transition: none !important;
+  }
+
+  .nn-card-lift:hover {
+    transform: none !important;
+  }
+
+  .nn-cta-glow {
+    transition: none !important;
+  }
+
+  .nn-cta-glow:hover {
+    transform: none !important;
+  }
+}
+
+.nn-card-lift {
+  transition: box-shadow 0.35s ease, transform 0.35s ease;
+}
+
+.nn-card-lift:hover {
+  box-shadow: 0 20px 40px -24px rgba(15, 23, 42, 0.25);
+  transform: translateY(-4px);
+}
+
+.nn-cta-glow {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 25px 50px -12px rgba(15, 23, 42, 0.45);
+}

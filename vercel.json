@@ -1,0 +1,35 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://api.cleanitneatly.com/api/:path*" },
+    { "source": "/uploads/:path*", "destination": "https://api.cleanitneatly.com/uploads/:path*" },
+    { "source": "/pay/:path*", "destination": "https://api.cleanitneatly.com/pay/:path*" },
+    { "source": "/sitemap.xml", "destination": "https://api.cleanitneatly.com/sitemap.xml" },
+    { "source": "/sitemap-style.xsl", "destination": "https://api.cleanitneatly.com/sitemap-style.xsl" },
+    { "source": "/robots.txt", "destination": "https://api.cleanitneatly.com/robots.txt" },
+    { "source": "/(.*)", "destination": "/app-shell" }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/(sw.js|registerSW.js|manifest.webmanifest)",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" }
+      ]
+    }
+  ]
+}

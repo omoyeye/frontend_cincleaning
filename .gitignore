@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-ssr/
+.vercel/
+
+# Local env (Vercel project settings hold production values)
+.env
+.env.*
+!.env.example
+
+*.log
+*.local
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/

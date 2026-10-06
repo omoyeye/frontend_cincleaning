@@ -1,0 +1,28 @@
+{
+  "name": "CiN Staff",
+  "short_name": "CiN Staff",
+  "description": "Staff schedule, jobs, and rota - Clean It Neatly",
+  "start_url": "/staff",
+  "scope": "/",
+  "id": "/staff",
+  "display": "standalone",
+  "display_override": ["standalone", "browser"],
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "lang": "en",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/brand-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
