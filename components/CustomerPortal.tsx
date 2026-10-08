@@ -221,6 +221,11 @@ const CustomerPortal: React.FC<Props> = ({
   const [viewMode, setViewMode] = useState<'details' | 'invoice' | 'confirmation'>('details');
   const [ratingBooking, setRatingBooking] = useState<Booking | null>(null);
   const [cancellingBooking, setCancellingBooking] = useState<Booking | null>(null);
+  /** Client moving their own booking (allowed up to RESCHEDULE_NOTICE_HOURS before it starts). */
+  const [reschedulingBooking, setReschedulingBooking] = useState<Booking | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduleSaving, setRescheduleSaving] = useState(false);
   const [shortNoticeConsentChecked, setShortNoticeConsentChecked] = useState(false);
   const [starCount, setStarCount] = useState(5);
   const [feedback, setFeedback] = useState('');
@@ -508,6 +513,58 @@ const CustomerPortal: React.FC<Props> = ({
       showFlyer(feeEvidenceUploadErrorMessage(err), 'error');
     } finally {
       setFeeEvidenceSaving(false);
+    }
+  };
+
+  const RESCHEDULE_NOTICE_HOURS = 24;
+  const canReschedule = (b: Booking) =>
+    (b.status === BookingStatus.PENDING || b.status === BookingStatus.CONFIRMED) &&
+    getHoursUntilBooking(b.date, b.time) >= RESCHEDULE_NOTICE_HOURS;
+
+  const openReschedule = (b: Booking) => {
+    setReschedulingBooking(b);
+    setRescheduleDate(String(b.date || '').slice(0, 10));
+    setRescheduleTime(String(b.time || '').slice(0, 5));
+  };
+
+  const rescheduleProblem = (() => {
+    if (!reschedulingBooking) return '';
+    if (!rescheduleDate || !rescheduleTime) return 'Choose a new date and time.';
+    if (rescheduleDate === String(reschedulingBooking.date).slice(0, 10) && rescheduleTime === String(reschedulingBooking.time).slice(0, 5)) {
+      return 'Pick a different date or time.';
+    }
+    if (getHoursUntilBooking(rescheduleDate, rescheduleTime) < RESCHEDULE_NOTICE_HOURS) {
+      return `The new time must be at least ${RESCHEDULE_NOTICE_HOURS} hours from now.`;
+    }
+    return '';
+  })();
+
+  const handleRescheduleConfirm = async () => {
+    if (!reschedulingBooking || rescheduleProblem) return;
+    setRescheduleSaving(true);
+    try {
+      const res = (await apiClient.updateBooking(reschedulingBooking.id, { date: rescheduleDate, time: rescheduleTime })) as {
+        status?: string;
+        cleanerKept?: boolean;
+      };
+      onUpdateBooking({
+        ...reschedulingBooking,
+        date: rescheduleDate,
+        time: rescheduleTime,
+        status: (res.status as Booking['status']) || reschedulingBooking.status,
+      });
+      setReschedulingBooking(null);
+      showFlyer(
+        res.cleanerKept === false
+          ? 'Booking moved. We will confirm your cleaner for the new time shortly.'
+          : 'Booking moved. A confirmation is on its way to your email.',
+        'success',
+      );
+      void apiClient.getNotifications(0).then(setNotifications);
+    } catch (err) {
+      showFlyer(err instanceof Error ? err.message : 'Could not move the booking. Please try again.', 'error');
+    } finally {
+      setRescheduleSaving(false);
     }
   };
 
@@ -1234,6 +1291,17 @@ const CustomerPortal: React.FC<Props> = ({
                                   >
                                     <CreditCard className="w-3.5 h-3.5 mr-1.5 sm:mr-2 shrink-0" /> Pay Now
                                   </a>
+                                )}
+
+                                {(b.status === BookingStatus.PENDING || b.status === BookingStatus.CONFIRMED) && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); if (canReschedule(b)) openReschedule(b); }}
+                                    disabled={!canReschedule(b)}
+                                    title={canReschedule(b) ? 'Move to another date or time' : `Bookings can be moved up to ${RESCHEDULE_NOTICE_HOURS} hours before they start. Please contact us.`}
+                                    className="px-3 sm:px-5 py-2.5 sm:py-3.5 bg-white text-slate-700 border border-slate-200 rounded-xl sm:rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all shadow-sm active:scale-95 inline-flex items-center disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-slate-700 disabled:cursor-not-allowed"
+                                  >
+                                    <Calendar className="w-3.5 h-3.5 mr-1.5 sm:mr-2 shrink-0" /> Move
+                                  </button>
                                 )}
 
                                 {(b.status === BookingStatus.PENDING || b.status === BookingStatus.CONFIRMED) && (
@@ -2232,6 +2300,15 @@ const CustomerPortal: React.FC<Props> = ({
                                     <div className={`text-sm font-black uppercase tracking-widest ${selectedBookingForDetail.status === BookingStatus.COMPLETED ? 'text-green-600' : 'text-primary'}`}>{selectedBookingForDetail.status}</div>
                                   </div>
                                   {(selectedBookingForDetail.status === BookingStatus.PENDING || selectedBookingForDetail.status === BookingStatus.CONFIRMED) && (
+                                    <div className="flex flex-wrap justify-end gap-2">
+                                    <button
+                                      onClick={() => { if (canReschedule(selectedBookingForDetail)) { const b = selectedBookingForDetail; setSelectedBookingForDetail(null); openReschedule(b); } }}
+                                      disabled={!canReschedule(selectedBookingForDetail)}
+                                      title={canReschedule(selectedBookingForDetail) ? 'Move to another date or time' : `Bookings can be moved up to ${RESCHEDULE_NOTICE_HOURS} hours before they start. Please contact us.`}
+                                      className="px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border bg-white text-slate-700 border-slate-200 hover:bg-slate-900 hover:text-white transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-slate-700"
+                                    >
+                                      Move booking
+                                    </button>
                                     <button
                                       onClick={() => { setSelectedBookingForDetail(null); setCancellingBooking(selectedBookingForDetail); setShortNoticeConsentChecked(false); }}
                                       className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm ${isCancellable(selectedBookingForDetail.date, selectedBookingForDetail.time)
@@ -2243,6 +2320,7 @@ const CustomerPortal: React.FC<Props> = ({
                                         ? 'Request Cancellation'
                                         : `Cancel (${shortNoticeWindowHours}h Rule Override)`}
                                     </button>
+                                    </div>
                                   )}
                                 </div>
 
@@ -2312,6 +2390,58 @@ const CustomerPortal: React.FC<Props> = ({
                   </div>
                 </div>
               </main>
+            </div>
+          )}
+
+          {reschedulingBooking && (
+            <div className="fixed inset-0 z-[130] bg-slate-900/60 backdrop-blur-md flex items-stretch sm:items-center justify-center p-0 sm:p-6 overflow-y-auto" role="dialog" aria-modal="true" aria-label="Move booking">
+              <div className="bg-white w-full sm:max-w-md rounded-none sm:rounded-[3rem] shadow-2xl relative overflow-hidden p-6 sm:p-10 animate-in fade-in sm:zoom-in-95 duration-300 min-h-screen sm:min-h-0 flex flex-col justify-center">
+                <div className="w-16 h-16 bg-primary/10 text-primary rounded-[2rem] flex items-center justify-center mx-auto mb-6">
+                  <Calendar className="w-8 h-8" />
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight text-center">Move booking</h3>
+                <p className="text-slate-500 text-sm font-medium mb-6 leading-relaxed text-center">
+                  {reschedulingBooking.serviceType}, currently {reschedulingBooking.date} at {String(reschedulingBooking.time).slice(0, 5)}.
+                  You can move a booking up to {RESCHEDULE_NOTICE_HOURS} hours before it starts.
+                </p>
+                <div className="grid grid-cols-2 gap-3 mb-3 text-left">
+                  <label className="block">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">New date</span>
+                    <input
+                      type="date"
+                      value={rescheduleDate}
+                      min={new Date(Date.now() + RESCHEDULE_NOTICE_HOURS * 3600000).toISOString().slice(0, 10)}
+                      onChange={(e) => setRescheduleDate(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">New time</span>
+                    <input
+                      type="time"
+                      step={900}
+                      value={rescheduleTime}
+                      onChange={(e) => setRescheduleTime(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </label>
+                </div>
+                <p className={`text-xs font-bold mb-6 min-h-[1rem] text-center ${rescheduleProblem ? 'text-amber-700' : 'text-emerald-700'}`}>
+                  {rescheduleProblem || 'Your cleaner and our team will be told about the new time.'}
+                </p>
+                <div className="flex flex-col space-y-3">
+                  <button
+                    onClick={() => void handleRescheduleConfirm()}
+                    disabled={Boolean(rescheduleProblem) || rescheduleSaving}
+                    className="w-full bg-primary text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:opacity-90 transition-all active:scale-95 disabled:opacity-40"
+                  >
+                    {rescheduleSaving ? 'Moving...' : 'Move booking'}
+                  </button>
+                  <button onClick={() => setReschedulingBooking(null)} className="w-full bg-slate-100 text-slate-600 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">
+                    Keep current time
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

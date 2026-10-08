@@ -10,7 +10,7 @@ import { StaffNotification, Booking, BookingStatus, Extra, Referral, ServiceConf
 import { apiStaff } from '../services/api';
 import { NotificationBell } from './NotificationBell';
 import ReviewsPanel from './admin/ReviewsPanel';
-import { NotificationService, requestNotificationPermission } from '../services/NotificationService';
+import { requestNotificationPermission } from '../services/NotificationService';
 import { useFlyer } from './Flyer';
 import { useBusinessBrand } from '../src/hooks/useBusinessBrand';
 import { useBusinessSettings } from '../src/context/BusinessSettingsContext';
@@ -26,7 +26,6 @@ import {
   getExtraDisplayLabel,
   staffJobPay,
 } from '../src/utils/bookingHelpers';
-import { interpolateTemplate } from '../src/utils/interpolateTemplate';
 import { DurationBreakdownBlock } from './DurationBreakdownBlock';
 import StaffInvoiceDocument from './StaffInvoiceDocument';
 
@@ -243,11 +242,6 @@ const StaffPortal: React.FC<{
   const greetingHour = new Date().getHours();
   const greeting = greetingHour < 12 ? 'Good morning' : greetingHour < 17 ? 'Good afternoon' : 'Good evening';
   const todayLabel = new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-  const [smsByName, setSmsByName] = useState<Record<string, string>>({});
-  const smsByNameRef = useRef(smsByName);
-  useEffect(() => {
-    smsByNameRef.current = smsByName;
-  }, [smsByName]);
   const [activeTab, setActiveTab] = useState<PortalTab>('schedule');
   const [mobileScheduleView, setMobileScheduleView] = useState<'list' | 'day' | 'map'>('list');
   const [desktopMapVisible, setDesktopMapVisible] = useState(false);
@@ -274,24 +268,6 @@ const StaffPortal: React.FC<{
   useEffect(() => {
     if (activeTab !== 'messages') setMobileChatView('list');
   }, [activeTab]);
-
-  useEffect(() => {
-    let live = true;
-    apiStaff
-      .getSmsTemplates()
-      .then((rows: unknown) => {
-        if (!live || !Array.isArray(rows)) return;
-        const m: Record<string, string> = {};
-        for (const r of rows as { name?: string; message?: string; active?: boolean }[]) {
-          if (r?.name && r?.message && r.active !== false) m[r.name] = r.message;
-        }
-        setSmsByName(m);
-      })
-      .catch(() => { });
-    return () => {
-      live = false;
-    };
-  }, []);
 
   // State to hold the full Staff object (with ID, rate, etc.)
   const [currentStaff, setCurrentStaff] = useState<Staff | null>(null);
@@ -777,14 +753,6 @@ const StaffPortal: React.FC<{
       }
       const now = new Date();
       const baseClockIn: ClockInState = { time: now.toLocaleTimeString(), startedAtIso: now.toISOString() };
-      const phone = clientPhoneForBooking(selectedJob);
-      if (phone) {
-        const tpl = smsByNameRef.current.staff_sms_clock_in;
-        const msg = tpl
-          ? interpolateTemplate(tpl, { brand_name: brandName })
-          : `${brandName}: your cleaner has arrived and started your booking.`;
-        NotificationService.sendSMS(phone, msg);
-      }
       // Note: Real app would use actual Geolocation here
       // Show active job UI immediately; refine with GPS when available (avoids null clockInData while geolocation pending).
       setClockInData(baseClockIn);
@@ -798,15 +766,15 @@ const StaffPortal: React.FC<{
           };
           setClockInData(withLocation);
           persistActiveClockedInJob(selectedJob, withLocation, 'work');
-          // Arrival counts as en route (silently) so the admin "no cleaner on the way" warning does not fire.
+          // Tells the client their cleaner has arrived (and counts as en route for admin warnings).
           apiStaff
-            .startTravel(selectedJob.id, { lat: pos.coords.latitude, lng: pos.coords.longitude, silent: true })
+            .markArrived(selectedJob.id, { lat: pos.coords.latitude, lng: pos.coords.longitude })
             .catch(() => { /* non-blocking */ });
         }, () => {
-          apiStaff.startTravel(selectedJob.id, { silent: true }).catch(() => { /* non-blocking */ });
+          apiStaff.markArrived(selectedJob.id).catch(() => { /* non-blocking */ });
         });
       } else {
-        apiStaff.startTravel(selectedJob.id, { silent: true }).catch(() => { /* non-blocking */ });
+        apiStaff.markArrived(selectedJob.id).catch(() => { /* non-blocking */ });
       }
     }
   };

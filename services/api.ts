@@ -580,6 +580,20 @@ function createRealmApi(realm: AuthRealm) {
             return res.json();
         },
 
+        /** Clock-in on site: the client is told their cleaner has arrived (once). */
+        markArrived: async (id: string | number, coords: { lat?: number; lng?: number } = {}): Promise<{ arrivedAt: string }> => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/staff/jobs/${encodeURIComponent(String(id))}/arrived`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...H() },
+                body: JSON.stringify(coords),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error((err as { error?: string }).error || 'Failed to record arrival');
+            }
+            return res.json();
+        },
+
         updateLocation: async (id: string | number, coords: { lat: number; lng: number }): Promise<void> => {
             const res = await fetchWithNetworkHint(realm, `${API_URL}/staff/jobs/${encodeURIComponent(String(id))}/location`, {
                 method: 'POST',

@@ -71,6 +71,7 @@ import { subscribeNnSync } from '../services/realtime';
 import { NotificationBell } from './NotificationBell';
 import QuoteRequestsPanel from './admin/QuoteRequestsPanel';
 import RotaSchedulePanel from './admin/RotaSchedulePanel';
+import JobAssignmentPanel from './admin/JobAssignmentPanel';
 import { useTheme } from './ThemeProvider';
 import { format } from 'date-fns';
 import CommunicationCenter from './admin/CommunicationCenter';
@@ -991,47 +992,28 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
     [bookings, services, extraServices]
   );
 
-  const handleAssignStaff = async (staffId: string) => {
-    if (!selectedBookingForAssignment) return;
-    const sid = parseInt(staffId, 10);
-    if (!Number.isFinite(sid)) return;
-    const patched: Booking = {
-      ...selectedBookingForAssignment,
-      assignedStaffId: sid,
-      assignedStaffIds: [sid],
-      status: BookingStatus.CONFIRMED,
-    };
-    const overlapDetails = getOverlapConflictDetailsForPatchedBooking(bookings, patched, services, extraServices);
-    if (overlapDetails.length > 0) {
-      const staffLabel =
-        staffList.find((s) => s.id === sid)?.name?.trim() || `Staff #${sid}`;
-      const lines = overlapDetails
-        .map(
-          (d) =>
-            `• ${staffLabel}: this job ${d.thisWindowLabel} overlaps ${d.otherBookingId} (${d.otherWindowLabel}) — visit windows cross in time, not only the same date.`
-        )
-        .join('\n');
-      const ok = window.confirm(
-        `Overlapping visit times for ${staffLabel}:\n\n${lines}\n\nAssign anyway? Cancel to stop (no change).`
-      );
-      if (!ok) return;
-    }
+  /** Save a booking's cleaning team from Job Assignment (empty list = back to the dispatch queue). */
+  const handleSaveTeam = async (booking: Booking, staffIds: number[], force: boolean) => {
+    const ids = [...new Set(staffIds.map(Number).filter((n) => Number.isFinite(n) && n > 0))];
+    const nextStatus = ids.length > 0 ? BookingStatus.CONFIRMED : BookingStatus.PENDING;
     try {
-      await apiAdmin.updateBooking(selectedBookingForAssignment.id, {
-        assignedStaffId: sid,
-        assignedStaffIds: [sid],
-        status: BookingStatus.CONFIRMED,
-        ...(overlapDetails.length > 0 ? { forceScheduleOverlap: true } : {}),
+      await apiAdmin.updateBooking(booking.id, {
+        assignedStaffIds: ids,
+        assignedStaffId: (ids[0] ?? null) as unknown as number | undefined,
+        status: nextStatus,
+        ...(force ? { forceScheduleOverlap: true } : {}),
       });
-
-      setBookings(prev => prev.map(b =>
-        b.id === selectedBookingForAssignment.id ? { ...b, status: BookingStatus.CONFIRMED, assignedStaffId: sid, assignedStaffIds: [sid] } : b
-      ));
-
-      showFlyer(`Success: Staff assigned to job ${selectedBookingForAssignment.id}.`, 'success');
-      setSelectedBookingForAssignment(null);
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === booking.id ? { ...b, status: nextStatus, assignedStaffId: ids[0], assignedStaffIds: ids } : b
+        )
+      );
+      const ref = booking.bookingId || `#${booking.id}`;
+      const names = ids.map((id) => staffList.find((s) => Number(s.id) === id)?.name || `Staff #${id}`).join(', ');
+      showFlyer(ids.length ? `${names} assigned to ${ref}.` : `${ref} is back in "Needs a cleaner".`, 'success');
     } catch (error) {
-      showFlyer(error instanceof Error ? error.message : 'Failed to assign staff.', 'error');
+      showFlyer(error instanceof Error ? error.message : 'Failed to save the team.', 'error');
+      throw error;
     }
   };
 
@@ -2925,142 +2907,15 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
         )}
 
         {activeTab === 'assignment' && (
-          <div className="flex-1 flex flex-col animate-in fade-in duration-500 min-h-0">
-            <div className="flex justify-between items-center mb-10">
-              <div>
-                <h3 className="text-3xl font-black text-slate-900 tracking-tight">Job Assignment</h3>
-                <p className="text-slate-500 text-sm font-medium mt-1">Dispatch unassigned jobs to your available staff.</p>
-              </div>
-            </div>
-
-            {staffScheduleConflicts.length > 0 && (
-              <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-bold text-amber-950">
-                <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />
-                <div>
-                  <p className="font-black uppercase tracking-tight text-xs text-amber-800 mb-1">Schedule overlaps detected</p>
-                  <p>
-                    {staffScheduleConflicts.length} overlapping assignment
-                    {staffScheduleConflicts.length === 1 ? '' : 's'} on the rota (same staff, same time window). Reschedule or reassign
-                    so each job has a clear slot.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,420px)_minmax(0,1fr)] gap-6 xl:gap-8 flex-1 min-h-0">
-              {/* Left Panel: Pending/Unassigned Jobs */}
-              <div className="w-full bg-white rounded-[2rem] shadow-sm border border-slate-100/50 flex flex-col overflow-hidden min-h-[320px] max-h-[60vh] xl:max-h-none">
-                <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-                  <h4 className="text-lg font-black text-slate-900 flex items-center">
-                    <AlertCircle className="w-5 h-5 mr-2 text-amber-500" />
-                    Pending Dispatch
-                  </h4>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
-                  {bookings.filter(b => b.status === BookingStatus.PENDING || (!b.assignedStaffId && (!b.assignedStaffIds || b.assignedStaffIds.length === 0))).length === 0 && (
-                    <div className="text-center p-5 sm:p-8 text-slate-400 font-bold italic text-sm">
-                      All caught up! No pending jobs to assign.
-                    </div>
-                  )}
-                  {bookings
-                    .filter(b => b.status === BookingStatus.PENDING || (!b.assignedStaffId && (!b.assignedStaffIds || b.assignedStaffIds.length === 0)))
-                    .map(b => (
-                      <div
-                        key={b.id}
-                        onClick={() => setSelectedBookingForAssignment(b)}
-                        className={`p-5 rounded-2xl cursor-pointer transition-all border ${selectedBookingForAssignment?.id === b.id ? 'bg-blue-50 border-blue-500 shadow-md ring-2 ring-blue-500/20' : 'bg-slate-50 border-slate-100 hover:border-blue-200 hover:shadow-sm'}`}
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="font-black text-slate-900 text-sm truncate pr-2">{b.contact?.name || 'Guest'}</div>
-                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">{b.date}</div>
-                        </div>
-                        <div className="font-bold text-sm text-slate-700 mb-2 truncate">{b.serviceType}</div>
-                        <div className="flex items-center text-[10px] font-bold text-slate-500 truncate">
-                          <MapPin className="w-3 h-3 mr-1 shrink-0" />
-                          <span className="truncate">{b.address.city}, {b.address.postcode}</span>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-
-              {/* Right Panel: Assignment Details */}
-              <div className="flex-1 bg-white rounded-[2rem] shadow-sm border border-slate-100/50 flex flex-col overflow-hidden relative min-h-[420px]">
-                {selectedBookingForAssignment ? (
-                  <>
-                    <div className="p-5 sm:p-8 border-b border-slate-100">
-                      <div className="flex justify-between items-start mb-6">
-                        <div>
-                          <h2 className="text-2xl font-black text-slate-900 mb-1">{selectedBookingForAssignment.serviceType}</h2>
-                          <div className="text-sm font-bold text-slate-500">{selectedBookingForAssignment.contact?.name} • REF: {selectedBookingForAssignment.id}</div>
-                        </div>
-                        <div className="px-4 py-2 bg-amber-50 rounded-xl border border-amber-100">
-                          <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest block mb-0.5">Scheduled</div>
-                          <div className="text-sm font-black text-amber-700">{selectedBookingForAssignment.date} at {selectedBookingForAssignment.time}</div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
-                        <div className="p-4 bg-slate-50 rounded-2xl">
-                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Property Layout</div>
-                          <div className="text-sm font-bold text-slate-700">
-                            {selectedBookingForAssignment.propertyDetails?.bedrooms} Bed, {selectedBookingForAssignment.propertyDetails?.bathrooms} Bath
-                          </div>
-                        </div>
-                        <div className="p-4 bg-slate-50 rounded-2xl">
-                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Address Location</div>
-                          <div className="text-sm font-bold text-slate-700 truncate">
-                            {selectedBookingForAssignment.address.line1}, {selectedBookingForAssignment.address.city}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-5 sm:p-8 flex-1 overflow-y-auto no-scrollbar bg-slate-50/30">
-                      <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4">Available Cleaners</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {staffList.filter(s => s.role === 'Cleaner' || s.role === 'Staff').map(staff => {
-                          const isAssigned =
-                            selectedBookingForAssignment.assignedStaffId === staff.id ||
-                            (selectedBookingForAssignment.assignedStaffIds && selectedBookingForAssignment.assignedStaffIds.includes(staff.id));
-
-                          return (
-                            <div
-                              key={staff.id}
-                              onClick={() => {
-                                // Provide a small quick assign logic for this mockup wrapper
-                                handleAssignStaff(staff.id.toString());
-                              }}
-                              className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between group ${isAssigned ? 'bg-green-50 border-green-500 shadow-md ring-2 ring-green-500/20' : 'bg-white border-slate-200 hover:border-blue-400 hover:shadow-sm'}`}
-                            >
-                              <div className="flex items-center space-x-3">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm ${isAssigned ? 'bg-green-200 text-green-800' : 'bg-slate-100 text-slate-500'}`}>
-                                  {staff.name.charAt(0)}
-                                </div>
-                                <div>
-                                  <div className={`font-black text-sm ${isAssigned ? 'text-green-900' : 'text-slate-900'}`}>{staff.name}</div>
-                                  <div className={`text-[10px] font-bold ${isAssigned ? 'text-green-600' : 'text-slate-400'}`}>£{staff.hourlyRate}/hr</div>
-                                </div>
-                              </div>
-                              <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isAssigned ? 'bg-green-500 text-white' : 'bg-slate-100 text-slate-300 group-hover:bg-blue-100 group-hover:text-blue-600'}`}>
-                                {isAssigned ? <CheckCircle2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-5 sm:p-8 text-center">
-                    <UserCheck className="w-16 h-16 text-slate-200 mb-4" />
-                    <h4 className="text-xl font-black text-slate-900 mb-2">No Job Selected</h4>
-                    <p className="text-sm font-medium">Select a pending job from the list to view details and assign staff members to the dispatch queue.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <JobAssignmentPanel
+            bookings={bookings}
+            staffList={staffList}
+            services={services}
+            extras={extraServices}
+            conflicts={staffScheduleConflicts}
+            onSaveTeam={handleSaveTeam}
+            onOpenBooking={setReviewBooking}
+          />
         )}
 
         {activeTab === 'rota' && (
