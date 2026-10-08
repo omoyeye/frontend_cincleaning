@@ -83,6 +83,10 @@ const InvoiceView: React.FC<Props> = ({
     const totalHours = getBookingDurationHours(booking, serviceConfig ?? null, extrasConfig);
     const durationBreakdown = getDurationBreakdown(booking, serviceConfig ?? null, extrasConfig);
     const callOutCharge = getCallOutChargeGbp(booking, serviceConfig ?? null);
+    /** Rate stored on the booking when it was made (London/standard); older bookings fall back to the service rate. */
+    const storedRate = Number(booking.hourlyRate);
+    const chargedHourlyRate =
+        Number.isFinite(storedRate) && storedRate > 0 ? storedRate : Number(serviceConfig?.baseRate || 0);
     const payoutBankDetails = getPayoutBankDetailsForInvoice(bankDetails);
     const depositPercent = Number.isFinite(Number(depositPolicy?.requiredPercent))
         ? Math.min(100, Math.max(0, Number(depositPolicy?.requiredPercent)))
@@ -237,7 +241,7 @@ const InvoiceView: React.FC<Props> = ({
                                 £
                                 {durationBreakdown.model === 'itemized'
                                     ? '0.00'
-                                    : Number(serviceConfig?.baseRate || 0).toFixed(2)}
+                                    : chargedHourlyRate.toFixed(2)}
                             </td>
                         </tr>
                         {booking.extras?.map((extraItem) => {

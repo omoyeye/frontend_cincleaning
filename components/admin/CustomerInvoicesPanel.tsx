@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Plus, Search, Send, Edit2, Trash2, X, ChevronRight, FileText,
   Mail, Phone, AlertCircle, CheckCircle2, Clock, Ban, Eye, ChevronDown, CreditCard, Copy, Link,
+  StickyNote, Lock,
 } from 'lucide-react';
 import { apiAdmin } from '../../services/api';
 import type { Booking, ServiceConfig, Extra } from '../../types';
@@ -29,7 +30,10 @@ interface CustomerInvoice {
   vatAmount: string;
   total: string;
   status: string;
+  /** Shown to the customer on the invoice and email. */
   notes: string | null;
+  /** Private, admin-only. */
+  adminNotes?: string | null;
   dueDate: string | null;
   paidAt: string | null;
   sentAt: string | null;
@@ -75,9 +79,20 @@ const emptyForm = () => ({
   items: [emptyItem()] as LineItem[],
   vatRate: 20,
   notes: '',
+  adminNotes: '',
   dueDate: '',
   status: 'draft',
 });
+
+/** One-tap phrases for the customer note; tapping adds the line to the note. */
+const NOTE_SUGGESTIONS = [
+  'Payment due within 7 days.',
+  'Please use the invoice number as your payment reference.',
+  'Thank you for choosing us!',
+  'Please leave the keys with reception.',
+];
+
+const NOTE_MAX = 2000;
 
 type FormData = ReturnType<typeof emptyForm>;
 
@@ -212,6 +227,7 @@ export default function CustomerInvoicesPanel({ invoices, bookings, services, ex
       items: (inv.items && inv.items.length > 0) ? inv.items : [emptyItem()],
       vatRate: Number(inv.vatRate) || 20,
       notes: inv.notes || '',
+      adminNotes: inv.adminNotes || '',
       dueDate: inv.dueDate || '',
       status: inv.status,
     });
@@ -236,7 +252,8 @@ export default function CustomerInvoicesPanel({ invoices, bookings, services, ex
         vatRate: form.vatRate,
         vatAmount,
         total,
-        notes: form.notes || null,
+        notes: form.notes.trim() || null,
+        adminNotes: form.adminNotes.trim() || null,
         dueDate: form.dueDate || null,
         status: form.status,
       };
@@ -257,14 +274,20 @@ export default function CustomerInvoicesPanel({ invoices, bookings, services, ex
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Delete this invoice permanently?')) return;
+  const handleDelete = async (inv: Pick<CustomerInvoice, 'id' | 'invoiceNumber' | 'status' | 'customerName'>) => {
+    const warning =
+      inv.status === 'paid'
+        ? `${inv.invoiceNumber} is marked PAID. Deleting it removes it from your records and the customer's account.\n\nDelete it anyway?`
+        : `Delete invoice ${inv.invoiceNumber} for ${inv.customerName}? This cannot be undone.`;
+    if (!confirm(warning)) return false;
     try {
-      await apiAdmin.deleteCustomerInvoice(id);
-      showFlyer('Invoice deleted', 'success');
+      await apiAdmin.deleteCustomerInvoice(inv.id);
+      showFlyer(`Invoice ${inv.invoiceNumber} deleted`, 'success');
       onRefresh();
+      return true;
     } catch (e) {
-      showFlyer('Failed to delete invoice', 'error');
+      showFlyer(e instanceof Error ? e.message : 'Failed to delete invoice', 'error');
+      return false;
     }
   };
 
@@ -434,6 +457,20 @@ export default function CustomerInvoicesPanel({ invoices, bookings, services, ex
                     <td className="px-5 py-3.5">
                       <div className="font-semibold text-slate-800">{inv.customerName}</div>
                       {inv.customerEmail && <div className="text-xs text-slate-400">{inv.customerEmail}</div>}
+                      {(inv.notes || inv.adminNotes) && (
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {inv.notes && (
+                            <span title={inv.notes} className="inline-flex max-w-[16rem] items-center gap-1 rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-700">
+                              <StickyNote className="w-3 h-3 shrink-0" /> <span className="truncate">{inv.notes}</span>
+                            </span>
+                          )}
+                          {inv.adminNotes && (
+                            <span title={inv.adminNotes} className="inline-flex max-w-[16rem] items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                              <Lock className="w-3 h-3 shrink-0" /> <span className="truncate">{inv.adminNotes}</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-5 py-3.5 text-slate-500 hidden md:table-cell">
                       {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString('en-GB') : '—'}
@@ -489,8 +526,9 @@ export default function CustomerInvoicesPanel({ invoices, bookings, services, ex
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleDelete(inv.id)}
-                          title="Delete"
+                          onClick={() => void handleDelete(inv)}
+                          title="Delete invoice"
+                          aria-label={`Delete invoice ${inv.invoiceNumber}`}
                           className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -723,18 +761,71 @@ export default function CustomerInvoicesPanel({ invoices, bookings, services, ex
               </div>
 
               {/* Notes */}
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Notes</label>
+              <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label htmlFor="invoice-customer-note" className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                    <StickyNote className="w-3.5 h-3.5 text-blue-600" /> Note / instructions for the customer
+                  </label>
+                  <span className="text-[10px] font-bold text-slate-400">{form.notes.length}/{NOTE_MAX}</span>
+                </div>
+                <p className="text-[11px] text-slate-500">Printed on the invoice and in the invoice email.</p>
                 <textarea
+                  id="invoice-customer-note"
                   value={form.notes}
+                  maxLength={NOTE_MAX}
                   onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+                  rows={3}
+                  placeholder="e.g. Payment due within 7 days. Please use the invoice number as your reference."
+                  className="w-full px-3 py-2 border border-slate-200 bg-white rounded-xl text-sm focus:ring-2 focus:ring-blue-500"
+                />
+                <div className="flex flex-wrap gap-1.5">
+                  {NOTE_SUGGESTIONS.map((line) => (
+                    <button
+                      key={line}
+                      type="button"
+                      disabled={form.notes.includes(line)}
+                      onClick={() =>
+                        setForm((p) => ({ ...p, notes: (p.notes.trim() ? `${p.notes.trim()}\n${line}` : line).slice(0, NOTE_MAX) }))
+                      }
+                      className="rounded-lg border border-blue-200 bg-white px-2 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-40"
+                    >
+                      + {line}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4 space-y-2">
+                <label htmlFor="invoice-admin-note" className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                  <Lock className="w-3.5 h-3.5 text-amber-600" /> Private note (admin only)
+                </label>
+                <p className="text-[11px] text-slate-500">Never shown to the customer. Use it for reminders, e.g. why a discount was given.</p>
+                <textarea
+                  id="invoice-admin-note"
+                  value={form.adminNotes}
+                  maxLength={NOTE_MAX}
+                  onChange={(e) => setForm((p) => ({ ...p, adminNotes: e.target.value }))}
                   rows={2}
-                  placeholder="Payment terms, special instructions..."
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 resize-none"
+                  placeholder="e.g. Agreed 10% off by phone, chase on Friday."
+                  className="w-full px-3 py-2 border border-slate-200 bg-white rounded-xl text-sm focus:ring-2 focus:ring-amber-500"
                 />
               </div>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
+              {editingId && (() => {
+                const current = invoices.find((i) => i.id === editingId);
+                return current ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (await handleDelete(current)) setShowForm(false);
+                    }}
+                    className="mr-auto inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-red-600 rounded-xl hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete invoice
+                  </button>
+                ) : null;
+              })()}
               <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800">
                 Cancel
               </button>

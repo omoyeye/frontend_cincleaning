@@ -14,6 +14,9 @@ import {
     PaymentFeeEvidencePayload,
     BookingTracking,
     LateNotice,
+    StaffAssessment,
+    QuoteLead,
+    QuoteLeadStatus,
 } from '../types';
 
 /** Maps `/api/login` user JSON into a `UserAccount` for the customer portal (cookie auth; body is untyped). */
@@ -113,10 +116,13 @@ function normalizeServiceConfig(r: Record<string, unknown>): ServiceConfig {
         }
     }
     const bookingFlow = parseBookingFlow(r.bookingFlow);
+    const londonRateRaw = r.londonRate;
+    const londonRateNum = londonRateRaw == null || londonRateRaw === '' ? NaN : Number(londonRateRaw);
     return {
         id: String(r.id ?? ''),
         name: String(r.name ?? ''),
         baseRate: Number.isFinite(baseRate) ? baseRate : 0,
+        londonRate: Number.isFinite(londonRateNum) && londonRateNum > 0 ? londonRateNum : null,
         pricingModel: (r.pricingModel as ServiceConfig['pricingModel']) || 'hourly',
         minDuration: Number(r.minDuration) || 2,
         minNotice: Number(r.minNotice) || 2,
@@ -1159,6 +1165,22 @@ function createRealmApi(realm: AuthRealm) {
             });
             if (!res.ok) throw new Error('Failed to update invoice status');
         },
+        /** Add or change the admin note on a staff invoice without changing its status. */
+        updateStaffInvoiceNote: async (id: number, notes: string) => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/invoices/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', ...H() },
+                body: JSON.stringify({ adminNotes: notes }),
+            });
+            if (!res.ok) throw new Error('Failed to save the note');
+        },
+        deleteStaffInvoice: async (id: number) => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/invoices/${id}`, {
+                method: 'DELETE',
+                headers: { ...H() },
+            });
+            if (!res.ok) throw new Error('Failed to delete the staff invoice');
+        },
         // ── Customer Invoices ──
         getCustomerInvoices: async () => {
             const res = await fetchWithNetworkHint(realm, `${API_URL}/customer-invoices`, { headers: { ...H() } });
@@ -1496,6 +1518,64 @@ export const apiAdmin = {
             headers: { ...authHeader('admin') },
         });
         return handleAdminJson(res, 'Failed to run reminders');
+    },
+
+    getStaffAssessments: async (staffId: number): Promise<StaffAssessment[]> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/staff/${staffId}/assessments`, {
+            headers: { ...authHeader('admin') },
+        });
+        return handleAdminJson(res, 'Failed to load assessments');
+    },
+
+    createStaffAssessment: async (
+        staffId: number,
+        body: {
+            rating: number;
+            punctuality?: number | null;
+            quality?: number | null;
+            professionalism?: number | null;
+            remark: string;
+            bookingId?: number | null;
+        },
+    ): Promise<{ id: number }> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/staff/${staffId}/assessments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader('admin') },
+            body: JSON.stringify(body),
+        });
+        return handleAdminJson(res, 'Failed to save assessment');
+    },
+
+    deleteStaffAssessment: async (id: number): Promise<void> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/staff-assessments/${id}`, {
+            method: 'DELETE',
+            headers: { ...authHeader('admin') },
+        });
+        await handleAdminJson(res, 'Failed to delete assessment');
+    },
+
+    getQuoteLeads: async (): Promise<QuoteLead[]> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/quote-leads`, {
+            headers: { ...authHeader('admin') },
+        });
+        return handleAdminJson(res, 'Failed to load quote requests');
+    },
+
+    updateQuoteLead: async (id: number, body: { status?: QuoteLeadStatus; adminNotes?: string }): Promise<void> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/quote-leads/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', ...authHeader('admin') },
+            body: JSON.stringify(body),
+        });
+        await handleAdminJson(res, 'Failed to update quote request');
+    },
+
+    deleteQuoteLead: async (id: number): Promise<void> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/quote-leads/${id}`, {
+            method: 'DELETE',
+            headers: { ...authHeader('admin') },
+        });
+        await handleAdminJson(res, 'Failed to delete quote request');
     },
 
     getLiveTracking: async (): Promise<BookingTracking[]> => {

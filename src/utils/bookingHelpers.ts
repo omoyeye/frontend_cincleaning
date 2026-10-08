@@ -426,6 +426,32 @@ export function bookingHasStaff(b: Booking): boolean {
   return !!(b.assignedStaffId || (b.assignedStaffIds && b.assignedStaffIds.length > 0));
 }
 
+/**
+ * A cleaner's pay for one job, the same rule as staff invoices and the staff portal:
+ * booked hours for the job, split between the cleaners on it, times the cleaner's hourly rate.
+ */
+export function staffJobPay(
+  booking: Partial<Booking>,
+  hourlyRate: number | string | null | undefined,
+  serviceConfig: ServiceConfig | null,
+  extrasList: Extra[],
+): { bookedHours: number; staffCount: number; yourHours: number; pay: number } {
+  let bookedHours = 0;
+  try {
+    const h = getBookingDurationHours(booking, serviceConfig, extrasList);
+    if (Number.isFinite(h) && h > 0) bookedHours = h;
+  } catch {
+    // malformed legacy payloads fall through to the stored duration
+  }
+  if (!bookedHours) {
+    const fallback = Number(booking.duration ?? booking.propertyDetails?.duration);
+    bookedHours = Number.isFinite(fallback) && fallback > 0 ? fallback : 2;
+  }
+  const staffCount = getAssignedStaffCount(booking as Booking);
+  const yourHours = bookedHours / staffCount;
+  return { bookedHours, staffCount, yourHours, pay: yourHours * (Number(hourlyRate) || 0) };
+}
+
 /** How many staff are assigned (multi-assign table + legacy single id). Minimum 1. */
 export function getAssignedStaffCount(booking: Pick<Booking, 'assignedStaffId' | 'assignedStaffIds'>): number {
   const ids = Array.isArray(booking.assignedStaffIds) ? booking.assignedStaffIds : [];

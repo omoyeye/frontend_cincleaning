@@ -9,6 +9,7 @@ import {
   resolveBookingFlowSteps,
 } from '../src/utils/bookingHelpers';
 import styles from './QuoteWidget.module.css';
+import { calculateHourlyPrice, hourlyRateFor, londonRateOf, lookupPricingRegion, type PricingRegion } from '../src/utils/pricing';
 
 function resolveAirbnbDuration(bedrooms: number): number {
   if (!Number.isFinite(bedrooms) || bedrooms < 1) return 0;
@@ -66,6 +67,7 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [postcode, setPostcode] = useState('');
+  const [pricingRegion, setPricingRegion] = useState<PricingRegion | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [resultPrice, setResultPrice] = useState<number | null>(null);
@@ -168,6 +170,17 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
       calculated = 0;
     } else if (isAirBnB) {
       calculated = baseRate * resolveAirbnbDuration(bedrooms);
+    } else if (trig === 'standard') {
+      calculated = calculateHourlyPrice({
+        hourlyRate: hourlyRateFor(selectedService, pricingRegion),
+        hours: duration || 2,
+        extras: selectedExtras
+          .map((item) => {
+            const ex = extrasList.find((e) => e.id === item.id);
+            return ex ? { price: ex.price, quantity: item.quantity } : null;
+          })
+          .filter(Boolean) as Array<{ price: number; quantity: number }>,
+      }).total;
     } else if (isGeneral) {
       calculated = baseRate * (duration || 2);
       const extrasCost = selectedExtras.reduce((sum, item) => {
@@ -187,7 +200,26 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
     }
 
     return { subtotal: calculated, grandTotal: calculated };
-  }, [selectedService, trig, bedrooms, duration, selectedExtras, extrasList]);
+  }, [selectedService, trig, bedrooms, duration, selectedExtras, extrasList, pricingRegion]);
+
+  // Pricing region from the (optional) postcode: London postcodes use the London hourly rate.
+  useEffect(() => {
+    const pc = postcode.trim();
+    if (!pc || !UK_POSTCODE.test(pc)) {
+      setPricingRegion(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      lookupPricingRegion(pc).then((r) => {
+        if (!cancelled) setPricingRegion(r?.region ?? null);
+      });
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [postcode]);
 
   // ── Navigation ──
 
@@ -410,7 +442,10 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
                     const t = getServiceTrigger(svc);
                     if (t === 'commercial' || t === 'jet_washing') return 'Quote based';
                     if (t === 'deep' || t === 'end_of_tenancy') return `From £${resolveDeepEotCallOutChargeGbp(svc)}`;
-                    return `£${Number(svc.baseRate).toFixed(0)}/hr`;
+                    const london = t === 'standard' ? londonRateOf(svc) : null;
+                    return london !== null
+                      ? `£${Number(svc.baseRate).toFixed(0)}/hr · London £${london.toFixed(0)}/hr`
+                      : `£${Number(svc.baseRate).toFixed(0)}/hr`;
                   })()}
                 </span>
               </button>
@@ -654,9 +689,14 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
             <input type="tel" className={styles.formInput} value={phone} onChange={e => setPhone(e.target.value)} placeholder="07xxx xxxxxx" autoComplete="tel" />
           </div>
           <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Postcode <span className={styles.optional}>(optional)</span></label>
+            <label className={styles.formLabel}>Postcode <span className={styles.optional}>(optional, sets your area's hourly rate)</span></label>
             <input type="text" className={styles.formInput} value={postcode} onChange={e => setPostcode(e.target.value)} placeholder="e.g. E1 6AN" autoComplete="postal-code" />
             {postcode.trim() && !postcodeOk && <div className={`${styles.postcodeMsg} ${styles.postcodeBad}`}>Please check your postcode.</div>}
+            {trig === 'standard' && selectedService && londonRateOf(selectedService) !== null && postcodeOk && pricingRegion && (
+              <div className={styles.postcodeMsg}>
+                {pricingRegion === 'london' ? 'London postcode' : 'Your area'}: £{hourlyRateFor(selectedService, pricingRegion).toFixed(2)} per hour
+              </div>
+            )}
           </div>
 
           {/* Summary before submit */}

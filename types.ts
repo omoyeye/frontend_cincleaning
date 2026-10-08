@@ -133,6 +133,10 @@ export interface Booking {
   assignedStaffIds?: number[];
   /** Last GPS fix from the assigned cleaner while travelling / on site. */
   cleanerLocation?: CleanerLocation | null;
+  /** Pricing region worked out from the postcode at booking time. */
+  priceRegion?: 'london' | 'standard' | null;
+  /** Hourly rate actually charged (hourly services). */
+  hourlyRate?: number | string | null;
   /** ISO time the cleaner tapped "Start travel". */
   enRouteAt?: string | null;
   lateNotices?: LateNotice[] | null;
@@ -250,6 +254,8 @@ export interface ServiceConfig {
   id: string;
   name: string;
   baseRate: number;
+  /** Hourly rate for Greater London postcodes (Standard cleaning); null = baseRate everywhere. */
+  londonRate?: number | null;
   pricingModel?: 'hourly' | 'flat' | 'size_based' | 'room_based' | 'bedroom_based' | 'quote';
   features?: string[];
   minDuration: number;
@@ -291,6 +297,51 @@ export interface Staff {
   bankName?: string;
   accountNumber?: string;
   sortCode?: string;
+  userId?: number | null;
+  skills?: string[] | null;
+  /** Admin view only: when the cleaner's login account was created. */
+  joinedAt?: string | null;
+}
+
+/** Supervisor / admin on-the-job assessment of a cleaner. */
+export interface StaffAssessment {
+  id: number;
+  staffId: number;
+  bookingId: number | null;
+  assessorName: string;
+  rating: number;
+  punctuality: number | null;
+  quality: number | null;
+  professionalism: number | null;
+  remark: string;
+  createdAt: string | null;
+  booking: { id: number; bookingId: string | null; date: string; clientName: string } | null;
+}
+
+export type QuoteLeadStatus = 'new' | 'contacted' | 'converted' | 'lost';
+
+/** A free-quote request from the homepage quote widget. */
+export interface QuoteLead {
+  id: number;
+  firstName: string | null;
+  email: string;
+  phone: string | null;
+  postcode: string | null;
+  /** 'Pending' means the visitor left contact details but never finished the quote. */
+  serviceType: string;
+  bedrooms: string | null;
+  bathrooms: string | null;
+  priceEstimate: string | null;
+  status: QuoteLeadStatus;
+  brevoSynced: boolean;
+  adminNotes: string | null;
+  statusUpdatedAt: string | null;
+  createdAt: string | null;
+  /** First booking made with the same email after the quote, if any. */
+  matchedBooking: { id: number; bookingId: string | null; date: string; status: string | null; totalPrice: string | null } | null;
+  bookingsAfterQuote: number;
+  /** Earlier bookings with the same email: an existing customer asking again. */
+  bookingsBeforeQuote: number;
 }
 
 export interface RotaAssignment {

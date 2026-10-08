@@ -24,6 +24,7 @@ import {
   getBookingStaffIds,
   getTodayYYYYMMDD,
   getExtraDisplayLabel,
+  staffJobPay,
 } from '../src/utils/bookingHelpers';
 import { interpolateTemplate } from '../src/utils/interpolateTemplate';
 import { DurationBreakdownBlock } from './DurationBreakdownBlock';
@@ -1005,11 +1006,8 @@ const StaffPortal: React.FC<{
     const { start: weekStart, end: weekEnd } = getLocalWeekMondayToSundayRange();
 
     const mapRow = (j: Booking) => {
-      const staffCount = getAssignedStaffCount(j);
       const svc = serviceCatalog.find((s) => String(s.id) === String(j.serviceType) || s.name === j.serviceType);
-      const bookedHours = safeGetBookingDurationHours(j, svc ?? null, extraServices);
-      const yourHours = bookedHours / staffCount;
-      const yourShare = yourHours * hourlyRate;
+      const { bookedHours, staffCount, yourHours, pay: yourShare } = staffJobPay(j, hourlyRate, svc ?? null, extraServices);
       return {
         id: j.id,
         customer: j.contact?.name || 'Guest',

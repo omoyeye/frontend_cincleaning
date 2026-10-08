@@ -1335,6 +1335,13 @@ const CustomerPortal: React.FC<Props> = ({
                               </div>
                             </div>
 
+                            {inv.notes && String(inv.notes).trim() && (
+                              <div className="mt-4 rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Note from us</p>
+                                <p className="text-sm font-medium text-slate-700 mt-1 whitespace-pre-line break-words">{inv.notes}</p>
+                              </div>
+                            )}
+
                             {inv.status !== 'paid' && inv.stripePaymentUrl && (
                               <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
                                 <a

@@ -51,6 +51,7 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
     const { showFlyer } = useFlyer();
     const [name, setName] = useState(service.name);
     const [baseRate, setBaseRate] = useState(service.baseRate.toString());
+    const [londonRate, setLondonRate] = useState(service.londonRate != null && Number(service.londonRate) > 0 ? String(service.londonRate) : '');
     const [pricingModel, setPricingModel] = useState<ServiceConfig['pricingModel']>(service.pricingModel || 'hourly');
     const [minDuration, setMinDuration] = useState(String(service.minDuration ?? 2));
     const [minNotice, setMinNotice] = useState(String(service.minNotice ?? 2));
@@ -68,6 +69,7 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
     useEffect(() => {
         setName(service.name);
         setBaseRate(service.baseRate.toString());
+        setLondonRate(service.londonRate != null && Number(service.londonRate) > 0 ? String(service.londonRate) : '');
         setPricingModel(service.pricingModel || 'hourly');
         setMinDuration(String(service.minDuration ?? 2));
         setMinNotice(String(service.minNotice ?? 2));
@@ -80,7 +82,7 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
         setTrigger(getServiceTrigger(service));
         setFlowSteps(resolveBookingFlowSteps(service));
         setPricingHelpOpen(false);
-    }, [service.id, service.name, service.baseRate, service.pricingModel, service.minDuration, service.minNotice, service.callOutCharge, service.description, service.icon, service.active, service.bookingFlow]);
+    }, [service.id, service.name, service.baseRate, service.londonRate, service.pricingModel, service.minDuration, service.minNotice, service.callOutCharge, service.description, service.icon, service.active, service.bookingFlow]);
 
     const toggleStep = (key: WizardStepKey) => {
         setFlowSteps((prev) => {
@@ -112,6 +114,17 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
             return;
         }
 
+        const lrTrim = londonRate.trim();
+        let londonRatePayload: number | null = null;
+        if (trigger === 'standard' && lrTrim !== '') {
+            const lr = parseFloat(lrTrim);
+            if (!Number.isFinite(lr) || lr <= 0) {
+                showFlyer('London rate must be a positive number, or leave it blank to charge the base rate in London too.', 'error');
+                return;
+            }
+            londonRatePayload = lr;
+        }
+
         const coTrim = callOutCharge.trim();
         let callOutPayload: number | null;
         if (coTrim === '') {
@@ -130,6 +143,7 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
             await apiAdmin.updateService(service.id, {
                 name: name.trim(),
                 baseRate: rate,
+                londonRate: londonRatePayload,
                 pricingModel,
                 minDuration: d,
                 minNotice: n,
@@ -193,6 +207,24 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
                                 required
                             />
                         </div>
+
+                        {trigger === 'standard' && (
+                            <div className="space-y-3">
+                                <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">London hourly rate (£)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={londonRate}
+                                    onChange={e => setLondonRate(e.target.value)}
+                                    placeholder="Same as base rate"
+                                    className="w-full bg-card border-2 border-input rounded-2xl p-5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 font-bold text-lg text-foreground transition-all shadow-inner"
+                                />
+                                <p className="text-xs text-slate-500 font-medium ml-1">
+                                    Charged for Greater London postcodes (all 32 boroughs). Everywhere else, including Manchester, uses the base rate. Leave blank to use the base rate in London too.
+                                </p>
+                            </div>
+                        )}
 
                         <div className="space-y-3">
                             <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Pricing Model</label>

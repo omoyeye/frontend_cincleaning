@@ -27,6 +27,13 @@ import BookingConfirmation from './BookingConfirmation';
 import { Booking, BookingStatus, PropertyDetails, UserAccount, ServiceConfig, Extra, WizardStepKey } from '../types';
 import { apiClient } from '../services/api';
 import {
+  calculateHourlyPrice,
+  hourlyRateFor,
+  londonRateOf,
+  lookupPricingRegion,
+  type PricingRegion,
+} from '../src/utils/pricing';
+import {
   computeBookedDurationHours,
   getDurationBreakdown,
   isDeepOrEOTService,
@@ -177,6 +184,9 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
   const [postcodeVerified, setPostcodeVerified] = useState(false);
   const [postcodeVerifying, setPostcodeVerifying] = useState(false);
   const [postcodeVerifyMsg, setPostcodeVerifyMsg] = useState<string>('');
+  /** Pricing region from the property postcode (London rate applies inside Greater London). */
+  const [pricingRegion, setPricingRegion] = useState<PricingRegion | null>(null);
+  const [regionChecking, setRegionChecking] = useState(false);
 
   // Discount State
   const [discountCode, setDiscountCode] = useState('');
@@ -196,6 +206,16 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
     [serviceId, availableServices]
   );
 
+  /** Standard cleans with a London rate need the postcode before a price can be shown. */
+  const isStandardService = Boolean(selectedService) && getServiceTrigger(selectedService) === 'standard';
+  const usesRegionalRate = isStandardService && londonRateOf(selectedService) !== null;
+  const effectiveHourlyRate = selectedService
+    ? isStandardService
+      ? hourlyRateFor(selectedService, pricingRegion)
+      : Number(selectedService.baseRate) || 0
+    : 0;
+  const regionReady = !usesRegionalRate || (pricingRegion !== null && !regionChecking);
+
   useEffect(() => {
     if (!serviceId) return;
     const stillAvailable = availableServices.some((s) => String(s.id) === String(serviceId));
@@ -210,6 +230,29 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
     }
     setPostcodeVerified(false);
     setPostcodeVerifyMsg('');
+  }, [address.postcode]);
+
+  // Work out the pricing region whenever the postcode changes (debounced; ignores stale replies).
+  useEffect(() => {
+    const normalized = normalizeUkPostcode(address.postcode);
+    if (!isPlausibleUkPostcode(normalized)) {
+      setPricingRegion(null);
+      setRegionChecking(false);
+      return;
+    }
+    let cancelled = false;
+    setRegionChecking(true);
+    const timer = setTimeout(() => {
+      lookupPricingRegion(normalized).then((result) => {
+        if (cancelled) return;
+        setPricingRegion(result?.region ?? null);
+        setRegionChecking(false);
+      });
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [address.postcode]);
 
   /** Admin-configured optional step keys (e.g. ['details','schedule','location','requirements']). */
@@ -518,6 +561,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
         totalAfterDiscount: 0,
         tipAmount: 0,
         grandTotal: 0,
+        base: undefined as number | undefined,
       };
     }
 
@@ -525,9 +569,34 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
     let calculated = 0;
 
     const trig = getServiceTrigger(selectedService);
+
+    // Standard cleans: shared pence-exact calculation (same function the API uses to verify the total).
+    if (trig === 'standard') {
+      const p = calculateHourlyPrice({
+        hourlyRate: effectiveHourlyRate,
+        hours: duration || 2,
+        extras: selectedExtras
+          .map((item) => {
+            const extra = extras.find((e) => e.id === item.id);
+            return extra ? { price: extra.price, quantity: item.quantity } : null;
+          })
+          .filter(Boolean) as Array<{ price: number; quantity: number }>,
+        cleaningMaterials,
+        discount: appliedDiscount ? { type: appliedDiscount.type, value: appliedDiscount.value } : null,
+        tip: tipPercent === -1 ? { amount: Number(customTip) || 0 } : { percent: tipPercent },
+      });
+      return {
+        calculatedSubtotal: p.subtotal,
+        discountAmount: p.discount,
+        totalAfterDiscount: p.afterDiscount,
+        tipAmount: p.tip,
+        grandTotal: p.total,
+        base: p.base,
+      };
+    }
+
     const isAirBnB = trig === 'airbnb';
     const isCommercialOrJet = trig === 'commercial' || trig === 'jet_washing';
-    const isGeneral = trig === 'standard';
     const isDeepOrEOT = trig === 'deep' || trig === 'end_of_tenancy';
 
     if (isCommercialOrJet) {
@@ -535,16 +604,6 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
     } else if (isAirBnB) {
       const airbnbHours = resolveAirbnbDurationFromBedrooms(Number(propertyDetails.bedrooms));
       calculated = baseRate * airbnbHours;
-    } else if (isGeneral) {
-      calculated = baseRate * (duration || 2);
-      const extrasCost = selectedExtras.reduce((sum, item) => {
-        const extra = extras.find(e => e.id === item.id);
-        if (!extra) return sum;
-        return sum + (Number(extra.price) * item.quantity);
-      }, 0);
-      calculated += extrasCost;
-      const materialsCost = cleaningMaterials === 'hoover_and_materials' ? 6 : cleaningMaterials === 'hoover_only' ? 3 : 0;
-      calculated += materialsCost;
     } else if (isDeepOrEOT) {
       const callOutGbp = resolveDeepEotCallOutChargeGbp(selectedService);
       const extrasCost = selectedExtras.reduce((sum, item) => {
@@ -576,10 +635,31 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
       totalAfterDiscount,
       tipAmount,
       grandTotal,
+      base: undefined as number | undefined,
     };
-  }, [selectedService, serviceId, propertyDetails, selectedExtras, tipPercent, customTip, extras, duration, appliedDiscount, cleaningMaterials]);
+  }, [selectedService, serviceId, propertyDetails, selectedExtras, tipPercent, customTip, extras, duration, appliedDiscount, cleaningMaterials, effectiveHourlyRate]);
 
   const totalPrice = pricing.grandTotal;
+
+  const londonRate = londonRateOf(selectedService);
+  const regionNote = (
+    <p
+      className={`text-xs font-bold ${
+        pricingRegion === 'london' ? 'text-blue-700' : pricingRegion === 'standard' ? 'text-emerald-700' : 'text-slate-500'
+      }`}
+      aria-live="polite"
+    >
+      {regionChecking
+        ? 'Checking your area...'
+        : pricingRegion === 'london'
+          ? `London postcode: £${effectiveHourlyRate.toFixed(2)} per hour`
+          : pricingRegion === 'standard'
+            ? `£${effectiveHourlyRate.toFixed(2)} per hour for this postcode`
+            : `We use your postcode for the right hourly rate: £${(Number(selectedService?.baseRate) || 0).toFixed(2)}/hr${
+                londonRate !== null ? `, London £${londonRate.toFixed(2)}/hr` : ''
+              }.`}
+    </p>
+  );
 
   const showError = (msg: string) => {
     setError(msg);
@@ -596,6 +676,16 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
     }
 
     if (step === 'details' && selectedService) {
+      if (usesRegionalRate) {
+        if (!isPlausibleUkPostcode(normalizeUkPostcode(address.postcode))) {
+          showError('Please enter the property postcode so we can show your exact price.');
+          return false;
+        }
+        if (!regionReady) {
+          showError('Checking your postcode for pricing. Please try again in a moment.');
+          return false;
+        }
+      }
       const trig = getServiceTrigger(selectedService);
       if (trig === 'airbnb' && Number(propertyDetails.bedrooms) < 1) {
         showError('Please select number of bedroom(s) to continue.');
@@ -648,6 +738,10 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
       }
       if (!postcodeVerified) {
         showError('Please verify your postcode before continuing.');
+        return false;
+      }
+      if (!regionReady) {
+        showError('Checking your postcode for pricing. Please try again in a moment.');
         return false;
       }
       if (!isPlausibleBookingPhone(phone)) {
@@ -703,6 +797,10 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
       showError('Please verify your postcode before submitting your booking request.');
       return;
     }
+    if (!regionReady) {
+      showError('Checking your postcode for pricing. Please try again in a moment.');
+      return;
+    }
     if (!isPlausibleBookingPhone(customer.phone)) {
       showError('Please enter a valid phone number (at least 10 digits).');
       return;
@@ -737,7 +835,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
       const discountAmountForServer =
         appliedDiscount && pricing.discountAmount > 0 ? Number(pricing.discountAmount.toFixed(2)) : 0;
 
-      const bookingData: Partial<Booking> & { depositTermsAccepted: boolean; discountAmount?: number } = {
+      const bookingData: Partial<Booking> & { depositTermsAccepted: boolean; discountAmount?: number; tipAmount?: number } = {
         serviceType: selectedService?.name || serviceId!,
         propertyDetails: {
           ...propertyDetails,
@@ -762,6 +860,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
         status: BookingStatus.PENDING,
         discountCode: appliedDiscount?.code,
         discountAmount: discountAmountForServer,
+        tipAmount: Number(pricing.tipAmount.toFixed(2)),
         customerId: currentUser?.id,
         depositTermsAccepted: true,
       };
@@ -1114,6 +1213,24 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
 
                     return (
                       <div className="space-y-6">
+                        {usesRegionalRate && (
+                          <div className="space-y-2">
+                            <label className="text-sm font-black uppercase text-slate-400 tracking-wider">Property postcode</label>
+                            <input
+                              type="text"
+                              value={address.postcode}
+                              onChange={(e) => {
+                                const postcode = e.target.value.toUpperCase();
+                                setAddress((prev) => ({ ...prev, postcode }));
+                              }}
+                              placeholder="e.g. E2 7NX or M3 2BW"
+                              autoComplete="postal-code"
+                              className="w-full rounded-2xl border-2 border-slate-200 bg-white p-4 text-lg font-black text-slate-900 outline-none transition-colors focus:border-blue-500"
+                            />
+                            {regionNote}
+                          </div>
+                        )}
+
                         <DropdownField
                           label="Property Size (Informational)"
                           value={propertyDetails.size || 'Studio'}
@@ -1456,6 +1573,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                             Verify with UK postcode dataset before continuing.
                           </p>
                         )}
+                        {usesRegionalRate && regionNote}
                       </div>
                     </div>
                   </div>
@@ -1782,9 +1900,14 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                   <span className="text-sm font-bold text-slate-500">
                     {(() => {
                       const trig = getServiceTrigger(selectedService);
-                      return trig === 'deep' || trig === 'end_of_tenancy'
-                        ? 'Minimum duration (instruction only):'
-                        : 'Base Price:';
+                      if (trig === 'deep' || trig === 'end_of_tenancy') return 'Minimum duration (instruction only):';
+                      if (trig === 'standard') {
+                        const hrs = duration || 2;
+                        return `Base Price (${Number.isInteger(hrs) ? hrs : hrs.toFixed(1)}h × £${effectiveHourlyRate.toFixed(2)}/hr${
+                          pricingRegion === 'london' ? ', London rate' : ''
+                        }):`;
+                      }
+                      return 'Base Price:';
                     })()}
                   </span>
                   <span className="text-sm font-black text-slate-900">
@@ -1795,6 +1918,8 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
 
                       if (trig === 'deep' || trig === 'end_of_tenancy') {
                         return '0.00';
+                      } else if (trig === 'standard' && pricing.base !== undefined) {
+                        return pricing.base.toFixed(2);
                       } else if (trig === 'commercial' || trig === 'jet_washing') {
                         return '0.00 (Quote)';
                       } else if (trig === 'airbnb' || trig === 'standard' || trig === 'custom') {

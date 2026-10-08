@@ -300,17 +300,17 @@ const BookingReviewModal: React.FC<Props> = ({ booking, services, extras, onClos
                                 <div className="space-y-4">
                                     <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1 border-b border-slate-100 pb-2">Property Specifications (Level 2)</h3>
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                        <DetailBox label="Bedrooms" value={liveBooking.propertyDetails.bedrooms.toString()} />
-                                        <DetailBox label="Bathrooms" value={liveBooking.propertyDetails.bathrooms.toString()} />
+                                        <DetailBox label="Bedrooms" value={countLabel(liveBooking.propertyDetails?.bedrooms)} />
+                                        <DetailBox label="Bathrooms" value={countLabel(liveBooking.propertyDetails?.bathrooms)} />
                                         <DetailBox
                                             label="Clockroom Toilets"
-                                            value={String(liveBooking.propertyDetails.clockRoomToilets ?? liveBooking.propertyDetails.toilets)}
+                                            value={countLabel(liveBooking.propertyDetails?.clockRoomToilets ?? liveBooking.propertyDetails?.toilets)}
                                         />
-                                        <DetailBox label="Living Rooms" value={liveBooking.propertyDetails.livingRooms.toString()} />
-                                        <DetailBox label="Kitchens" value={liveBooking.propertyDetails.kitchens.toString()} />
-                                        <DetailBox label="Property Type" value={liveBooking.propertyDetails.propertyType || 'Standard'} />
-                                        <DetailBox label="Surface Type" value={liveBooking.propertyDetails.surfaceType || 'Multi'} />
-                                        <DetailBox label="Sq Ft" value={liveBooking.propertyDetails.sqft > 0 ? `${liveBooking.propertyDetails.sqft} sqft` : 'N/A'} />
+                                        <DetailBox label="Living Rooms" value={countLabel(liveBooking.propertyDetails?.livingRooms)} />
+                                        <DetailBox label="Kitchens" value={countLabel(liveBooking.propertyDetails?.kitchens)} />
+                                        <DetailBox label="Property Type" value={liveBooking.propertyDetails?.propertyType || 'Standard'} />
+                                        <DetailBox label="Surface Type" value={liveBooking.propertyDetails?.surfaceType || 'Multi'} />
+                                        <DetailBox label="Sq Ft" value={Number(liveBooking.propertyDetails?.sqft) > 0 ? `${liveBooking.propertyDetails?.sqft} sqft` : 'N/A'} />
                                     </div>
                                 </div>
 
@@ -482,6 +482,12 @@ const BookingReviewModal: React.FC<Props> = ({ booking, services, extras, onClos
             </div>
         </div>
     );
+};
+
+/** Room counts can be missing on older, mobile or commercial bookings. */
+const countLabel = (value: unknown): string => {
+    const n = Number(value);
+    return value == null || value === '' || !Number.isFinite(n) ? '–' : String(n);
 };
 
 const DetailBox = ({ label, value }: { label: string, value: string }) => (

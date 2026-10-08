@@ -16,6 +16,8 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronsLeft,
+  ChevronDown,
+  ClipboardList,
   ChevronsRight,
   ArrowUpRight,
   ArrowDownRight,
@@ -63,12 +65,14 @@ import {
   RotateCcw,
   Receipt,
 } from 'lucide-react';
-import { Booking, BookingStatus, ServiceConfig, Extra, Staff, Referral, EmailTemplate, SmsTemplate, BusinessSettings, UserAccount, ChatSummary } from '../types';
+import { Booking, BookingStatus, ServiceConfig, Extra, Staff, Referral, EmailTemplate, SmsTemplate, BusinessSettings, UserAccount, ChatSummary, QuoteLead, QuoteLeadStatus } from '../types';
 import { apiAdmin, apiUrl } from '../services/api';
 import { subscribeNnSync } from '../services/realtime';
 import { NotificationBell } from './NotificationBell';
+import QuoteRequestsPanel from './admin/QuoteRequestsPanel';
+import RotaSchedulePanel from './admin/RotaSchedulePanel';
 import { useTheme } from './ThemeProvider';
-import { format, addDays, startOfWeek } from 'date-fns';
+import { format } from 'date-fns';
 import CommunicationCenter from './admin/CommunicationCenter';
 import BookingReviewModal from './admin/ReviewBookingModal';
 import StaffAssignmentModal from './admin/StaffAssignmentModal';
@@ -116,7 +120,7 @@ interface Props {
   currentUser: UserAccount | null;
 }
 
-type AdminTab = 'overview' | 'bookings' | 'assignment' | 'rota' | 'liveMap' | 'staff' | 'staffInvoices' | 'customerInvoices' | 'services' | 'marketing' | 'communication' | 'support' | 'settings' | 'reviews' | 'expenses' | 'performance';
+type AdminTab = 'overview' | 'bookings' | 'quotes' | 'assignment' | 'rota' | 'liveMap' | 'staff' | 'staffInvoices' | 'customerInvoices' | 'services' | 'marketing' | 'communication' | 'support' | 'settings' | 'reviews' | 'expenses' | 'performance';
 
 type SettingsSectionId = 'seo' | 'ai' | 'pricing' | 'website' | 'business' | 'theme' | 'templates' | 'reminders' | 'qrcode';
 type BusinessProfileSubId = 'company' | 'social' | 'payments';
@@ -150,21 +154,6 @@ interface PromoFormState {
   showOnBooking: boolean;
 }
 
-interface QuoteLeadRow {
-  id: number;
-  firstName: string;
-  email: string;
-  phone: string | null;
-  postcode: string | null;
-  serviceType: string;
-  bedrooms: string | null;
-  bathrooms: string | null;
-  priceEstimate: string | null;
-  status: 'new' | 'contacted' | 'converted' | 'lost';
-  brevoSynced: boolean;
-  createdAt: string | null;
-}
-
 const EMPTY_PROMO_FORM: PromoFormState = {
   title: '',
   description: '',
@@ -179,6 +168,7 @@ const EMPTY_PROMO_FORM: PromoFormState = {
 const ADMIN_PERMISSIONABLE_TABS: AdminTab[] = [
   'overview',
   'bookings',
+  'quotes',
   'assignment',
   'rota',
   'staff',
@@ -193,6 +183,36 @@ const ADMIN_PERMISSIONABLE_TABS: AdminTab[] = [
   'communication',
   'support',
   'settings',
+];
+
+/** Human-readable names for menus (also used when granting menu access to other admins). */
+const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
+  overview: 'Dashboard',
+  bookings: 'Bookings',
+  quotes: 'Quote Requests',
+  assignment: 'Job Assignment',
+  rota: 'Rota & Schedule',
+  liveMap: 'Live Map',
+  staff: 'Staffing',
+  staffInvoices: 'Staff invoices',
+  performance: 'Performance',
+  customerInvoices: 'Customer Invoices',
+  expenses: 'Expenses',
+  services: 'Services',
+  marketing: 'Marketing',
+  reviews: 'Reviews',
+  communication: 'Communication',
+  support: 'Chat Oversight',
+  settings: 'Settings',
+};
+
+/** Sidebar sections. Groups can be folded away; the one holding the open page always stays open. */
+const ADMIN_MENU_GROUPS: Array<{ id: string; label: string; tabs: AdminTab[] }> = [
+  { id: 'home', label: '', tabs: ['overview'] },
+  { id: 'jobs', label: 'Jobs & bookings', tabs: ['bookings', 'quotes', 'assignment', 'rota', 'liveMap'] },
+  { id: 'team', label: 'Team', tabs: ['staff', 'staffInvoices', 'performance'] },
+  { id: 'finance', label: 'Finance', tabs: ['customerInvoices', 'expenses'] },
+  { id: 'growth', label: 'Growth', tabs: ['services', 'marketing', 'reviews'] },
 ];
 
 const SETTINGS_NAV: { id: SettingsSectionId; label: string }[] = [
@@ -263,34 +283,6 @@ function isOngoingLiveChat(s: ChatSummary | undefined): boolean {
   return age >= 0 && age < 15 * 60 * 1000;
 }
 
-function rotaBookingCardClasses(status: BookingStatus): {
-  shell: string;
-  time: string;
-  name: string;
-} {
-  switch (status) {
-    case BookingStatus.COMPLETED:
-      return {
-        shell:
-          'bg-amber-50 hover:bg-amber-100 border-amber-200/70 shadow-sm',
-        time: 'text-amber-900',
-        name: 'text-amber-800',
-      };
-    case BookingStatus.CANCELLED:
-      return {
-        shell: 'bg-red-50 hover:bg-red-100 border-red-200/70 shadow-sm',
-        time: 'text-red-800',
-        name: 'text-red-700',
-      };
-    default:
-      return {
-        shell: 'bg-blue-50 hover:bg-blue-100 border-blue-100/50 shadow-sm',
-        time: 'text-blue-600',
-        name: 'text-blue-500',
-      };
-  }
-}
-
 const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, currentUser }) => {
   const { showFlyer } = useFlyer();
   const { settings: themeSettings, updateSettings: updateTheme, saveSettings: saveTheme } = useTheme();
@@ -303,6 +295,23 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
       return false;
     }
   });
+
+  const [foldedMenuGroups, setFoldedMenuGroups] = useState<string[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('nn_admin_menu_groups_folded') || '[]');
+      return Array.isArray(saved) ? saved.filter((x): x is string => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('nn_admin_menu_groups_folded', JSON.stringify(foldedMenuGroups));
+    } catch {
+      /* ignore */
+    }
+  }, [foldedMenuGroups]);
 
   useEffect(() => {
     try {
@@ -392,6 +401,9 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
     topReferrers: [],
   });
   const [invoiceDecisionNotes, setInvoiceDecisionNotes] = useState<Record<number, string>>({});
+  /** Staff invoice whose note is open for editing after it was approved/rejected. */
+  const [editingStaffInvoiceNoteId, setEditingStaffInvoiceNoteId] = useState<number | null>(null);
+  const [savingStaffInvoiceNoteId, setSavingStaffInvoiceNoteId] = useState<number | null>(null);
   const [expandedStaffInvoiceId, setExpandedStaffInvoiceId] = useState<number | null>(null);
   const [staffPayInvoices, setStaffPayInvoices] = useState<Array<{
     id: number;
@@ -517,7 +529,6 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
   const [dashStatsLoading, setDashStatsLoading] = useState(false);
 
   // Rota Tab UI State
-  const [weekOffset, setWeekOffset] = useState(0);
 
   // Marketing Tab UI State
   const [referralFilter, setReferralFilter] = useState('All Select');
@@ -528,7 +539,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
   const [promoForm, setPromoForm] = useState<PromoFormState>(EMPTY_PROMO_FORM);
   const [promoSaving, setPromoSaving] = useState(false);
   const [promoError, setPromoError] = useState('');
-  const [quoteLeadsList, setQuoteLeadsList] = useState<QuoteLeadRow[]>([]);
+  const [quoteLeadsList, setQuoteLeadsList] = useState<QuoteLead[]>([]);
   const [quoteLeadsLoading, setQuoteLeadsLoading] = useState(false);
 
   // Support Tab UI State
@@ -574,32 +585,48 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
   const fetchQuoteLeads = useCallback(async () => {
     setQuoteLeadsLoading(true);
     try {
-      const res = await fetch(apiUrl('/admin/quote-leads'), { credentials: 'include' });
-      if (res.ok) setQuoteLeadsList(await res.json());
+      setQuoteLeadsList(await apiAdmin.getQuoteLeads());
     } catch {
-      /* ignore */
+      /* keep the last list; the page shows a refresh button */
     } finally {
       setQuoteLeadsLoading(false);
     }
   }, []);
 
+  // Loaded up front for the menu badge, then kept live as new requests arrive.
   useEffect(() => {
-    if (activeTab === 'marketing' && marketingSection === 'overview') void fetchQuoteLeads();
-  }, [activeTab, marketingSection, fetchQuoteLeads]);
+    void fetchQuoteLeads();
+    return subscribeNnSync((scope) => {
+      if (scope === 'quotes' || scope === 'all') void fetchQuoteLeads();
+    });
+  }, [fetchQuoteLeads]);
 
-  const updateQuoteLeadStatus = useCallback(async (id: number, status: string) => {
-    setQuoteLeadsList((prev) => prev.map((l) => (l.id === id ? { ...l, status: status as QuoteLeadRow['status'] } : l)));
-    try {
-      await fetch(apiUrl(`/admin/quote-leads/${id}`), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ status }),
-      });
-    } catch {
-      /* ignore */
-    }
+  useEffect(() => {
+    if (activeTab === 'quotes') void fetchQuoteLeads();
+  }, [activeTab, fetchQuoteLeads]);
+
+  const updateQuoteLead = useCallback(async (id: number, body: { status?: QuoteLeadStatus; adminNotes?: string }) => {
+    await apiAdmin.updateQuoteLead(id, body);
+    const now = new Date().toISOString();
+    setQuoteLeadsList((prev) =>
+      prev.map((l) =>
+        l.id === id
+          ? {
+            ...l,
+            ...(body.status ? { status: body.status, statusUpdatedAt: now } : {}),
+            ...(body.adminNotes !== undefined ? { adminNotes: body.adminNotes.trim() || null } : {}),
+          }
+          : l
+      )
+    );
   }, []);
+
+  const deleteQuoteLead = useCallback(async (id: number) => {
+    await apiAdmin.deleteQuoteLead(id);
+    setQuoteLeadsList((prev) => prev.filter((l) => l.id !== id));
+  }, []);
+
+  const newQuoteCount = useMemo(() => quoteLeadsList.filter((l) => l.status === 'new').length, [quoteLeadsList]);
 
   const savePromotion = useCallback(async () => {
     if (!promoForm.title.trim()) return setPromoError('A title is required.');
@@ -1311,6 +1338,47 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
     }
   };
 
+  const clearStaffInvoiceDraft = (id: number) =>
+    setInvoiceDecisionNotes((prev) => {
+      const n = { ...prev };
+      delete n[id];
+      return n;
+    });
+
+  const handleStaffInvoiceNote = async (id: number) => {
+    const notes = (invoiceDecisionNotes[id] ?? '').trim();
+    setSavingStaffInvoiceNoteId(id);
+    try {
+      await apiAdmin.updateStaffInvoiceNote(id, notes);
+      setStaffPayInvoices((prev) => prev.map((i) => (i.id === id ? { ...i, adminNotes: notes || null } : i)));
+      clearStaffInvoiceDraft(id);
+      setEditingStaffInvoiceNoteId(null);
+      showFlyer(notes ? 'Note saved. The cleaner has been notified.' : 'Note removed.', 'success');
+    } catch (e: unknown) {
+      showFlyer(e instanceof Error ? e.message : 'Failed to save the note', 'error');
+    } finally {
+      setSavingStaffInvoiceNoteId(null);
+    }
+  };
+
+  const handleDeleteStaffInvoice = async (inv: { id: number; staffName?: string | null; staffId?: number | null; weekLabel?: string | null; status?: string | null }) => {
+    const who = inv.staffName || `Staff #${inv.staffId}`;
+    const warning =
+      inv.status === 'Approved'
+        ? `This invoice from ${who} (${inv.weekLabel || 'week'}) is already APPROVED. Delete it anyway?\n\nThe cleaner will be told it was removed so they can resubmit.`
+        : `Delete the invoice from ${who} for ${inv.weekLabel || 'this week'}?\n\nThe cleaner will be told it was removed so they can resubmit.`;
+    if (!window.confirm(warning)) return;
+    try {
+      await apiAdmin.deleteStaffInvoice(inv.id);
+      setStaffPayInvoices((prev) => prev.filter((i) => i.id !== inv.id));
+      clearStaffInvoiceDraft(inv.id);
+      if (expandedStaffInvoiceId === inv.id) setExpandedStaffInvoiceId(null);
+      showFlyer('Staff invoice deleted.', 'success');
+    } catch (e: unknown) {
+      showFlyer(e instanceof Error ? e.message : 'Failed to delete the staff invoice', 'error');
+    }
+  };
+
   const handleCancelRequestDecision = async (requestId: number, decision: 'approve' | 'reject') => {
     try {
       await apiAdmin.respondStaffCancelRequest(requestId, decision, cancelDecisionNotes[requestId] || '');
@@ -1502,6 +1570,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
   }> = [
       { id: 'overview', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
       { id: 'bookings', label: 'Bookings', icon: <Package className="w-5 h-5" /> },
+      { id: 'quotes', label: 'Quote Requests', icon: <ClipboardList className="w-5 h-5" />, badge: newQuoteCount },
       { id: 'assignment', label: 'Job Assignment', icon: <UserCheck className="w-5 h-5" /> },
       { id: 'rota', label: 'Rota & Schedule', icon: <CalendarDays className="w-5 h-5" /> },
       { id: 'liveMap', label: 'Live Map', icon: <MapPin className="w-5 h-5" />, badge: coverageWarningCount },
@@ -1555,6 +1624,8 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
       ? bookingsSubView === 'upcoming'
         ? 'Bookings · Upcoming'
         : 'Bookings · Pipeline'
+      : activeTab === 'quotes'
+        ? 'Quote Requests'
       : activeTab === 'communication'
         ? 'Communication'
         : activeTab === 'support'
@@ -1615,46 +1686,85 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
           )}
         </div>
 
-        <div className={`flex-1 space-y-2 overflow-y-auto no-scrollbar py-4 ${collapsed ? 'px-2' : 'px-4'}`}>
-          {visiblePrimaryMenuItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => {
-                setActiveTab(item.id);
-                if (item.id === 'bookings') setBookingsSubView('pipeline');
-                if (item.id === 'services') setServicesSection('catalog');
-                setIsSidebarOpen(false);
-              }}
-              title={collapsed ? item.label : undefined}
-              aria-label={item.label}
-              className={`w-full flex items-center rounded-xl transition-all duration-200 font-medium text-sm group ${collapsed ? 'justify-center px-2 py-3.5' : 'space-x-3.5 px-5 py-3.5'
-                } ${activeTab === item.id
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
-                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
-                }`}
-            >
-              <span
-                className={`relative shrink-0 ${activeTab === item.id ? 'text-white' : 'text-slate-500 group-hover:text-white'}`}
-              >
-                {item.icon}
-                {collapsed && item.badge ? (
-                  <span className="absolute -right-0.5 -top-0.5 min-w-[0.5rem] h-2 px-0.5 rounded-full bg-amber-500 ring-2 ring-[#0B1120]" aria-hidden />
+        <nav aria-label="Admin menu" className={`flex-1 overflow-y-auto no-scrollbar py-3 ${collapsed ? 'px-2' : 'px-3'}`}>
+          {ADMIN_MENU_GROUPS.map((group, groupIndex) => {
+            const items = group.tabs
+              .map((tab) => visiblePrimaryMenuItems.find((item) => item.id === tab))
+              .filter((item): item is (typeof visiblePrimaryMenuItems)[number] => Boolean(item));
+            if (items.length === 0) return null;
+            const holdsActive = items.some((item) => item.id === activeTab);
+            const folded = !collapsed && Boolean(group.label) && foldedMenuGroups.includes(group.id) && !holdsActive;
+            const groupBadge = items.reduce((sum, item) => sum + (item.badge || 0), 0);
+            return (
+              <div key={group.id} className={groupIndex > 0 ? (collapsed ? 'mt-2 pt-2 border-t border-slate-800/70' : 'mt-3') : ''}>
+                {group.label && !collapsed ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFoldedMenuGroups((prev) =>
+                        prev.includes(group.id) ? prev.filter((g) => g !== group.id) : [...prev, group.id]
+                      )
+                    }
+                    aria-expanded={!folded}
+                    title={holdsActive ? 'Contains the open page' : folded ? 'Show section' : 'Hide section'}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 mb-1 rounded-lg text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 hover:text-slate-300 transition-colors"
+                  >
+                    <span className="flex-1 text-left">{group.label}</span>
+                    {folded && groupBadge > 0 ? (
+                      <span className="min-w-[1.25rem] rounded-full bg-amber-500 px-1.5 py-0.5 text-center text-[10px] font-black text-white tracking-normal">
+                        {groupBadge}
+                      </span>
+                    ) : null}
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${folded ? '-rotate-90' : ''}`} />
+                  </button>
                 ) : null}
-              </span>
-              {!collapsed ? (
-                <>
-                  <span className="flex-1 text-left">{item.label}</span>
-                  {item.badge ? (
-                    <span className="min-w-[1.25rem] rounded-full bg-amber-500 px-1.5 py-0.5 text-center text-[10px] font-black text-white">
-                      {item.badge}
-                    </span>
-                  ) : null}
-                </>
-              ) : null}
-            </button>
-          ))}
-        </div>
+                {!folded && (
+                  <div className="space-y-1">
+                    {items.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveTab(item.id);
+                          if (item.id === 'bookings') setBookingsSubView('pipeline');
+                          if (item.id === 'services') setServicesSection('catalog');
+                          setIsSidebarOpen(false);
+                        }}
+                        title={collapsed ? item.label : undefined}
+                        aria-label={item.label}
+                        aria-current={activeTab === item.id ? 'page' : undefined}
+                        className={`w-full flex items-center rounded-xl transition-all duration-200 font-medium text-sm group ${collapsed ? 'justify-center px-2 py-3' : 'space-x-3 px-4 py-2.5'
+                          } ${activeTab === item.id
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                            : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+                          }`}
+                      >
+                        <span
+                          className={`relative shrink-0 ${activeTab === item.id ? 'text-white' : 'text-slate-500 group-hover:text-white'}`}
+                        >
+                          {item.icon}
+                          {collapsed && item.badge ? (
+                            <span className="absolute -right-0.5 -top-0.5 min-w-[0.5rem] h-2 px-0.5 rounded-full bg-amber-500 ring-2 ring-[#0B1120]" aria-hidden />
+                          ) : null}
+                        </span>
+                        {!collapsed ? (
+                          <>
+                            <span className="flex-1 text-left">{item.label}</span>
+                            {item.badge ? (
+                              <span className="min-w-[1.25rem] rounded-full bg-amber-500 px-1.5 py-0.5 text-center text-[10px] font-black text-white">
+                                {item.badge}
+                              </span>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
 
         <div className={`mt-auto border-t border-slate-800/50 ${collapsed ? 'p-2 flex flex-col items-center gap-2' : 'p-4'}`}>
           {collapsed && !mobile ? (
@@ -1784,7 +1894,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
       <Sidebar />
 
       {/* Content Area */}
-      <div className={`p-6 md:p-10 animate-in fade-in duration-700 ${activeTab === 'assignment' || activeTab === 'communication' || activeTab === 'support' ? 'w-full' : 'max-w-[1600px] mx-auto'}`}>
+      <div className={`p-6 md:p-10 animate-in fade-in duration-700 w-full min-w-0 ${activeTab === 'assignment' || activeTab === 'communication' || activeTab === 'support' ? '' : 'max-w-[1600px] mx-auto'}`}>
         <div className="hidden md:flex sticky top-0 z-30 -mx-6 md:-mx-10 px-6 md:px-10 py-3 mb-4 items-center justify-end gap-2 flex-wrap bg-[#F8FAFC]/95 backdrop-blur-sm border-b border-slate-200/60">
           {visibleQuickAccessMenuItems.map((item) => (
             <button
@@ -2954,120 +3064,29 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
         )}
 
         {activeTab === 'rota' && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-            <div className="flex justify-between items-center flex-wrap gap-4">
-              <div>
-                <h3 className="text-3xl font-black text-slate-900 tracking-tight">Rota & Schedule</h3>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Live staff assignments & availability</p>
-                {staffScheduleConflicts.length > 0 && (
-                  <p className="text-xs font-bold text-amber-700 mt-2 flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    {staffScheduleConflicts.length} time overlap(s) — open Job Assignment to resolve
-                  </p>
-                )}
-              </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setWeekOffset(prev => prev - 1)}
-                  className="p-3 bg-white rounded-xl shadow-sm border border-slate-100 hover:bg-slate-50"
-                  title="Previous Week"
-                >
-                  <ChevronRight className="w-5 h-5 rotate-180" />
-                </button>
-                <button
-                  onClick={() => setWeekOffset(0)}
-                  className="px-6 py-3 bg-white rounded-xl shadow-sm border border-slate-100 font-bold text-slate-600 hover:bg-slate-50"
-                >
-                  {weekOffset === 0 ? 'This Week' : weekOffset === 1 ? 'Next Week' : weekOffset === -1 ? 'Last Week' : weekOffset > 0 ? `Week +${weekOffset}` : `Week ${weekOffset}`}
-                </button>
-                <button
-                  onClick={() => setWeekOffset(prev => prev + 1)}
-                  className="p-3 bg-white rounded-xl shadow-sm border border-slate-100 hover:bg-slate-50"
-                  title="Next Week"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            <div className="overflow-hidden min-h-[600px] flex flex-col">
+          <RotaSchedulePanel
+            bookings={bookings}
+            staffList={staffList}
+            services={services}
+            extras={extraServices}
+            conflicts={staffScheduleConflicts}
+            chatSummaryById={summaryById}
+            isLiveChat={isOngoingLiveChat}
+            onOpenBooking={setReviewBooking}
+            onOpenAssignment={() => setActiveTab('assignment')}
+          />
+        )}
 
-              <div className="flex-1">
-                <div className="w-full grid grid-cols-8 divide-x divide-slate-50 h-full">
-                  <div className="col-span-1 p-6 bg-slate-50/30">
-                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6">Staff Member</div>
-                    <div className="space-y-4">
-                      {(staffList || []).map(s => (
-                        <div key={s.id} className="h-20 flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center font-black text-slate-400 border border-slate-100 shadow-sm">{s.name.charAt(0)}</div>
-                          <div className="text-sm font-bold text-slate-700">{s.name}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  {Array.from({ length: 7 }).map((_, i) => {
-                    const baseDate = addDays(new Date(), weekOffset * 7);
-                    const weekStart = startOfWeek(baseDate, { weekStartsOn: 1 }); // Monday
-                    const currentDate = addDays(weekStart, i);
-                    const dayName = format(currentDate, 'EEE');
-                    const dayDate = format(currentDate, 'MMM d');
-
-                    return (
-                      <div key={i} className="col-span-1 py-6 flex flex-col">
-                        <div className="text-center mb-6">
-                          <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{dayName}</div>
-                          <div className="text-xs font-bold text-slate-600">{dayDate}</div>
-                        </div>
-                        <div className="space-y-4 px-2 flex-1">
-                          {(staffList || []).map(s => {
-                            const staffBookings = (bookings || []).filter(b =>
-                              (b.assignedStaffId === s.id || (b.assignedStaffIds && b.assignedStaffIds.includes(s.id))) &&
-                              b.date === format(currentDate, 'yyyy-MM-dd')
-                            );
-                            return (
-                              <div key={s.id} className="h-20 p-1 flex items-center justify-center border-t border-slate-50 relative group">
-                                {staffBookings.length > 0 ? (
-                                  <div className="absolute inset-1 p-1 flex flex-col gap-1 overflow-y-auto no-scrollbar">
-                                    {staffBookings.map((sb) => {
-                                      const rota = rotaBookingCardClasses(sb.status);
-                                      const chatSummary = summaryById.get(sb.id);
-                                      const liveChat = isOngoingLiveChat(chatSummary);
-                                      return (
-                                        <div
-                                          key={sb.id}
-                                          onClick={() => setReviewBooking(sb)}
-                                          className={`relative rounded-lg p-1.5 flex flex-col justify-center cursor-pointer transition-colors border ${rota.shell}`}
-                                          title={`${sb.status} — ${sb.serviceType}`}
-                                        >
-                                          {liveChat && (
-                                            <span
-                                              className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-md bg-emerald-500 px-0.5 text-white shadow-sm ring-2 ring-white"
-                                              title="Client chat activity"
-                                            >
-                                              <MessageSquare className="w-2.5 h-2.5" strokeWidth={2.5} />
-                                            </span>
-                                          )}
-                                          <div className={`text-[8px] font-black leading-none mb-0.5 ${rota.time}`}>{sb.time}</div>
-                                          <div className={`text-[8px] font-bold truncate leading-none ${rota.name}`}>
-                                            {sb.contact?.name || 'Client'}
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                ) : (
-                                  <div className="text-[10px] text-slate-200 font-medium group-hover:text-slate-300 transition-colors">Free</div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
+        {activeTab === 'quotes' && (
+          <QuoteRequestsPanel
+            leads={quoteLeadsList}
+            loading={quoteLeadsLoading}
+            companyName={businessSettings.companyName || 'CiN Cleaning'}
+            onRefresh={() => void fetchQuoteLeads()}
+            onUpdate={updateQuoteLead}
+            onDelete={deleteQuoteLead}
+            onNotify={(message, type = 'success') => showFlyer(message, type)}
+          />
         )}
 
         {activeTab === 'marketing' && (
@@ -3137,87 +3156,25 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                       </div>
                     </div>
 
-                    <div className="pt-6 border-t border-slate-100 space-y-4">
-                      <div className="flex justify-between items-center flex-wrap gap-4">
+                    <div className="pt-6 border-t border-slate-100">
+                      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
                         <div>
-                          <h4 className="text-xl font-black text-slate-900">Instant-quote leads</h4>
-                          <p className="text-sm text-slate-500 font-medium mt-1">
-                            Visitors who used the homepage estimate widget. These are enquiries, not bookings.
+                          <h4 className="text-lg font-black text-slate-900">Free quote requests</h4>
+                          <p className="text-sm text-slate-600 font-medium mt-1">
+                            {newQuoteCount > 0
+                              ? `${newQuoteCount} new ${newQuoteCount === 1 ? 'request is' : 'requests are'} waiting for a reply.`
+                              : 'No new requests waiting.'}{' '}
+                            Homepage quotes now have their own page.
                           </p>
                         </div>
                         <button
-                          onClick={() => void fetchQuoteLeads()}
-                          className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50"
+                          type="button"
+                          onClick={() => setActiveTab('quotes')}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-black hover:bg-blue-700"
                         >
-                          Refresh
+                          <ClipboardList className="w-4 h-4" /> Open Quote Requests
                         </button>
                       </div>
-
-                      {quoteLeadsLoading ? (
-                        <div className="text-slate-400 text-sm font-bold">Loading leads…</div>
-                      ) : quoteLeadsList.length === 0 ? (
-                        <div className="text-slate-400 text-sm font-bold bg-slate-50 p-6 rounded-2xl text-center">
-                          No quote leads yet.
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto rounded-2xl border border-slate-100">
-                          <table className="w-full text-sm">
-                            <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                              <tr>
-                                <th className="text-left px-4 py-3">When</th>
-                                <th className="text-left px-4 py-3">Name</th>
-                                <th className="text-left px-4 py-3">Contact</th>
-                                <th className="text-left px-4 py-3">Service</th>
-                                <th className="text-left px-4 py-3">Property</th>
-                                <th className="text-right px-4 py-3">Estimate</th>
-                                <th className="text-left px-4 py-3">Status</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 bg-white">
-                              {quoteLeadsList.map((lead) => (
-                                <tr key={lead.id}>
-                                  <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
-                                    {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '—'}
-                                  </td>
-                                  <td className="px-4 py-3 font-bold text-slate-900">{lead.firstName}</td>
-                                  <td className="px-4 py-3">
-                                    <a href={`mailto:${lead.email}`} className="text-blue-600 hover:underline">{lead.email}</a>
-                                    {lead.phone && <div className="text-xs text-slate-500">{lead.phone}</div>}
-                                    {lead.postcode && <div className="text-xs text-slate-400 font-mono">{lead.postcode}</div>}
-                                  </td>
-                                  <td className="px-4 py-3 text-slate-700">{lead.serviceType}</td>
-                                  <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
-                                    {[lead.bedrooms && `${lead.bedrooms} bed`, lead.bathrooms && `${lead.bathrooms} bath`].filter(Boolean).join(', ') || '—'}
-                                  </td>
-                                  <td className="px-4 py-3 text-right font-bold text-slate-900 tabular-nums whitespace-nowrap">
-                                    {lead.priceEstimate ? `£${Number(lead.priceEstimate).toFixed(0)}` : 'Bespoke'}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <select
-                                      value={lead.status}
-                                      onChange={(e) => void updateQuoteLeadStatus(lead.id, e.target.value)}
-                                      className={`text-xs font-bold rounded-lg border px-2 py-1.5 ${
-                                        lead.status === 'converted'
-                                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                          : lead.status === 'lost'
-                                            ? 'border-slate-200 bg-slate-50 text-slate-500'
-                                            : lead.status === 'contacted'
-                                              ? 'border-blue-200 bg-blue-50 text-blue-700'
-                                              : 'border-amber-200 bg-amber-50 text-amber-700'
-                                      }`}
-                                    >
-                                      <option value="new">New</option>
-                                      <option value="contacted">Contacted</option>
-                                      <option value="converted">Converted</option>
-                                      <option value="lost">Lost</option>
-                                    </select>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
@@ -3770,6 +3727,12 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                                 <span className="text-slate-400 font-bold">Base Rate</span>
                                 <span className="font-black text-slate-900">£{Number(s.baseRate).toFixed(2)}</span>
                               </div>
+                              {s.londonRate != null && Number(s.londonRate) > 0 && (
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-slate-400 font-bold">London Rate</span>
+                                  <span className="font-black text-blue-700">£{Number(s.londonRate).toFixed(2)}</span>
+                                </div>
+                              )}
                               <div className="flex justify-between text-sm">
                                 <span className="text-slate-400 font-bold">Pricing Model</span>
                                 <span className="font-black text-slate-900 capitalize">
@@ -3963,7 +3926,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                                   setNewStaff({ ...newStaff, adminTabs: next });
                                 }}
                               />
-                              {tab}
+                              {ADMIN_TAB_LABELS[tab]}
                             </label>
                           );
                         })}
@@ -4153,7 +4116,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                                           );
                                         }}
                                       />
-                                      {tab}
+                                      {ADMIN_TAB_LABELS[tab]}
                                     </label>
                                   );
                                 })}
@@ -4227,7 +4190,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                           </div>
                           <p className="text-xs font-bold text-slate-400 mt-1">{inv.weekLabel}</p>
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                            Submitted {inv.createdAt ? new Date(inv.createdAt).toLocaleString() : '-'}
+                            Submitted {inv.createdAt ? new Date(inv.createdAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-6 items-center">
@@ -4269,26 +4232,73 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                                 </button>
                               </>
                             )}
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteStaffInvoice(inv)}
+                              title="Delete this invoice"
+                              aria-label={`Delete invoice from ${inv.staffName || 'staff'}`}
+                              className="px-3 py-2 rounded-xl border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
                       </div>
 
-                      {inv.status === 'Pending' && (
+                      {inv.status === 'Pending' || editingStaffInvoiceNoteId === inv.id ? (
                         <div className="px-6 pb-4">
-                          <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Admin notes (optional, saved on approve/reject)</label>
+                          <label htmlFor={`staff-invoice-note-${inv.id}`} className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                            Note to {inv.staffName || 'the cleaner'} (they can see this){inv.status === 'Pending' ? ', saved on approve/reject or with Save note' : ''}
+                          </label>
                           <textarea
+                            id={`staff-invoice-note-${inv.id}`}
+                            maxLength={2000}
                             className="mt-2 w-full rounded-2xl border border-slate-200 p-4 text-sm font-medium text-slate-800 min-h-[72px]"
-                            placeholder="e.g. Paid via bank transfer ref…"
-                            value={invoiceDecisionNotes[inv.id] ?? ''}
+                            placeholder="e.g. Paid via bank transfer, ref INV-0412. Tuesday job paid at 2h, not 3h."
+                            value={invoiceDecisionNotes[inv.id] ?? inv.adminNotes ?? ''}
                             onChange={(e) => setInvoiceDecisionNotes((prev) => ({ ...prev, [inv.id]: e.target.value }))}
                           />
+                          <div className="mt-2 flex justify-end gap-2">
+                            {editingStaffInvoiceNoteId === inv.id && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  clearStaffInvoiceDraft(inv.id);
+                                  setEditingStaffInvoiceNoteId(null);
+                                }}
+                                className="px-4 py-2 rounded-xl text-xs font-black text-slate-500 hover:bg-slate-100"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              disabled={
+                                savingStaffInvoiceNoteId === inv.id ||
+                                (invoiceDecisionNotes[inv.id] ?? inv.adminNotes ?? '').trim() === (inv.adminNotes ?? '').trim()
+                              }
+                              onClick={() => void handleStaffInvoiceNote(inv.id)}
+                              className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-black disabled:opacity-40"
+                            >
+                              {savingStaffInvoiceNoteId === inv.id ? 'Saving...' : 'Save note'}
+                            </button>
+                          </div>
                         </div>
-                      )}
-
-                      {inv.adminNotes && (
-                        <div className="px-6 pb-4">
-                          <p className="text-[10px] font-black uppercase text-slate-400">Notes on file</p>
-                          <p className="text-sm font-medium text-slate-600 mt-1">{inv.adminNotes}</p>
+                      ) : (
+                        <div className="px-6 pb-4 flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase text-slate-400">Note to cleaner</p>
+                            <p className="text-sm font-medium text-slate-600 mt-1 whitespace-pre-line break-words">
+                              {inv.adminNotes || <span className="text-slate-400 italic">No note</span>}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setEditingStaffInvoiceNoteId(inv.id)}
+                            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-xs font-black text-slate-600 hover:bg-slate-50"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" /> {inv.adminNotes ? 'Edit note' : 'Add note'}
+                          </button>
                         </div>
                       )}
 
@@ -5041,12 +5051,6 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                       b.assignedStaffId === s.id || (b.assignedStaffIds || []).includes(s.id)
                     );
                     const completed = staffBookings.filter(b => b.status === BookingStatus.COMPLETED).length;
-                    const totalEarned = staffBookings
-                      .filter(b => b.status === BookingStatus.COMPLETED)
-                      .reduce((sum, b) => {
-                        const staffCount = (b.assignedStaffIds || []).length || 1;
-                        return sum + (Number(b.totalPrice || 0) * (Number(s.hourlyRate || 15) / 100)) / staffCount;
-                      }, 0);
                     const avgRating = staffBookings.filter(b => b.rating).length > 0
                       ? staffBookings.filter(b => b.rating).reduce((sum, b) => sum + (b.rating || 0), 0) / staffBookings.filter(b => b.rating).length
                       : 0;
@@ -5525,7 +5529,8 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
           <StaffProfileFlyout
             staff={profileStaff}
             bookings={bookings}
-            allStaff={staffList}
+            services={services}
+            extras={extraServices}
             onClose={() => setProfileStaff(null)}
             onViewClient={(email) => {
               setProfileStaff(null);
