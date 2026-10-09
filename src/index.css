@@ -73,9 +73,9 @@
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    /* Fluid base font-size so Tailwind's rem-based sizes scale down on small screens
-       (14px at ~320px viewport → 16px at ~1024px+). */
-    font-size: clamp(14px, 13px + 0.3vw, 16px);
+    /* Fluid base font-size so Tailwind's rem-based sizes scale gently on small screens
+       (15px on phones → 16px from ~1024px). 14px made small labels unreadable on phones. */
+    font-size: clamp(15px, 14px + 0.15vw, 16px);
   }
 
   html {
@@ -209,4 +209,24 @@
 
 .nn-cta-glow {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 25px 50px -12px rgba(15, 23, 42, 0.45);
+}
+/* Phones: while the sticky contact bar (Book / Call / WhatsApp) is showing, keep the page clear of it
+   and drop the duplicate floating WhatsApp button so content is not covered. */
+@media (max-width: 768px) {
+  html[data-sticky-footer="1"] body {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+  html[data-sticky-footer="1"] .cin-wa-float {
+    display: none !important;
+  }
+  html[data-sticky-footer="1"] .cin-ai-fab {
+    bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  html[data-sticky-footer="1"] .cin-ai-tip {
+    bottom: calc(8.5rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  html[data-sticky-footer="1"] .cin-ai-panel {
+    bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px)) !important;
+    max-height: calc(100dvh - 7rem);
+  }
 }

@@ -52,7 +52,7 @@ const TermsAndConditionsPage: React.FC<{ onBookNow: () => void }> = ({ onBookNow
   return (
     <div className="bg-slate-50/80">
       <section className="py-10 md:py-14 max-w-3xl mx-auto px-4 lg:px-8">
-        <span className="inline-flex text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-50 text-teal-700">
+        <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-50 text-teal-700">
           Legal
         </span>
         <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-slate-900 tracking-tight mt-4">

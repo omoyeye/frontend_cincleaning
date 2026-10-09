@@ -133,7 +133,7 @@ const BookingConfirmation: React.FC<Props> = ({
                                 <BrandLogoMark className="h-[5.5rem] w-auto max-w-[280px] object-contain object-left" />
                             </div>
                             <div className="min-w-0">
-                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400 mb-2 block">Booking Reference</span>
+                                <span className="text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] text-blue-400 mb-2 block">Booking Reference</span>
                                 <h3 className="text-3xl font-black text-white">#{booking.bookingId ?? booking.id}</h3>
                             </div>
                         </div>
@@ -248,7 +248,7 @@ const BookingConfirmation: React.FC<Props> = ({
                         </p>
                         <div className="pt-4 border-t border-green-200/50 flex flex-col items-center justify-center space-y-1">
                             <span className="text-green-900 font-extrabold uppercase tracking-widest text-xs">{brandName}</span>
-                            <span className="text-green-600/80 font-bold text-[10px] uppercase tracking-wider text-center leading-relaxed">
+                            <span className="text-green-600/80 font-bold text-[11px] sm:text-xs uppercase tracking-wider text-center leading-relaxed">
                                 {[companyAddress, companyEmail, companyPhone].filter(Boolean).join(' · ') || 'Thank you for your business.'}
                             </span>
                         </div>

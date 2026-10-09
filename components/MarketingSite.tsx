@@ -445,7 +445,7 @@ const MarketingSite: React.FC<{
       <>
         <div className="max-w-7xl mx-auto px-4 lg:px-8 space-y-10 pb-8 pt-12">
           <header className="max-w-3xl">
-            <span className="text-[10px] font-black uppercase tracking-widest text-teal-700">Gallery</span>
+            <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-teal-700">Gallery</span>
             <h1 className="text-4xl md:text-5xl font-black text-slate-900 mt-2">Our work</h1>
             <p className="text-slate-600 mt-3 text-lg leading-relaxed">
               Real results from residential and commercial cleans.
@@ -464,21 +464,21 @@ const MarketingSite: React.FC<{
           <section className="max-w-7xl mx-auto px-4 lg:px-8 mb-14">
             <h2 className="text-2xl sm:text-3xl font-black text-slate-900">What changes after a clean</h2>
             <p className="mt-2 text-slate-600">The difference a professional team makes, room by room.</p>
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 md:[&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1 gap-6">
               {BEFORE_AFTER_ITEMS.map((item) => (
                 <div key={item.label} className="rounded-2xl border border-slate-100 bg-white overflow-hidden">
                   <div className="px-6 pt-6">
-                    <span className="inline-flex text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-50 text-teal-700">
+                    <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-50 text-teal-700">
                       {item.label}
                     </span>
                   </div>
                   <div className="p-6 space-y-4">
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Before</div>
+                      <div className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400">Before</div>
                       <p className="mt-1 text-sm text-slate-600 leading-relaxed">{item.before}</p>
                     </div>
                     <div className="border-t border-slate-100 pt-4">
-                      <div className="text-[10px] font-black uppercase tracking-widest text-teal-600">After</div>
+                      <div className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-teal-600">After</div>
                       <p className="mt-1 text-sm text-slate-800 font-medium leading-relaxed">{item.after}</p>
                     </div>
                   </div>
@@ -580,7 +580,7 @@ const MarketingSite: React.FC<{
       <>
         <div className="space-y-10 pb-8 pt-12">
           <header className="max-w-7xl mx-auto px-4 lg:px-8">
-            <span className="text-[10px] font-black uppercase tracking-widest text-teal-700">CiN Journal</span>
+            <span className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-teal-700">CiN Journal</span>
             <h1 className="text-4xl md:text-5xl font-black text-slate-900 mt-2">Cleaning tips &amp; insights</h1>
             <p className="text-slate-600 mt-3 text-lg leading-relaxed">
               Practical guides for homes and businesses.
@@ -655,7 +655,7 @@ const MarketingSite: React.FC<{
             <img src={heroImg} alt="" className="absolute inset-0 z-0 h-full w-full object-cover" />
             <div className="relative z-10 max-w-7xl mx-auto px-5 sm:px-8 lg:px-10 safe-area-px py-14 md:py-24">
               <div className="max-w-2xl rounded-2xl border border-white/15 bg-slate-950/45 p-6 sm:p-8 md:p-10 shadow-2xl shadow-black/30 backdrop-blur-md text-white space-y-5">
-                <span className="inline-flex text-[10px] font-black tracking-widest uppercase text-teal-300">
+                <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase text-teal-300">
                   {h?.eyebrow ?? 'CiN Cleaning'}
                 </span>
                 <h1 className="text-4xl sm:text-5xl md:text-6xl font-black leading-[1.02] sm:leading-[0.95]">
@@ -700,24 +700,45 @@ const MarketingSite: React.FC<{
           <section id="instant-quote" className="max-w-7xl mx-auto px-4 lg:px-8 py-14 md:py-20">
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 items-start">
               <div className="lg:col-span-2 space-y-4">
-                <span className="inline-flex text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-50 text-teal-700">
-                  Instant estimate
+                <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-50 text-teal-700">
+                  Free quote · takes 60 seconds
                 </span>
                 <h2 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight">
-                  See what your clean would cost
+                  Get your price now.{' '}
+                  <span className="text-teal-600">We&apos;ll take it from there.</span>
                 </h2>
                 <p className="text-slate-600 leading-relaxed">
-                  Pick a service, tell us the size of the property, and we will show you an indicative price on the spot
-                  and email you a copy. No commitment, book only when you are ready.
+                  Tell us the service and the size of your home and your price appears straight away. Then a friendly member
+                  of our customer care team will <strong className="font-semibold text-slate-800">call or email you</strong> to
+                  answer your questions and find a time that suits you.
                 </p>
                 <ul className="space-y-2 text-sm text-slate-700">
-                  {['No payment details needed', 'Estimate emailed to you instantly', '10% off your first booking with FIRST10'].map((line) => (
+                  {[
+                    'Your price on screen in under a minute',
+                    'A real person calls or emails you, no chasing needed',
+                    'No payment details and no obligation',
+                    '10% off your first clean with code FIRST10',
+                  ].map((line) => (
                     <li key={line} className="flex gap-2">
                       <CheckCircle2 className="w-4 h-4 shrink-0 text-teal-600 mt-0.5" aria-hidden />
                       <span>{line}</span>
                     </li>
                   ))}
                 </ul>
+                {brandPhone ? (
+                  <a
+                    href={`tel:${brandPhone.replace(/\s/g, '')}`}
+                    className="inline-flex items-center gap-3 rounded-xl border border-teal-200 bg-white px-4 py-3 text-sm shadow-sm transition-colors hover:border-teal-300 hover:bg-teal-50/60"
+                  >
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-600 text-white">
+                      <Phone className="h-4 w-4" aria-hidden />
+                    </span>
+                    <span>
+                      <span className="block text-slate-500">Prefer to talk now?</span>
+                      <span className="block font-bold text-slate-900">Call us on {brandPhone}</span>
+                    </span>
+                  </a>
+                ) : null}
               </div>
               <div className="lg:col-span-3 rounded-2xl border border-slate-100 bg-white p-6 sm:p-8 shadow-sm">
                 <QuoteWidget onBookNow={onBookNow} />
@@ -826,7 +847,7 @@ const MarketingSite: React.FC<{
           </section>
 
           <section className="max-w-7xl mx-auto px-4 lg:px-8 py-14 md:py-20 bg-slate-50 border-y border-slate-100">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-12">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 md:[&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1 gap-10 md:gap-12">
               {[
                 {
                   title: 'Trained & Vetted Operatives',
@@ -905,7 +926,7 @@ const MarketingSite: React.FC<{
           <img src={resHeroImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
           <div className="relative z-10 max-w-7xl mx-auto px-4 lg:px-8 py-12 md:py-20">
             <div className={SUBMENU_HERO_CAPTION_CARD}>
-              <span className="inline-flex text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-400/20 text-teal-200">
+              <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-400/20 text-teal-200">
                 Restoration first
               </span>
               <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black leading-[1.02] sm:leading-[0.95] [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]">
@@ -978,7 +999,7 @@ const MarketingSite: React.FC<{
             <p className="text-slate-600 mt-4 text-base sm:text-lg max-w-3xl leading-relaxed">
               Whether you need a reliable weekly reset, a full-property deep clean, or a checkout-ready handover, we scope the visit to match your property and your deadline.
             </p>
-            <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 md:[&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1 gap-8">
               <article className="rounded-2xl bg-white border border-slate-200 p-6 shadow-sm">
                 <h3 className="text-lg font-black text-slate-900">Standard &amp; general cleaning</h3>
                 <p className="text-slate-600 mt-3 text-sm leading-relaxed">
@@ -1188,7 +1209,7 @@ const MarketingSite: React.FC<{
           <img src={stdHeroImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
           <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 lg:px-10 py-12 md:py-20">
             <div className={SUBMENU_HERO_CAPTION_CARD}>
-              <span className="inline-flex text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-400/20 text-teal-200">
+              <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-400/20 text-teal-200">
                 Regular service
               </span>
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black leading-[1.05] [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]">
@@ -1279,7 +1300,7 @@ const MarketingSite: React.FC<{
           <img src={deepHeroImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
           <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 lg:px-10 py-12 md:py-20">
             <div className={SUBMENU_HERO_CAPTION_CARD}>
-              <span className="inline-flex text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-400/20 text-teal-200">
+              <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-400/20 text-teal-200">
                 Residential · Deep clean
               </span>
               <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black leading-[1.02] sm:leading-[0.95] [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]">
@@ -1382,7 +1403,7 @@ const MarketingSite: React.FC<{
           <img src={eotHeroImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
           <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 lg:px-10 py-12 md:py-20">
             <div className={SUBMENU_HERO_CAPTION_CARD}>
-              <span className="inline-flex text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-400/20 text-teal-200">
+              <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-400/20 text-teal-200">
                 Residential · End of tenancy
               </span>
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black leading-[1.05] [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]">
@@ -1473,7 +1494,7 @@ const MarketingSite: React.FC<{
     return (
       <div className="space-y-12 pt-12">
         <section className="space-y-3 max-w-7xl mx-auto px-4 lg:px-8">
-          <span className="inline-flex text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-50 text-teal-700">
+          <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-50 text-teal-700">
             {pc.eyebrow}
           </span>
           <h1 className="text-5xl md:text-6xl font-black tracking-tight text-slate-900">{pc.title}</h1>
@@ -1488,11 +1509,11 @@ const MarketingSite: React.FC<{
                 className={`bg-white rounded-2xl border p-5 min-h-[210px] flex flex-col ${p.popular ? 'border-teal-500 shadow-md' : 'border-slate-100'}`}
               >
                 {p.popular ? (
-                  <div className="self-start text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-teal-600 text-white mb-2">
+                  <div className="self-start text-[11px] sm:text-xs font-black uppercase tracking-widest px-2 py-1 rounded-full bg-teal-600 text-white mb-2">
                     {pc.popularBadgeLabel}
                   </div>
                 ) : <div className="h-5" />}
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{p.label}</p>
+                <p className="text-[11px] sm:text-xs text-slate-400 font-black uppercase tracking-widest">{p.label}</p>
                 <p className="text-5xl leading-none font-black text-slate-900 mt-2">£{p.price}</p>
                 <p className="text-sm text-slate-500 mt-3 flex-1">{p.note}</p>
                 <button onClick={onBookNow} className={`mt-4 py-3 rounded-xl font-bold ${p.popular ? 'bg-teal-700 text-white hover:bg-teal-800' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
@@ -1506,7 +1527,7 @@ const MarketingSite: React.FC<{
             <h3 className="text-2xl font-black mb-5">{calc.title}</h3>
 
             <div className="space-y-2 mb-5">
-              <p className="text-[10px] uppercase tracking-widest font-black text-teal-100">{calc.frequencySectionLabel}</p>
+              <p className="text-[11px] sm:text-xs uppercase tracking-widest font-black text-teal-100">{calc.frequencySectionLabel}</p>
               <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${freqCols}, minmax(0, 1fr))` }}>
                 {calc.frequencies.map((f) => (
                   <button
@@ -1566,7 +1587,7 @@ const MarketingSite: React.FC<{
             </div>
 
             <div className="mt-7 text-center">
-              <p className="text-[10px] uppercase tracking-widest font-black text-teal-100">{calc.estimateLabel}</p>
+              <p className="text-[11px] sm:text-xs uppercase tracking-widest font-black text-teal-100">{calc.estimateLabel}</p>
               <p className="text-5xl font-black mt-2">
                 {calc.estimatePrefix}
                 {estimate.toFixed(calc.decimalPlaces)}
@@ -1595,7 +1616,7 @@ const MarketingSite: React.FC<{
         <section className="text-center max-w-7xl mx-auto px-4 lg:px-8">
           <h3 className="text-5xl font-black text-slate-900">Why choose CiN?</h3>
           <div className="w-16 h-1 bg-teal-700 mx-auto mt-3 rounded-full" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 md:[&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1 gap-8 mt-10">
             {perks.map((p) => (
               <div key={p} className="space-y-2">
                 <div className="w-10 h-10 rounded-full bg-teal-50 text-teal-700 flex items-center justify-center mx-auto">
@@ -1632,7 +1653,7 @@ const MarketingSite: React.FC<{
           <img src={heroImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
           <div className="relative z-10 max-w-7xl mx-auto px-5 sm:px-8 lg:px-10 safe-area-px py-12 md:py-20">
             <div className={SUBMENU_HERO_CAPTION_CARD}>
-              <span className="inline-flex text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-400/20 text-teal-200">
+              <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-400/20 text-teal-200">
                 Commercial · Short-let
               </span>
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black leading-[1.05] [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]">
@@ -1772,7 +1793,7 @@ const MarketingSite: React.FC<{
       <div className="space-y-0">
         <section className="max-w-7xl mx-auto px-4 lg:px-8 py-10 md:py-16 lg:py-20 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center">
           <div className="space-y-6 order-2 lg:order-1">
-            <span className="inline-flex text-[10px] font-black tracking-widest uppercase text-blue-700">
+            <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase text-blue-700">
               {hero.eyebrow?.trim() || 'Commercial Professionalism'}
             </span>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-black leading-[1.02] sm:leading-[0.95] text-slate-900">
@@ -1816,7 +1837,7 @@ const MarketingSite: React.FC<{
             <p className="text-slate-600 mt-3 max-w-3xl leading-relaxed">
               Below are three of the ways businesses use CiN every week. If your footprint is larger, split across sites, or tied to a fixed event date, we will still scope it properly - start online or ask us for an <strong className="text-slate-800">onsite visit</strong> so we can measure access, risk, and hours accurately.
             </p>
-            <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 md:[&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1 gap-8">
               {commercialProgrammes.map((prog) => (
                 <article key={prog.title} className="rounded-2xl bg-white border border-slate-200 p-6 shadow-sm">
                   <h3 className="text-lg font-black text-slate-900 leading-snug">{prog.title}</h3>
@@ -1983,7 +2004,7 @@ const MarketingSite: React.FC<{
       <div className="space-y-0">
         <section className="max-w-7xl mx-auto px-4 lg:px-8 py-10 md:py-16 lg:py-20 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center">
           <div className="space-y-6 order-2 lg:order-1">
-            <span className="inline-flex text-[10px] font-black tracking-widest uppercase text-teal-700">
+            <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase text-teal-700">
               {hero.eyebrow?.trim() || 'Trusted Experts'}
             </span>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-black leading-[1.02] sm:leading-[0.95] text-slate-900">{aboutH1}</h1>
@@ -2095,7 +2116,7 @@ const MarketingSite: React.FC<{
 
         <section className="relative w-full bg-teal-800 text-white py-14 md:py-20 px-4 sm:px-6">
           <div className="max-w-3xl mx-auto lg:px-8">
-            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-200/90 mb-6">Company information</h2>
+            <h2 className="text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] text-teal-200/90 mb-6">Company information</h2>
             <div className="space-y-5 text-base sm:text-lg leading-relaxed text-white/95">
               <p>
                 <strong className="font-black text-white">CiN Cleaning</strong> operates under the registered company{' '}
@@ -2144,7 +2165,7 @@ const MarketingSite: React.FC<{
     return (
       <div className="space-y-0">
         <section className="py-10 md:py-14 max-w-3xl mx-auto px-4 lg:px-8">
-          <span className="inline-flex text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-50 text-teal-700">
+          <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-50 text-teal-700">
             Help
           </span>
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-slate-900 tracking-tight mt-4">FAQ</h1>
@@ -2181,7 +2202,7 @@ const MarketingSite: React.FC<{
           <img src={areaHeroImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
           <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 lg:px-10 py-12 md:py-20">
             <div className={SUBMENU_HERO_CAPTION_CARD}>
-              <span className="inline-flex text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-400/20 text-teal-200">
+              <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-400/20 text-teal-200">
                 Local cleaning services
               </span>
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black leading-[1.05] [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]">
@@ -2209,7 +2230,7 @@ const MarketingSite: React.FC<{
         </section>
 
         <section className="max-w-7xl mx-auto px-4 lg:px-8 py-14 md:py-20">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 md:[&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1 gap-6">
             {areaHighlights.map((line) => (
               <div key={line} className="rounded-2xl border border-slate-100 bg-white p-6">
                 <CheckCircle2 className="w-6 h-6 text-teal-600" aria-hidden />
@@ -2265,7 +2286,7 @@ const MarketingSite: React.FC<{
     return (
       <div className="space-y-12 pt-12">
         <section className="max-w-7xl mx-auto px-4 lg:px-8 space-y-4">
-          <span className="inline-flex text-[10px] font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-50 text-teal-700">
+          <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase px-3 py-1 rounded-full bg-teal-50 text-teal-700">
             GET IN TOUCH
           </span>
           <h1 className="text-5xl md:text-7xl font-black leading-[1.02] sm:leading-[0.95] text-slate-900">
@@ -2299,16 +2320,16 @@ const MarketingSite: React.FC<{
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Full Name</label>
+                <label className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400">Full Name</label>
                 <input value={contactName} onChange={(e) => setContactName(e.target.value)} required className="mt-2 w-full p-3 rounded-xl border border-slate-200" placeholder="John Doe" />
               </div>
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Email Address</label>
+                <label className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400">Email Address</label>
                 <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} required className="mt-2 w-full p-3 rounded-xl border border-slate-200" placeholder="john@example.com" />
               </div>
             </div>
             <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Service Type</label>
+              <label className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400">Service Type</label>
               <select value={contactServiceType} onChange={(e) => setContactServiceType(e.target.value)} className="mt-2 w-full p-3 rounded-xl border border-slate-200">
                 <option>Residential Cleaning</option>
                 <option>Commercial Cleaning</option>
@@ -2317,7 +2338,7 @@ const MarketingSite: React.FC<{
               </select>
             </div>
             <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Your Message</label>
+              <label className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400">Your Message</label>
               <textarea value={contactMessage} onChange={(e) => setContactMessage(e.target.value)} required className="mt-2 w-full p-3 rounded-xl border border-slate-200 h-28" placeholder="Tell us about your space and requirements..." />
             </div>
             {contactError && (
@@ -2344,7 +2365,7 @@ const MarketingSite: React.FC<{
               <div className="space-y-5">
                 {brandPhone ? (
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest font-black text-blue-100">Direct line</p>
+                    <p className="text-[11px] sm:text-xs uppercase tracking-widest font-black text-blue-100">Direct line</p>
                     <p className="text-3xl font-black">
                       <a href={`tel:${brandPhone.replace(/\s/g, '')}`} className="hover:text-teal-100 transition-colors">
                         {brandPhone}
@@ -2354,7 +2375,7 @@ const MarketingSite: React.FC<{
                 ) : null}
                 {brandEmail ? (
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest font-black text-blue-100">Inquiries</p>
+                    <p className="text-[11px] sm:text-xs uppercase tracking-widest font-black text-blue-100">Inquiries</p>
                     <p className="text-2xl font-black break-all">
                       <a href={`mailto:${encodeURIComponent(brandEmail)}`} className="hover:text-teal-100 transition-colors">
                         {brandEmail}
@@ -2364,7 +2385,7 @@ const MarketingSite: React.FC<{
                 ) : null}
                 {brandAddress ? (
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest font-black text-blue-100">Headquarters</p>
+                    <p className="text-[11px] sm:text-xs uppercase tracking-widest font-black text-blue-100">Headquarters</p>
                     <p className="text-2xl font-black whitespace-pre-line leading-snug">{brandAddress}</p>
                   </div>
                 ) : null}

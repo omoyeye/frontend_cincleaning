@@ -472,13 +472,13 @@ const AppContent: React.FC<{ serverUrl?: string }> = ({ serverUrl }) => {
             <div className="max-w-7xl mx-auto px-4 lg:px-8 h-24 flex items-center justify-between">
               <div className="flex items-center gap-3 cursor-pointer min-w-0" onClick={() => openCustomerPage('home')}>
                 <BrandLogoMark className="h-[4.5rem] w-auto max-h-[4.5rem] max-w-[min(26vw,400px)] sm:h-20 sm:max-h-20 sm:max-w-[440px] shrink-0 object-contain object-left" />
-                <div className="hidden sm:flex flex-col leading-tight min-w-0">
+                <div className="hidden sm:flex lg:hidden xl:flex flex-col leading-tight min-w-0">
                   <span className="text-lg font-black tracking-tight text-foreground truncate">{brandName}</span>
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Clean It Neatly</span>
+                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">Clean It Neatly</span>
                 </div>
               </div>
 
-              <nav className="hidden md:flex items-center space-x-1 bg-muted/80 p-1.5 rounded-2xl overflow-visible no-scrollbar border border-border/60">
+              <nav className="hidden lg:flex items-center space-x-1 whitespace-nowrap bg-muted/80 p-1.5 rounded-2xl overflow-visible no-scrollbar border border-border/60">
                 <button
                   type="button"
                   onClick={() => openCustomerPage('home')}
@@ -503,7 +503,7 @@ const AppContent: React.FC<{ serverUrl?: string }> = ({ serverUrl }) => {
                   <div className={desktopFlyoutPanel}>
                     <div
                       role="menu"
-                      className="min-w-[min(18rem,calc(100vw-2rem))] py-1 rounded-xl bg-card border border-border shadow-lg"
+                      className="min-w-[min(18rem,calc(100vw-2rem))] whitespace-normal py-1 rounded-xl bg-card border border-border shadow-lg"
                     >
                       <div className="py-0.5">
                         <button
@@ -582,7 +582,7 @@ const AppContent: React.FC<{ serverUrl?: string }> = ({ serverUrl }) => {
                   <div className={desktopFlyoutPanel}>
                     <div
                       role="menu"
-                      className="min-w-[12rem] py-1 rounded-xl bg-card border border-border shadow-lg"
+                      className="min-w-[12rem] whitespace-normal py-1 rounded-xl bg-card border border-border shadow-lg"
                     >
                       <button
                         type="button"
@@ -640,7 +640,7 @@ const AppContent: React.FC<{ serverUrl?: string }> = ({ serverUrl }) => {
                 )}
               </nav>
 
-              <div className="flex items-center gap-2 shrink-0 md:hidden">
+              <div className="flex items-center gap-2 shrink-0 lg:hidden">
                 {clientUser && (
                   <NotificationBell
                     fetchNotifications={() => apiClient.getNotifications(Number(clientUser.id))}
@@ -669,7 +669,7 @@ const AppContent: React.FC<{ serverUrl?: string }> = ({ serverUrl }) => {
             </div>
 
             {isMobileMenuOpen && (
-              <div className="md:hidden absolute top-24 left-4 right-4 bg-card/95 backdrop-blur-md border-2 border-border p-4 rounded-3xl space-y-1 flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200 max-h-[min(80dvh,520px)] overflow-y-auto">
+              <div className="lg:hidden absolute top-24 left-4 right-4 sm:left-auto sm:w-96 bg-card/95 backdrop-blur-md border-2 border-border p-4 rounded-3xl space-y-1 flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200 max-h-[min(80dvh,520px)] overflow-y-auto">
                 <button
                   type="button"
                   onClick={() => openCustomerPage('home')}
@@ -1020,7 +1020,7 @@ const AIAssistant: React.FC<{ brandName: string }> = ({ brandName }) => {
     <>
       {/* Chat panel */}
       {isOpen && (
-        <div className="fixed bottom-[calc(8.5rem+env(safe-area-inset-bottom,0px))] right-4 z-[91] w-[340px] max-w-[calc(100vw-2rem)] rounded-[2rem] bg-card shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] border-2 border-border flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 duration-500 ease-out min-[769px]:bottom-[7.5rem] min-[769px]:right-6" style={{ maxHeight: 'min(500px, calc(100dvh - 12rem))' }}>
+        <div className="cin-ai-panel fixed bottom-[calc(8.5rem+env(safe-area-inset-bottom,0px))] right-4 z-[91] w-[340px] max-w-[calc(100vw-2rem)] rounded-[2rem] bg-card shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] border-2 border-border flex flex-col overflow-hidden animate-in slide-in-from-bottom-8 duration-500 ease-out min-[769px]:bottom-[7.5rem] min-[769px]:right-6" style={{ maxHeight: 'min(500px, calc(100dvh - 12rem))' }}>
           <div className="bg-gradient-to-r from-primary to-indigo-800 p-5 text-primary-foreground flex justify-between items-center select-none shrink-0">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-white/25 rounded-2xl backdrop-blur-md flex items-center justify-center overflow-hidden ring-2 ring-white/30">
@@ -1092,7 +1092,7 @@ const AIAssistant: React.FC<{ brandName: string }> = ({ brandName }) => {
             setShowWelcomeNudge(false);
             sessionStorage.setItem(AI_WELCOME_NUDGE_KEY, '1');
           }}
-          className="fixed bottom-[calc(12rem+env(safe-area-inset-bottom,0px))] right-4 z-[91] max-w-[280px] text-left rounded-2xl border border-primary/20 bg-white px-4 py-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-500 print:hidden min-[769px]:bottom-[10.5rem] min-[769px]:right-6"
+          className="cin-ai-tip fixed bottom-[calc(12rem+env(safe-area-inset-bottom,0px))] right-4 z-[91] max-w-[280px] text-left rounded-2xl border border-primary/20 bg-white px-4 py-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-500 print:hidden min-[769px]:bottom-[10.5rem] min-[769px]:right-6"
         >
           <p className="text-sm font-black text-slate-900">Welcome to {brandName}.</p>
           <p className="text-xs text-slate-600 mt-1 leading-relaxed">
@@ -1109,7 +1109,7 @@ const AIAssistant: React.FC<{ brandName: string }> = ({ brandName }) => {
           sessionStorage.setItem(AI_WELCOME_NUDGE_KEY, '1');
         }}
         aria-label={isOpen ? 'Close AI assistant' : 'Open AI assistant'}
-        className="fixed bottom-[calc(8rem+env(safe-area-inset-bottom,0px))] right-4 z-[91] group flex items-center justify-center w-14 h-14 rounded-full shadow-2xl shadow-primary/40 hover:scale-110 active:scale-95 transition-all duration-300 overflow-hidden print:hidden min-[769px]:bottom-[5.5rem] min-[769px]:right-6"
+        className="cin-ai-fab fixed bottom-[calc(8rem+env(safe-area-inset-bottom,0px))] right-4 z-[91] group flex items-center justify-center w-12 h-12 min-[769px]:w-14 min-[769px]:h-14 rounded-full shadow-2xl shadow-primary/40 hover:scale-110 active:scale-95 transition-all duration-300 overflow-hidden print:hidden min-[769px]:bottom-[5.5rem] min-[769px]:right-6"
       >
         <div className="absolute inset-0 bg-gradient-to-tr from-indigo-800 to-primary scale-150 group-hover:rotate-45 transition-transform duration-500" />
         {isOpen ? (

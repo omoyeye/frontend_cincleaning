@@ -955,7 +955,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
           </div>
           <div className="space-y-2 text-center">
             <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Service Unavailable</h3>
-            <p className="mb-6 text-[10px] font-bold uppercase tracking-widest text-slate-400">{loadingError}</p>
+            <p className="mb-6 text-[11px] sm:text-xs font-bold uppercase tracking-widest text-slate-400">{loadingError}</p>
             <button
               onClick={() => window.location.reload()}
               className="rounded-2xl bg-gradient-to-r from-slate-800 to-slate-900 px-10 py-5 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-slate-900/20 transition-all hover:brightness-110 active:scale-[0.98]"
@@ -978,7 +978,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
           </div>
           <div className="space-y-2 text-center">
             <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Initialising Secure Portal</h3>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Preparing your bespoke clean configuration...</p>
+            <p className="text-[11px] sm:text-xs font-bold uppercase tracking-widest text-slate-400">Preparing your bespoke clean configuration...</p>
           </div>
         </div>
       </div>
@@ -1003,7 +1003,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
             <div className="mb-6 flex items-start justify-between gap-4">
               <div className="min-w-0 space-y-2">
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-gradient-to-r from-sky-50 to-indigo-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-sky-800 shadow-sm shadow-sky-100/40">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-gradient-to-r from-sky-50 to-indigo-50 px-3 py-1.5 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] text-sky-800 shadow-sm shadow-sky-100/40">
                     Step {displayStepNumber(currentStep)} of {activeSteps.length}
                   </span>
                   {currentStep > 0 && (
@@ -1039,7 +1039,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
               </div>
             </div>
 
-            <div className="mb-1 flex justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <div className="mb-1 flex justify-between text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">
               <span>Start</span>
               <span className="hidden sm:inline">Progress</span>
               <span>Complete</span>
@@ -1184,7 +1184,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                           onChange={(e) => setCommercialDetails(e.target.value)}
                         />
                         <p
-                          className={`text-[10px] font-black uppercase tracking-widest ${
+                          className={`text-[11px] sm:text-xs font-black uppercase tracking-widest ${
                             commercialDetails.trim().length >= COMMERCIAL_OR_JET_DETAILS_MIN_CHARS
                               ? 'text-emerald-600'
                               : 'text-amber-700'
@@ -1532,7 +1532,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                     <InputField label="Full Name" value={customer.name} onChange={(v) => setCustomer({ ...customer, name: v })} placeholder="John Doe" icon={<User className="w-4 h-4" />} />
                     <InputField label="Email Address" value={customer.email} onChange={(v) => setCustomer({ ...customer, email: v })} placeholder="john@example.com" icon={<ShieldCheck className="w-4 h-4" />} />
                     <InputField label="Phone Number" value={customer.phone} onChange={(v) => setCustomer({ ...customer, phone: v })} placeholder="07700 900123" />
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500">
                       Required: UK mobile or landline (at least 10 digits) for day-of contact.
                     </p>
                   </div>
@@ -1546,7 +1546,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                     <div className="grid grid-cols-2 gap-4">
                       <InputField label="City" value={address.city} onChange={(v) => setAddress({ ...address, city: v })} placeholder="London" />
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Postcode</label>
+                        <label className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400">Postcode</label>
                         <div className="flex items-center gap-2">
                           <input
                             type="text"
@@ -1559,17 +1559,17 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                             type="button"
                             onClick={handleVerifyPostcode}
                             disabled={postcodeVerifying}
-                            className="shrink-0 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="shrink-0 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] sm:text-xs font-black uppercase tracking-wider text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {postcodeVerifying ? 'Checking' : 'Verify'}
                           </button>
                         </div>
                         {postcodeVerifyMsg ? (
-                          <p className={`text-[10px] font-black uppercase tracking-wider ${postcodeVerified ? 'text-emerald-600' : 'text-amber-700'}`}>
+                          <p className={`text-[11px] sm:text-xs font-black uppercase tracking-wider ${postcodeVerified ? 'text-emerald-600' : 'text-amber-700'}`}>
                             {postcodeVerifyMsg}
                           </p>
                         ) : (
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500">
                             Verify with UK postcode dataset before continuing.
                           </p>
                         )}
@@ -1706,7 +1706,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                   </div>
                   {tipPercent === -1 && (
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tip amount (£)</label>
+                      <label className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-500">Tip amount (£)</label>
                       <input
                         type="number"
                         min={0}
@@ -1761,19 +1761,19 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                   <div className="space-y-6 relative z-10">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Service Details</div>
+                        <div className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Service Details</div>
                         <div className="text-lg font-black text-white">{selectedService?.name}</div>
                         <div className="text-sm font-bold text-slate-300">{frequency} • {calculatedDuration} Hours (booked)</div>
                       </div>
                       <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Date & Time</div>
+                        <div className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Date & Time</div>
                         <div className="text-lg font-black text-white">{date}</div>
                         <div className="text-sm font-bold text-slate-300">@ {time}</div>
                       </div>
                     </div>
 
                     <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Location</div>
+                      <div className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Location</div>
                       <div className="text-sm font-bold text-white">{address.line1}</div>
                       {address.line2 && <div className="text-sm font-bold text-slate-300">{address.line2}</div>}
                       <div className="text-sm font-bold text-slate-300">{address.city}, {address.postcode}</div>
@@ -1867,7 +1867,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
               <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
               <div className="pointer-events-none absolute bottom-0 left-0 h-28 w-28 rounded-full bg-sky-400/20 blur-xl" />
               <Sparkles className="absolute right-6 top-6 h-20 w-20 text-white/15" aria-hidden />
-              <span className="relative z-[1] mb-2 block text-[10px] font-black uppercase tracking-[0.2em] text-white/85">Live cost estimate</span>
+              <span className="relative z-[1] mb-2 block text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] text-white/85">Live cost estimate</span>
               <div className="relative z-[1] text-5xl font-black tracking-tight drop-shadow-sm">£{Number(totalPrice).toFixed(2)}</div>
               <div className="relative z-[1] mt-4 inline-flex items-center rounded-xl border border-white/20 bg-white/15 px-3 py-1.5 text-xs font-bold backdrop-blur-md">
                 Est. duration: {Math.floor(calculatedDuration)}h {Math.round((calculatedDuration - Math.floor(calculatedDuration)) * 60) > 0 ? `${Math.round((calculatedDuration - Math.floor(calculatedDuration)) * 60)}m` : ''}
@@ -1955,7 +1955,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                   </span>
                 </div>
                 {itemizedDurationBreakdown && isDeepOrEOTService(selectedService, selectedService?.name) && (
-                  <p className="text-[10px] font-bold text-slate-400 mb-2 -mt-1">
+                  <p className="text-[11px] sm:text-xs font-bold text-slate-400 mb-2 -mt-1">
                     Each line has its own price; estimated minimum duration is for scheduling only (not charged).
                   </p>
                 )}
@@ -2069,7 +2069,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
       {/* Mobile Sticky Summary */}
       <div className="safe-area-pb fixed bottom-0 left-0 right-0 z-40 flex items-center justify-between border-t border-slate-200/80 bg-white/90 p-4 shadow-[0_-12px_40px_-8px_rgba(15,23,42,0.12)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/75 lg:hidden">
         <div className="flex flex-col">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Estimated total</span>
+          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">Estimated total</span>
           <span className="bg-gradient-to-br from-slate-900 to-slate-600 bg-clip-text text-2xl font-black text-transparent">£{Number(totalPrice).toFixed(2)}</span>
         </div>
         <div className="flex space-x-2 sm:space-x-3">
@@ -2104,7 +2104,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
 
 const InputField: React.FC<{ label: string, value: string, onChange: (v: string) => void, placeholder?: string, icon?: React.ReactNode, type?: string }> = ({ label, value, onChange, placeholder, icon, type = 'text' }) => (
   <div className="space-y-2">
-    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</label>
+    <label className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400">{label}</label>
     <div className="relative">
       {icon && <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">{icon}</div>}
       <input

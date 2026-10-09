@@ -3,10 +3,10 @@ import { Mail, Phone, Facebook, Instagram } from 'lucide-react';
 import { useBusinessSettings } from '../src/context/BusinessSettingsContext';
 
 const contactLinkClass =
-  'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-muted-foreground hover:text-primary transition-colors';
+  'inline-flex min-h-[36px] shrink-0 items-center gap-1.5 whitespace-nowrap text-muted-foreground hover:text-primary transition-colors';
 
 const socialIconWrap =
-  'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary';
+  'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary';
 
 function TikTokGlyph({ className }: { className?: string }) {
   return (

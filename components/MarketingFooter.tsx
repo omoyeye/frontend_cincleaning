@@ -45,7 +45,9 @@ const MarketingFooter: React.FC<MarketingFooterProps> = ({ content, onNavigate, 
     else window.location.href = href;
   };
 
-  const footerLinkClass = 'text-left hover:text-white hover:underline underline-offset-2 transition-colors';
+  // Comfortable tap height on phones (about 40px); compact from tablet up.
+  const footerLinkClass =
+    'inline-flex min-h-[40px] items-center text-left hover:text-white hover:underline underline-offset-2 transition-colors sm:min-h-0';
 
   return (
     <footer className="relative w-full mt-16 sm:mt-20 bg-slate-950 text-slate-100 pt-12 pb-[calc(3rem+env(safe-area-inset-bottom,0px))] px-4 sm:px-6 md:px-10 lg:px-16 border-t border-slate-800/80">
@@ -58,12 +60,12 @@ const MarketingFooter: React.FC<MarketingFooterProps> = ({ content, onNavigate, 
             <p className="text-xl font-black tracking-tight text-white">{brandCompanyName}</p>
             <p className="text-sm text-slate-400 leading-relaxed">{content.footerBlurb}</p>
             {(brandEmail || brandPhone) && (
-              <ul className="space-y-2 text-sm text-slate-300">
+              <ul className="space-y-1 text-sm text-slate-300 sm:space-y-2">
                 {brandEmail && brandEmail.includes('@') ? (
                   <li>
                     <a
                       href={`mailto:${brandEmail}`}
-                      className="inline-flex items-center gap-2 hover:text-white transition-colors"
+                      className="inline-flex min-h-[40px] items-center gap-2 hover:text-white transition-colors sm:min-h-0"
                     >
                       <Mail className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
                       <span>{brandEmail}</span>
@@ -74,7 +76,7 @@ const MarketingFooter: React.FC<MarketingFooterProps> = ({ content, onNavigate, 
                   <li>
                     <a
                       href={`tel:${brandPhone.replace(/\s/g, '')}`}
-                      className="inline-flex items-center gap-2 hover:text-white transition-colors"
+                      className="inline-flex min-h-[40px] items-center gap-2 hover:text-white transition-colors sm:min-h-0"
                     >
                       <Phone className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
                       <span>{brandPhone}</span>
@@ -85,13 +87,13 @@ const MarketingFooter: React.FC<MarketingFooterProps> = ({ content, onNavigate, 
             )}
             {brandAddress ? <p className="text-sm text-slate-500 leading-relaxed whitespace-pre-line">{brandAddress}</p> : null}
             {(fbUrl || ttUrl || igUrl) && (
-              <div className="flex flex-wrap items-center gap-3 pt-1">
+              <div className="flex flex-wrap items-center gap-1 pt-1">
                 {fbUrl ? (
                   <a
                     href={normalizeSocialUrl(fbUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-slate-400 hover:text-[#1877F2] transition-colors"
+                    className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 hover:bg-slate-800 hover:text-[#1877F2] transition-colors"
                     aria-label="Facebook"
                   >
                     <Facebook className="h-5 w-5" strokeWidth={1.75} />
@@ -102,7 +104,7 @@ const MarketingFooter: React.FC<MarketingFooterProps> = ({ content, onNavigate, 
                     href={normalizeSocialUrl(ttUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-slate-400 hover:text-white transition-colors"
+                    className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
                     aria-label="TikTok"
                   >
                     <TikTokFooterIcon className="h-5 w-5" />
@@ -113,7 +115,7 @@ const MarketingFooter: React.FC<MarketingFooterProps> = ({ content, onNavigate, 
                     href={normalizeSocialUrl(igUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-slate-400 hover:text-pink-400 transition-colors"
+                    className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 hover:bg-slate-800 hover:text-pink-400 transition-colors"
                     aria-label="Instagram"
                   >
                     <Instagram className="h-5 w-5" strokeWidth={1.75} />
@@ -124,7 +126,7 @@ const MarketingFooter: React.FC<MarketingFooterProps> = ({ content, onNavigate, 
           </div>
           <div>
             <p className="text-[11px] uppercase tracking-widest font-black text-slate-500">Services</p>
-            <ul className="mt-4 space-y-2.5 text-sm text-slate-300">
+            <ul className="mt-3 space-y-0 text-sm text-slate-300 sm:mt-4 sm:space-y-2.5">
               <li>
                 <button type="button" className={footerLinkClass} onClick={() => onNavigate('home')}>
                   Home
@@ -174,7 +176,7 @@ const MarketingFooter: React.FC<MarketingFooterProps> = ({ content, onNavigate, 
           </div>
           <div>
             <p className="text-[11px] uppercase tracking-widest font-black text-slate-500">Company &amp; resources</p>
-            <ul className="mt-4 space-y-2.5 text-sm text-slate-300">
+            <ul className="mt-3 space-y-0 text-sm text-slate-300 sm:mt-4 sm:space-y-2.5">
               <li>
                 <button type="button" className={footerLinkClass} onClick={() => onNavigate('about')}>
                   About us
@@ -223,7 +225,7 @@ const MarketingFooter: React.FC<MarketingFooterProps> = ({ content, onNavigate, 
             <button
               type="button"
               onClick={onBookNow}
-              className="mt-5 inline-flex px-5 py-2.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold text-sm transition-colors"
+              className="mt-5 inline-flex w-full justify-center px-5 py-3 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold text-sm transition-colors sm:w-auto sm:py-2.5"
             >
               Book now
             </button>
@@ -235,7 +237,7 @@ const MarketingFooter: React.FC<MarketingFooterProps> = ({ content, onNavigate, 
               <button
                 key={l.id}
                 type="button"
-                className="whitespace-nowrap hover:text-slate-300"
+                className="inline-flex min-h-[36px] items-center whitespace-nowrap hover:text-slate-300 sm:min-h-0"
                 onClick={() => goHref(l.href)}
               >
                 {l.label}

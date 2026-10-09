@@ -17,7 +17,7 @@ export const DurationBreakdownBlock: React.FC<Props> = ({
 
   return (
     <div className={`rounded-2xl border border-slate-200 bg-slate-50/90 p-4 md:p-5 ${className}`}>
-      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">{title}</h4>
+      <h4 className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-500 mb-3">{title}</h4>
       <table className="w-full text-sm">
         <tbody className="divide-y divide-slate-200/80">
           {!hasLines ? (

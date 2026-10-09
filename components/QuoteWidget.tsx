@@ -382,8 +382,8 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
           )}
           <div className={styles.resultNote}>
             {resultPrice != null
-              ? 'This is an indicative estimate based on the information you provided. Your final price is confirmed when you book. We have emailed you a copy.'
-              : 'We have your details and will send a tailored quote shortly.'}
+              ? 'This is an estimate based on what you told us, and we have emailed you a copy. A member of our customer care team will call or email you shortly to answer any questions and help you book.'
+              : 'Thank you. A member of our customer care team will call or email you shortly with a tailored quote.'}
           </div>
           <div className={styles.resultPromo}>
             Use code <span className={styles.promoCode}>FIRST10</span> for 10% off your first booking.
@@ -426,7 +426,7 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
       {/* ── STEP: Service ── */}
       {step === 'service' && (
         <>
-          <div className={styles.stepTitle}>Step 1 — Choose Your Service</div>
+          <div className={styles.stepTitle}>Step 1 · Choose your service</div>
           <div className={styles.serviceGrid}>
             {availableServices.map(svc => (
               <button
@@ -512,7 +512,7 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
       {/* ── STEP: Details ── */}
       {step === 'details' && selectedService && (
         <>
-          <div className={styles.stepTitle}>Step {stepNumber} — Property Details</div>
+          <div className={styles.stepTitle}>Step {stepNumber} · Property details</div>
 
           {trig === 'airbnb' && (
             <div className={styles.detailsBlock}>
@@ -642,7 +642,7 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
       {/* ── STEP: Extras ── */}
       {step === 'extras' && selectedService && (
         <>
-          <div className={styles.stepTitle}>Step {stepNumber} — Additional Services</div>
+          <div className={styles.stepTitle}>Step {stepNumber} · Extras</div>
           <div className={styles.extrasGrid}>
             {additionalExtras.map(ex => {
               const qty = selectedExtras.find(s => s.id === ex.id)?.quantity || 0;
@@ -674,7 +674,7 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
       {/* ── STEP: Contact ── */}
       {step === 'contact' && (
         <>
-          <div className={styles.stepTitle}>Step {stepNumber} — Your Details</div>
+          <div className={styles.stepTitle}>Step {stepNumber} · Where should we send it?</div>
           <div className={styles.formGroup}>
             <label className={styles.formLabel}>Full Name</label>
             <input type="text" className={styles.formInput} value={name} onChange={e => setName(e.target.value)} placeholder="Your full name" />
