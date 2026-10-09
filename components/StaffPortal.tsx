@@ -6,6 +6,7 @@ import {
   Briefcase, CheckSquare, Menu, Gift, Users, Wallet, Map as MapIcon, AlarmClock
 } from 'lucide-react';
 import RunningLatePanel from './staff/RunningLatePanel';
+import { Avatar, Badge, Button, Callout, Card, cx, EmptyState, Field, InfoItem, inputClass, SectionHeader, Segmented, Spinner, StatTile, statusTone } from './staff/StaffUi';
 import { StaffNotification, Booking, BookingStatus, Extra, Referral, ServiceConfig, Staff, WorkCompletionData, UserAccount } from '../types';
 import { apiStaff } from '../services/api';
 import { NotificationBell } from './NotificationBell';
@@ -1228,1765 +1229,1676 @@ const StaffPortal: React.FC<{
     }
   };
 
-  return (
-    <div className="flex h-full min-h-0 w-full max-w-full flex-1 overflow-hidden bg-gradient-to-br from-[#eef9f2] via-[#f3f1ff] to-[#e9f6ff] selection:bg-emerald-100">
-      {/* Desktop Sidebar Navigation */}
-      <aside className="z-20 hidden h-full min-h-0 w-72 shrink-0 border-r border-[#dff0e5] bg-gradient-to-b from-white/90 to-emerald-50/60 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.05)] backdrop-blur-xl md:flex md:min-h-0 md:flex-col">
-        <div className="p-6 pb-4 border-b border-slate-50 flex flex-col items-center">
-          <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-tr from-primary to-indigo-600 shadow-lg shadow-primary/30 mb-3 flex items-center justify-center">
-            {currentStaff?.imageUrl ? (
-              <img src={currentStaff.imageUrl} alt={displayName} className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-2xl font-black text-primary-foreground">{displayInitial}</span>
-            )}
+  /* ───────────────────────── Presentation helpers (no business logic) ───────────────────────── */
+  const PAGE_META: Record<PortalTab, { title: string; subtitle: string }> = {
+    schedule: { title: 'My schedule', subtitle: 'Your jobs for today and the days ahead.' },
+    availability: { title: 'My rota', subtitle: 'Jobs on any date, plus the hours you are available.' },
+    messages: { title: 'Inbox', subtitle: 'Alerts, client chats and messages from the office.' },
+    late: { title: 'Running late', subtitle: 'Let the client and the office know straight away.' },
+    invoice: { title: 'Earnings', subtitle: 'Your pay for this week and your invoices.' },
+    referrals: { title: 'Referrals', subtitle: 'Share your code and earn a bonus.' },
+    profile: { title: 'My profile', subtitle: 'Your details, bank account and password.' },
+    reviews: { title: 'My reviews', subtitle: 'What clients said about your work.' },
+  };
+  const pageMeta = PAGE_META[activeTab];
+  /** "5 Oct" from YYYY-MM-DD (falls back to the raw value). */
+  const shortDate = (ymd: string) => {
+    const d = new Date(`${String(ymd).slice(0, 10)}T00:00:00`);
+    return Number.isNaN(d.getTime()) ? ymd : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  };
+  const isOpenJob = (j: Booking) => j.status === BookingStatus.PENDING || j.status === BookingStatus.CONFIRMED;
+  /** The job a cleaner most likely needs right now: next open job today, otherwise the next upcoming one. */
+  const nextJob: Booking | null = todaysJobs.find(isOpenJob) ?? upcomingJobs.find(isOpenJob) ?? null;
+  const completedCount = jobs.filter((j) => j.status === BookingStatus.COMPLETED).length;
+  const finishedCount = jobs.filter((j) => j.status === BookingStatus.COMPLETED || j.status === BookingStatus.CANCELLED).length;
+  const reliabilityLabel = finishedCount === 0 ? '100%' : `${Math.round((completedCount / finishedCount) * 100)}%`;
+  const jobAddressText = (job: Booking | null) =>
+    job
+      ? [
+          (job as any)?.address?.line1 ?? (job as any)?.addressLine1 ?? '',
+          (job as any)?.address?.city ?? (job as any)?.addressCity ?? '',
+          (job as any)?.address?.postcode ?? (job as any)?.addressPostcode ?? '',
+        ]
+          .filter(Boolean)
+          .join(', ')
+      : '';
+  const JOB_STEPS: Array<{ id: 'details' | 'travel' | 'work' | 'summary'; label: string }> = [
+    { id: 'details', label: 'Details' },
+    { id: 'travel', label: 'Travel' },
+    { id: 'work', label: 'On site' },
+    { id: 'summary', label: 'Sign off' },
+  ];
+  const jobStepIndex = Math.max(0, JOB_STEPS.findIndex((s) => s.id === jobStage));
+  const closeSelectedJob = () => {
+    if (clockInData && jobStage === 'work') return;
+    setSelectedJob(null);
+    setJobStage('details');
+    setClockOutTimeLabel(null);
+    setClockOutAtIso(null);
+    setEarlyClockOutModalOpen(false);
+    setEarlyClockOutReasonInput('');
+    setEarlyClockOutReason(null);
+  };
+  const notificationBell = (className?: string) => (
+    <NotificationBell
+      fetchNotifications={() => apiStaff.getNotifications(Number(currentUser?.id))}
+      markRead={apiStaff.markNotificationRead}
+      deleteNotification={apiStaff.deleteNotification}
+      className={className}
+    />
+  );
+  const jobCardProps = { currentStaffId: currentStaff?.id, staffDirectory, serviceCatalog, extraServices };
+  const mapFallback = (
+    <div className="flex items-center justify-center py-16">
+      <Spinner />
+    </div>
+  );
+  const sendStaffChat = () => {
+    if (!activeChatJobId || !staffChatMessage.trim()) return;
+    void apiStaff.sendBookingChat(activeChatJobId, staffChatMessage).then(() => {
+      setStaffChatMessage('');
+      return loadStaffChat(activeChatJobId);
+    });
+  };
+
+  const activeJobBanner =
+    activeClockedJob && clockInData ? (
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 p-5 text-white shadow-lg shadow-emerald-600/20">
+        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10" aria-hidden />
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="inline-flex items-center gap-2 text-sm font-medium text-emerald-50">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+              </span>
+              Job in progress
+            </p>
+            <p className="mt-1 truncate text-xl font-semibold">{activeClockedJob.contact?.name || 'Client'}</p>
+            <p className="text-sm text-emerald-50/90">
+              Clocked in at {clockInData.time} · {activeClockedJob.bookingId || `#${activeClockedJob.id}`}
+            </p>
           </div>
-          <h2 className="text-lg font-black text-slate-900 leading-tight text-center">{displayName}</h2>
-          <p className="text-primary font-bold uppercase tracking-widest text-[9px] mt-1">{currentStaff?.role || 'Staff Member'}</p>
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-white/15 px-4 py-2 text-right">
+              <p className="text-xs text-emerald-50/90">Elapsed</p>
+              <p className="font-mono text-lg font-semibold tabular-nums">{elapsedClockLabel}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedJob(activeClockedJob);
+                setJobStage('work');
+              }}
+              className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+            >
+              Open job
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null;
+
+  const nextJobCard =
+    !activeJobBanner && nextJob ? (
+      <button
+        type="button"
+        onClick={() => openJobDetails(nextJob)}
+        className="group relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-5 text-left text-primary-foreground shadow-lg shadow-primary/20 transition hover:shadow-xl focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/30"
+      >
+        <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-white/10" aria-hidden />
+        <div className="relative flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium opacity-90">
+              Next job · {normalizeBookingDate(nextJob.date) === calendarToday ? 'Today' : formatScheduleCardDate(nextJob.date)}
+            </p>
+            <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">{nextJob.time || '--:--'}</p>
+            <p className="mt-1 truncate text-lg font-semibold">{nextJob.contact?.name || 'Client'}</p>
+            <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm opacity-90">
+              <MapPin className="h-4 w-4 shrink-0" />
+              <span className="truncate">{jobAddressText(nextJob) || 'Address not available'}</span>
+            </p>
+          </div>
+          <span className="mt-1 inline-flex shrink-0 items-center gap-1 rounded-xl bg-white/20 px-3 py-2 text-sm font-semibold transition group-hover:bg-white/30">
+            Open <ChevronRight className="h-4 w-4" />
+          </span>
+        </div>
+      </button>
+    ) : null;
+
+  const chatThread = (variant: 'mobile' | 'desktop') => (
+    <div className={cx('flex min-h-0 flex-col', variant === 'mobile' ? 'min-h-[460px]' : 'h-full')}>
+      <div className="border-b border-slate-100 px-4 py-3">
+        {variant === 'mobile' ? (
+          <button type="button" onClick={() => setMobileChatView('list')} className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-primary">
+            <ChevronLeft className="h-4 w-4" /> All chats
+          </button>
+        ) : null}
+        <div className="flex items-center gap-3">
+          <Avatar name={activeChatJob?.contact?.name || 'Client'} size="sm" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-900">{activeChatJob?.contact?.name || 'Client'}</p>
+            <p className="text-xs text-slate-500">Booking {activeChatJob?.bookingId || `#${activeChatJob?.id || activeChatJobId || ''}`}</p>
+          </div>
+        </div>
+        {!staffChatCanStart && <Callout tone="warning" className="mt-3">Chat opens 10 minutes before the start time.</Callout>}
+        {staffChatClosed && <Callout tone="danger" className="mt-3">This chat was closed by the office after the job. You can still read it.</Callout>}
+      </div>
+      <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 p-4">
+        {staffChatMessages.length === 0 ? (
+          <p className="py-10 text-center text-sm text-slate-400">No messages yet.</p>
+        ) : (
+          staffChatMessages.map((m) => (
+            <div key={m.id} className={cx('flex', m.senderRole === 'staff' ? 'justify-end' : 'justify-start')}>
+              <div
+                className={cx(
+                  'max-w-[85%] rounded-2xl px-4 py-2.5 text-sm shadow-sm',
+                  m.senderRole === 'staff' ? 'rounded-br-md bg-primary text-primary-foreground' : 'rounded-bl-md bg-white text-slate-900 ring-1 ring-slate-200',
+                )}
+              >
+                <p className="mb-0.5 text-xs font-medium opacity-70">{m.senderName}</p>
+                <p className="whitespace-pre-wrap">{m.text}</p>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+      <form
+        className="flex gap-2 border-t border-slate-100 p-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          sendStaffChat();
+        }}
+      >
+        <input
+          value={staffChatMessage}
+          onChange={(e) => setStaffChatMessage(e.target.value)}
+          disabled={staffChatClosed || !staffChatCanStart}
+          placeholder={staffChatClosed ? 'Chat closed' : 'Write a message…'}
+          className={inputClass}
+        />
+        <Button type="submit" disabled={staffChatClosed || !staffChatCanStart || !staffChatMessage.trim()} aria-label="Send message" icon={<Send className="h-4 w-4" />} />
+      </form>
+    </div>
+  );
+
+  const chatListItem = (job: Booking, closed: boolean, onOpen: () => void) => (
+    <button
+      key={job.id}
+      type="button"
+      onClick={onOpen}
+      className={cx(
+        'flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition',
+        String(activeChatJobId) === String(job.id) ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-slate-50',
+      )}
+    >
+      <Avatar name={job.contact?.name || 'Client'} size="sm" className={closed ? 'opacity-60' : undefined} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-slate-900">{job.contact?.name || 'Client'}</p>
+        <p className="truncate text-xs text-slate-500">
+          {closed ? 'Closed by office' : `${formatScheduleCardDate(job.date)} · ${job.time}`}
+        </p>
+      </div>
+      {closed ? <Badge tone="neutral">History</Badge> : <ChevronRight className="h-4 w-4 text-slate-300" />}
+    </button>
+  );
+
+  const chatList = (onPick: (job: Booking) => void) => (
+    <div className="space-y-4">
+      {openChatJobs.length > 0 ? (
+        <div className="space-y-1">
+          <p className="px-2 pb-1 text-xs font-medium text-slate-500">Open chats</p>
+          {visibleOpenChatJobs.map((job) => chatListItem(job, false, () => onPick(job)))}
+          {openChatJobs.length > 4 && (
+            <button type="button" onClick={() => setShowAllOpenChats((prev) => !prev)} className="w-full rounded-xl px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5">
+              {showAllOpenChats ? 'Show less' : `Show ${openChatJobs.length - 4} more`}
+            </button>
+          )}
+        </div>
+      ) : null}
+      {closedChatHistoryJobs.length > 0 ? (
+        <div className="space-y-1">
+          <p className="px-2 pb-1 text-xs font-medium text-slate-500">History</p>
+          {closedChatHistoryJobs.map((job) => chatListItem(job, true, () => onPick(job)))}
+        </div>
+      ) : null}
+      {openChatJobs.length === 0 && closedChatHistoryJobs.length === 0 ? (
+        <EmptyState icon={<MessageSquare className="h-6 w-6" />} title="No chats yet" body="A chat opens with each client 10 minutes before the job starts." />
+      ) : null}
+    </div>
+  );
+
+  return (
+    <div className="flex h-full min-h-0 w-full max-w-full flex-1 overflow-hidden bg-slate-50 selection:bg-primary/15">
+      {/* Desktop sidebar */}
+      <aside className="z-20 hidden h-full min-h-0 w-64 shrink-0 flex-col border-r border-slate-200/80 bg-white md:flex">
+        <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-5">
+          <Avatar src={currentStaff?.imageUrl} name={displayName} />
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-slate-900">{displayName}</p>
+            <p className="flex items-center gap-1.5 text-xs text-slate-500">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              {currentStaff?.role || 'Staff member'} · On duty
+            </p>
+          </div>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto py-4 px-4 no-scrollbar">
-          <SideNavBtn active={activeTab === 'schedule'} activeClass={TAB_ACCENT.schedule.sideActive} onClick={() => setActiveTab('schedule')} label="My Schedule" icon={<Calendar className="w-5 h-5" />} />
-          <SideNavBtn active={activeTab === 'availability'} activeClass={TAB_ACCENT.availability.sideActive} onClick={() => setActiveTab('availability')} label="My Rota" icon={<CheckSquare className="w-5 h-5" />} />
-          <SideNavBtn
-            active={activeTab === 'messages'}
-            activeClass={TAB_ACCENT.messages.sideActive}
-            onClick={() => openInbox('alerts')}
-            label="Inbox"
-            icon={<MessageSquare className="w-5 h-5" />}
-            badge={staffAlerts.length}
-          />
-          <SideNavBtn active={activeTab === 'late'} activeClass={TAB_ACCENT.late.sideActive} onClick={() => setActiveTab('late')} label="Running Late" icon={<AlarmClock className="w-5 h-5" />} />
-          <SideNavBtn active={activeTab === 'invoice'} activeClass={TAB_ACCENT.invoice.sideActive} onClick={() => setActiveTab('invoice')} label="Earnings" icon={<FileText className="w-5 h-5" />} />
-          <SideNavBtn active={activeTab === 'referrals'} activeClass={TAB_ACCENT.referrals.sideActive} onClick={() => setActiveTab('referrals')} label="Referrals" icon={<Gift className="w-5 h-5" />} />
-          <SideNavBtn active={activeTab === 'profile'} activeClass={TAB_ACCENT.profile.sideActive} onClick={() => setActiveTab('profile')} label="Profile" icon={<User className="w-5 h-5" />} />
-          <SideNavBtn active={activeTab === 'reviews'} activeClass={TAB_ACCENT.reviews.sideActive} onClick={() => setActiveTab('reviews')} label="My Reviews" icon={<Star className="w-5 h-5" />} />
-        </div>
+        <nav className="min-h-0 flex-1 space-y-6 overflow-y-auto px-3 py-5 no-scrollbar" aria-label="Staff menu">
+          <div className="space-y-1">
+            <p className="px-3 pb-1 text-xs font-medium text-slate-400">Work</p>
+            <SideNavBtn active={activeTab === 'schedule'} onClick={() => setActiveTab('schedule')} label="My schedule" icon={<Calendar className="h-[18px] w-[18px]" />} />
+            <SideNavBtn active={activeTab === 'availability'} onClick={() => setActiveTab('availability')} label="My rota" icon={<CheckSquare className="h-[18px] w-[18px]" />} />
+            <SideNavBtn active={activeTab === 'messages'} onClick={() => openInbox('alerts')} label="Inbox" icon={<MessageSquare className="h-[18px] w-[18px]" />} badge={staffAlerts.length} />
+            <SideNavBtn active={activeTab === 'late'} onClick={() => setActiveTab('late')} label="Running late" icon={<AlarmClock className="h-[18px] w-[18px]" />} />
+          </div>
+          <div className="space-y-1">
+            <p className="px-3 pb-1 text-xs font-medium text-slate-400">Me</p>
+            <SideNavBtn active={activeTab === 'invoice'} onClick={() => setActiveTab('invoice')} label="Earnings" icon={<Wallet className="h-[18px] w-[18px]" />} />
+            <SideNavBtn active={activeTab === 'reviews'} onClick={() => setActiveTab('reviews')} label="My reviews" icon={<Star className="h-[18px] w-[18px]" />} />
+            <SideNavBtn active={activeTab === 'referrals'} onClick={() => setActiveTab('referrals')} label="Referrals" icon={<Gift className="h-[18px] w-[18px]" />} />
+            <SideNavBtn active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} label="Profile" icon={<User className="h-[18px] w-[18px]" />} />
+          </div>
+        </nav>
 
-        <div className="p-4 border-t border-slate-50">
-          <button onClick={onLogout} className="w-full py-4 text-slate-400 bg-slate-50 border border-slate-100/50 hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-all rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest flex items-center justify-center space-x-2">
-            <LogOut className="w-4 h-4" /> <span>Logout</span>
+        <div className="border-t border-slate-100 p-3">
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+          >
+            <LogOut className="h-[18px] w-[18px]" /> Sign out
           </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
+      {/* Main content */}
       <main className="relative z-10 min-h-0 w-full max-w-full flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain">
         {!selectedJob && (
-          <div className="max-w-5xl mx-auto pt-10 md:pt-16 pb-32 md:pb-24 px-6 md:px-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-            {/* Mobile Header */}
-            <div className="md:hidden mb-6">
-              <div className="flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-primary to-indigo-600 shadow-md flex items-center justify-center shrink-0 ring-2 ring-white">
-                  {currentStaff?.imageUrl ? (
-                    <img src={currentStaff.imageUrl} alt={displayName} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-sm font-bold text-white">{displayInitial}</span>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-lg font-bold text-slate-900 truncate">{greeting}, {displayName.split(' ')[0]}</h2>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-xs text-slate-500">{todayLabel}</span>
-                    <span className="text-slate-300">&middot;</span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      <span className="text-xs font-medium text-emerald-600">On Duty</span>
-                    </span>
-                  </div>
-                </div>
-                <NotificationBell
-                  fetchNotifications={() => apiStaff.getNotifications(Number(currentUser?.id))}
-                  markRead={apiStaff.markNotificationRead}
-                  deleteNotification={apiStaff.deleteNotification}
-                  className="shrink-0"
-                />
+          <div className="mx-auto max-w-5xl px-4 pb-32 pt-5 animate-in fade-in duration-300 sm:px-6 md:px-10 md:pb-16 md:pt-10">
+            {/* Mobile header */}
+            <div className="mb-5 flex items-center gap-3 md:hidden">
+              <Avatar src={currentStaff?.imageUrl} name={displayName} size="sm" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold text-slate-900">
+                  {greeting}, {displayName.split(' ')[0]}
+                </p>
+                <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                  {todayLabel}
+                  <span className="text-slate-300">·</span>
+                  <span className="inline-flex items-center gap-1 font-medium text-emerald-600">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> On duty
+                  </span>
+                </p>
               </div>
+              {notificationBell('shrink-0')}
             </div>
 
-            <div className="hidden md:flex justify-end mb-6">
-              <NotificationBell
-                fetchNotifications={() => apiStaff.getNotifications(Number(currentUser?.id))}
-                markRead={apiStaff.markNotificationRead}
-                deleteNotification={apiStaff.deleteNotification}
-              />
+            {/* Page title */}
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="hidden text-sm text-slate-500 md:block">
+                  {greeting}, {displayName.split(' ')[0]} · {todayLabel}
+                </p>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-900 md:mt-1 md:text-3xl">{pageMeta.title}</h1>
+                <p className="mt-1 text-sm text-slate-500">{pageMeta.subtitle}</p>
+              </div>
+              <div className="hidden md:block">{notificationBell()}</div>
             </div>
 
             {initialLoading ? (
-              <div className="space-y-6 animate-pulse">
-                <div className="h-8 w-48 bg-slate-200 rounded-xl" />
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-4 animate-pulse" aria-label="Loading">
+                <div className="h-36 rounded-2xl bg-slate-200/70" />
+                <div className="grid gap-4 md:grid-cols-3">
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="rounded-[2rem] border border-slate-100 bg-white p-6 space-y-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-slate-200" />
-                        <div className="flex-1 space-y-2">
-                          <div className="h-4 w-32 bg-slate-200 rounded" />
-                          <div className="h-3 w-20 bg-slate-100 rounded" />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="h-3 w-full bg-slate-100 rounded" />
-                        <div className="h-3 w-3/4 bg-slate-100 rounded" />
-                      </div>
-                      <div className="flex gap-2">
-                        <div className="h-8 w-20 bg-slate-100 rounded-xl" />
-                        <div className="h-8 w-20 bg-slate-100 rounded-xl" />
-                      </div>
-                    </div>
+                    <div key={i} className="h-24 rounded-2xl bg-white ring-1 ring-slate-200/70" />
                   ))}
                 </div>
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-28 rounded-2xl bg-white ring-1 ring-slate-200/70" />
+                ))}
               </div>
             ) : (
-            <div className="space-y-4">
-              {activeTab === 'schedule' && (
-                <div className="space-y-12 animate-in slide-in-from-right duration-300">
-                  <div className="md:hidden space-y-6">
-                    {activeClockedJob && clockInData ? (
-                      <div className="rounded-[1.5rem] border border-emerald-300 bg-gradient-to-br from-emerald-50 to-teal-50 p-4 shadow-[0_10px_30px_-14px_rgba(16,185,129,0.55)]">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">Active Job</p>
-                            <p className="text-base font-black text-slate-900">{activeClockedJob.contact?.name || 'Client'}</p>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Booking #{activeClockedJob.id}</p>
+              <div className="space-y-6">
+                {/* ───────── Schedule ───────── */}
+                {activeTab === 'schedule' && (
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    {activeJobBanner}
+                    {nextJobCard}
+
+                    {/* Mobile: list of days -> day -> map */}
+                    <div className="space-y-4 md:hidden">
+                      {mobileScheduleView === 'map' ? (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <Button variant="ghost" size="sm" onClick={() => setMobileScheduleView('list')} icon={<ChevronLeft className="h-4 w-4" />}>
+                              Back to list
+                            </Button>
+                            <h3 className="font-semibold text-slate-900">Jobs map</h3>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedJob(activeClockedJob);
-                              setJobStage('work');
-                            }}
-                            className="rounded-xl bg-emerald-600 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white shadow-sm"
-                          >
-                            Open Active Job
-                          </button>
-                        </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2">
-                          <div className="rounded-xl border border-emerald-200 bg-white/80 p-2">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Clocked In</p>
-                            <p className="font-mono text-sm font-black text-emerald-700">{clockInData.time}</p>
+                          <Card padded={false} className="overflow-hidden">
+                            <React.Suspense fallback={mapFallback}>
+                              <StaffJobsMap bookings={jobs} onSelectBooking={(b) => openJobDetails(b)} />
+                            </React.Suspense>
+                          </Card>
+                        </>
+                      ) : mobileScheduleView === 'list' ? (
+                        <>
+                          <SectionHeader
+                            title="Coming up"
+                            subtitle={`${mobileScheduleDailyRows.length} ${mobileScheduleDailyRows.length === 1 ? 'day' : 'days'} with jobs`}
+                            action={
+                              <Button variant="secondary" size="sm" onClick={() => setMobileScheduleView('map')} icon={<MapIcon className="h-4 w-4" />}>
+                                Map
+                              </Button>
+                            }
+                          />
+                          {mobileScheduleDailyRows.length > 0 ? (
+                            <div className="space-y-5">
+                              {mobileScheduleSections.map((section) => (
+                                <section key={section.label} className="space-y-2">
+                                  <p className="px-1 text-xs font-medium text-slate-500">{section.label}</p>
+                                  <ol className="m-0 list-none space-y-2 p-0">
+                                    {section.rows.map((row) => {
+                                      const isToday = row.date === calendarToday;
+                                      const [, , d] = String(row.date).split('-');
+                                      const weekday = new Date(`${row.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short' });
+                                      return (
+                                        <li key={row.date}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedRotaDate(row.date);
+                                              setMobileScheduleView('day');
+                                            }}
+                                            className={cx(
+                                              'flex w-full items-center gap-4 rounded-2xl border bg-white px-4 py-3 text-left shadow-sm transition active:scale-[0.99]',
+                                              isToday ? 'border-primary/30 ring-1 ring-primary/20' : 'border-slate-200/80 hover:border-slate-300',
+                                            )}
+                                          >
+                                            <div className={cx('flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl', isToday ? 'bg-primary text-primary-foreground' : 'bg-slate-100 text-slate-700')}>
+                                              <span className="text-[11px] font-medium leading-none opacity-80">{weekday}</span>
+                                              <span className="text-lg font-semibold leading-tight tabular-nums">{Number(d)}</span>
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                              <p className="font-semibold text-slate-900">{isToday ? 'Today' : formatMobileDateRowTitle(row.date)}</p>
+                                              <p className="text-sm text-slate-500">
+                                                {row.jobs.length} {row.jobs.length === 1 ? 'job' : 'jobs'} · {formatBookedHoursLabel(row.totalHours)}h
+                                              </p>
+                                            </div>
+                                            <ChevronRight className="h-5 w-5 shrink-0 text-slate-300" />
+                                          </button>
+                                        </li>
+                                      );
+                                    })}
+                                  </ol>
+                                </section>
+                              ))}
+                            </div>
+                          ) : (
+                            <EmptyState icon={<Calendar className="h-6 w-6" />} title="No upcoming jobs" body="New jobs appear here as soon as the office assigns them to you." />
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between gap-3">
+                            <Button variant="ghost" size="sm" onClick={() => setMobileScheduleView('list')} icon={<ChevronLeft className="h-4 w-4" />}>
+                              All days
+                            </Button>
+                            <div className="text-right">
+                              <p className="font-semibold text-slate-900">{selectedRotaDate === calendarToday ? 'Today' : formatScheduleCardDate(selectedRotaDate)}</p>
+                              <p className="text-xs text-slate-500">
+                                {selectedDateJobs.length} {selectedDateJobs.length === 1 ? 'job' : 'jobs'} · by start time
+                              </p>
+                            </div>
                           </div>
-                          <div className="rounded-xl border border-emerald-200 bg-white/80 p-2">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Elapsed</p>
-                            <p className="font-mono text-sm font-black text-emerald-700">{elapsedClockLabel}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : null}
-                    {mobileScheduleView === 'map' ? (
-                      <>
-                        <div className="px-2 flex items-center justify-between gap-3">
-                          <button type="button" onClick={() => setMobileScheduleView('list')} className="inline-flex items-center gap-1 text-xs font-black uppercase tracking-widest text-primary">
-                            <ChevronLeft className="h-4 w-4" /> List
-                          </button>
-                          <h3 className="text-lg font-black text-slate-900">Jobs Map</h3>
-                        </div>
-                        <React.Suspense fallback={<div className="flex items-center justify-center py-16"><div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
-                          <StaffJobsMap bookings={jobs} onSelectBooking={(b) => openJobDetails(b)} />
-                        </React.Suspense>
-                      </>
-                    ) : mobileScheduleView === 'list' ? (
-                      <>
-                        <div className="px-2 flex items-center justify-between">
-                          <h3 className="text-xl font-black text-slate-900">Schedule</h3>
-                          <div className="flex items-center gap-2">
-                            <button type="button" onClick={() => setMobileScheduleView('map')} className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="View on map">
-                              <MapIcon className="w-4 h-4" />
-                            </button>
-                            <span className="text-[10px] bg-primary/15 text-primary px-3 py-1 rounded-full uppercase tracking-widest">
-                              {mobileScheduleDailyRows.length} {mobileScheduleDailyRows.length === 1 ? 'day' : 'days'}
+                          {selectedDateJobs.length > 0 ? (
+                            <ol className="m-0 list-none space-y-3 p-0">
+                              {selectedDateJobs.map((job) => (
+                                <li key={job.id}>
+                                  <JobCard job={job} onClick={() => openJobDetails(job)} timeOrdered {...jobCardProps} />
+                                </li>
+                              ))}
+                            </ol>
+                          ) : (
+                            <EmptyState icon={<Calendar className="h-6 w-6" />} title="Day off" body="You have no jobs on this date." />
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Desktop: stats, today, upcoming */}
+                    <div className="hidden space-y-8 md:block">
+                      <div className="grid grid-cols-3 gap-4">
+                        <StatTile label="Jobs completed" value={completedCount} icon={<CheckCircle2 className="h-5 w-5" />} accent="bg-emerald-50 text-emerald-600" hint="All time" />
+                        <StatTile
+                          label="Client rating"
+                          value={
+                            <span className="inline-flex items-center gap-1.5">
+                              {clientRatingStats.avg != null ? clientRatingStats.avg.toFixed(1) : '–'}
+                              {clientRatingStats.avg != null ? <Star className="h-5 w-5 fill-amber-400 text-amber-400" /> : null}
                             </span>
-                          </div>
-                        </div>
-                        {mobileScheduleDailyRows.length > 0 ? (
-                          <div className="space-y-5">
-                            {mobileScheduleSections.map((section) => (
-                              <section key={section.label} className="space-y-2.5">
-                                <div className="px-2 py-1 bg-slate-200/70 text-slate-900 rounded-lg">
-                                  <p className="text-xs font-black uppercase tracking-wider">{section.label}</p>
-                                </div>
-                                <ol className="space-y-2.5 list-none p-0 m-0">
-                                  {section.rows.map((row) => (
-                                    <li key={row.date}>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setSelectedRotaDate(row.date);
-                                          setMobileScheduleView('day');
-                                        }}
-                                        className="w-full rounded-[1.15rem] bg-emerald-50/85 px-2 py-3 text-left transition-colors hover:bg-emerald-100"
-                                      >
-                                        <div className="flex items-start justify-between gap-2">
-                                          <p className={`text-[1.65rem] font-black leading-none ${row.date === calendarToday ? 'text-primary' : 'text-slate-900'}`}>
-                                            {row.date === calendarToday ? 'Today' : formatMobileDateRowTitle(row.date)}
-                                          </p>
-                                          <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
-                                            <ChevronRight className="h-4 w-4" />
-                                          </div>
-                                        </div>
-                                        <div className="mt-2 flex items-center justify-end gap-1.5">
-                                          <span className="rounded-full bg-[#1e2a8a] px-2.5 py-0.5 text-[11px] font-black text-white tabular-nums">
-                                            {row.jobs.length}
-                                          </span>
-                                          <span className="rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-black text-white tabular-nums">
-                                            {formatBookedHoursLabel(row.totalHours)}hrs
-                                          </span>
-                                        </div>
-                                      </button>
-                                    </li>
+                          }
+                          icon={<Star className="h-5 w-5" />}
+                          accent="bg-amber-50 text-amber-600"
+                          hint={
+                            clientRatingStats.n === 0 ? (
+                              'No reviews yet'
+                            ) : (
+                              <span className="flex flex-wrap gap-x-2">
+                                <span>
+                                  {clientRatingStats.n} review{clientRatingStats.n === 1 ? '' : 's'}
+                                </span>
+                                <span className="flex gap-2 text-slate-400">
+                                  {[5, 4, 3, 2, 1].map((s) => (
+                                    <span key={s} className="tabular-nums">
+                                      {s}★ {clientRatingStats.counts[s]}
+                                    </span>
                                   ))}
-                                </ol>
-                              </section>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-center py-10 bg-emerald-50 rounded-[2.5rem] border border-emerald-200 shadow-sm text-slate-400">
-                            <Calendar className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                            <p className="font-bold text-sm text-slate-900">No upcoming jobs scheduled yet.</p>
-                          </div>
+                                </span>
+                              </span>
+                            )
+                          }
+                        />
+                        <StatTile label="Reliability" value={reliabilityLabel} icon={<ShieldCheck className="h-5 w-5" />} accent="bg-sky-50 text-sky-600" hint="Completed vs cancelled" />
+                      </div>
+
+                      <section className="space-y-3">
+                        <SectionHeader
+                          title="Today"
+                          subtitle={`${todaysJobs.length} ${todaysJobs.length === 1 ? 'job' : 'jobs'} · by start time`}
+                          action={
+                            <Button variant={desktopMapVisible ? 'primary' : 'secondary'} size="sm" onClick={() => setDesktopMapVisible((v) => !v)} icon={<MapIcon className="h-4 w-4" />}>
+                              {desktopMapVisible ? 'Hide map' : 'Show map'}
+                            </Button>
+                          }
+                        />
+                        {desktopMapVisible && (
+                          <Card padded={false} className="overflow-hidden">
+                            <React.Suspense fallback={mapFallback}>
+                              <StaffJobsMap bookings={todaysJobs} onSelectBooking={(b) => openJobDetails(b)} />
+                            </React.Suspense>
+                          </Card>
                         )}
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex items-center justify-between gap-3 px-2">
-                          <button
-                            type="button"
-                            onClick={() => setMobileScheduleView('list')}
-                            className="inline-flex items-center gap-1 text-xs font-black uppercase tracking-widest text-primary"
-                          >
-                            <ChevronLeft className="h-4 w-4" />
-                            Back
-                          </button>
-                          <div className="text-right">
-                            <p className="text-lg font-black text-slate-900">
-                              {selectedRotaDate === calendarToday ? 'Today' : formatScheduleCardDate(selectedRotaDate)}
-                            </p>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                              {selectedDateJobs.length} job{selectedDateJobs.length === 1 ? '' : 's'} · by start time
-                            </p>
-                          </div>
-                        </div>
-                        {selectedDateJobs.length > 0 ? (
-                          <ol className="m-0 list-none space-y-4 p-0">
-                            {selectedDateJobs.map((job) => (
+                        {todaysJobs.length > 0 ? (
+                          <ol className="m-0 list-none space-y-3 p-0">
+                            {todaysJobs.map((job) => (
                               <li key={job.id}>
-                                <JobCard
-                                  job={job}
-                                  onClick={() => openJobDetails(job)}
-                                  timeOrdered
-                                  currentStaffId={currentStaff?.id}
-                                  staffDirectory={staffDirectory}
-                                  serviceCatalog={serviceCatalog}
-                                  extraServices={extraServices}
-                                />
+                                <JobCard job={job} onClick={() => openJobDetails(job)} timeOrdered {...jobCardProps} />
                               </li>
                             ))}
                           </ol>
                         ) : (
-                          <div className="text-center py-12 bg-emerald-50 rounded-[2.5rem] border border-emerald-200 shadow-sm text-slate-400">
-                            <Calendar className="w-14 h-14 mx-auto mb-3 opacity-20 text-slate-900" />
-                            <p className="font-black text-slate-900 text-lg">Not working</p>
-                            <p className="font-bold text-sm mt-1">No jobs assigned for this date.</p>
-                          </div>
+                          <EmptyState icon={<CheckSquare className="h-6 w-6" />} title="Nothing booked for today" body="Enjoy the break. Upcoming jobs are listed below." />
                         )}
-                      </>
-                    )}
-                  </div>
+                      </section>
 
-                  <div className="hidden md:block space-y-6">
-                    {activeClockedJob && clockInData ? (
-                      <div className="rounded-[2rem] border border-emerald-300 bg-gradient-to-r from-emerald-50 to-teal-50 p-5 shadow-[0_14px_40px_-20px_rgba(16,185,129,0.5)]">
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">Active Job In Progress</p>
-                            <p className="text-xl font-black text-slate-900 mt-1">{activeClockedJob.contact?.name || 'Client'} <span className="text-sm text-slate-500">#{activeClockedJob.id}</span></p>
-                            <p className="text-[11px] font-bold text-slate-600 mt-1">
-                              {activeClockedJob.date} @ {activeClockedJob.time}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="rounded-2xl bg-white/90 border border-emerald-200 px-4 py-3 text-right min-w-[10rem]">
-                              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Clocked In</p>
-                              <p className="font-mono text-base font-black text-emerald-700">{clockInData.time}</p>
-                            </div>
-                            <div className="rounded-2xl bg-white/90 border border-emerald-200 px-4 py-3 text-right min-w-[10rem]">
-                              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Elapsed</p>
-                              <p className="font-mono text-base font-black text-emerald-700">{elapsedClockLabel}</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedJob(activeClockedJob);
-                                setJobStage('work');
-                              }}
-                              className="rounded-2xl bg-emerald-600 px-4 py-3 text-xs font-black uppercase tracking-widest text-white shadow-md shadow-emerald-300/60 hover:opacity-95"
-                            >
-                              Open Active Job
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : null}
-                    {/* Dashboard Metrics */}
-                    <div className="grid grid-cols-3 gap-4 mb-8">
-                      <div className="bg-white p-5 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col items-center justify-center text-center hover:-translate-y-1 transition-transform">
-                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Jobs Done</div>
-                        <div className="text-3xl font-black text-slate-800 bg-clip-text text-transparent bg-gradient-to-r from-indigo-700 to-primary">
-                          {jobs.filter(j => j.status === BookingStatus.COMPLETED).length}
-                        </div>
-                      </div>
-                      <div className="bg-white p-5 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col items-center justify-center text-center hover:-translate-y-1 transition-transform min-h-[140px]">
-                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Client ratings</div>
-                        <div className="text-3xl font-black text-slate-800 bg-clip-text text-transparent bg-gradient-to-r from-indigo-700 to-primary flex items-center">
-                          {clientRatingStats.avg != null ? clientRatingStats.avg.toFixed(1) : '-'}
-                        </div>
-                        <div className="text-[10px] font-bold text-slate-500 mt-1">
-                          {clientRatingStats.n === 0 ? 'No reviews yet' : `${clientRatingStats.n} review${clientRatingStats.n === 1 ? '' : 's'}`}
-                        </div>
-                        <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 mt-3 text-[9px] font-black text-slate-400">
-                          {[5, 4, 3, 2, 1].map((s) => (
-                            <span key={s}>{s}★:{clientRatingStats.counts[s]}</span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="bg-white p-5 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col items-center justify-center text-center hover:-translate-y-1 transition-transform">
-                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Reliability</div>
-                        <div className="text-3xl font-black text-emerald-600">
-                          {(() => {
-                            const completedCount = jobs.filter(j => j.status === BookingStatus.COMPLETED).length;
-                            const totalFinished = jobs.filter(j => j.status === BookingStatus.COMPLETED || j.status === BookingStatus.CANCELLED).length;
-                            if (totalFinished === 0) return '100%';
-                            return Math.round((completedCount / totalFinished) * 100) + '%';
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-
-                    <h3 className="text-xl font-black text-slate-900 px-2 flex justify-between items-center">
-                      <span>Today's Jobs</span>
-                      <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => setDesktopMapVisible(v => !v)} className={`p-2 rounded-xl transition-colors ${desktopMapVisible ? 'bg-primary text-white shadow-md' : 'bg-primary/10 text-primary hover:bg-primary/20'}`} title={desktopMapVisible ? 'Hide map' : 'Show jobs on map'}>
-                          <MapIcon className="w-4 h-4" />
-                        </button>
-                        <span className="text-[10px] bg-primary/15 text-primary px-3 py-1 rounded-full uppercase tracking-widest">
-                          {todaysJobs.length} {todaysJobs.length === 1 ? 'job' : 'jobs'} · by start time
-                        </span>
-                      </div>
-                    </h3>
-
-                    {desktopMapVisible && (
-                      <React.Suspense fallback={<div className="flex items-center justify-center py-16"><div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
-                        <StaffJobsMap bookings={todaysJobs} onSelectBooking={(b) => openJobDetails(b)} />
-                      </React.Suspense>
-                    )}
-
-                    {todaysJobs.length > 0 ? (
-                      <ol className="space-y-4 list-none p-0 m-0">
-                        {todaysJobs.map((job) => (
-                          <li key={job.id}>
-                            <JobCard
-                              job={job}
-                              onClick={() => openJobDetails(job)}
-                              timeOrdered
-                              currentStaffId={currentStaff?.id}
-                              staffDirectory={staffDirectory}
-                              serviceCatalog={serviceCatalog}
-                              extraServices={extraServices}
-                            />
-                          </li>
-                        ))}
-                      </ol>
-                    ) : (
-                      <div className="text-center py-10 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm text-slate-400">
-                        <CheckSquare className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                        <p className="font-bold text-sm text-slate-900">No jobs scheduled for today.</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="hidden md:block space-y-6">
-                    <div className="flex justify-between items-center px-2">
-                      <h3 className="text-xl font-black text-slate-900">Upcoming Schedule</h3>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{upcomingJobs.length} Jobs</span>
-                    </div>
-                    {upcomingJobs.length > 0 ? (
-                      <ol className="space-y-4 list-none p-0 m-0">
-                        {upcomingJobs.map((job) => (
-                          <li key={job.id}>
-                            <JobCard
-                              job={job}
-                              onClick={() => openJobDetails(job)}
-                              timeOrdered
-                              currentStaffId={currentStaff?.id}
-                              staffDirectory={staffDirectory}
-                              serviceCatalog={serviceCatalog}
-                              extraServices={extraServices}
-                            />
-                          </li>
-                        ))}
-                      </ol>
-                    ) : (
-                      <div className="text-center py-10 bg-slate-50 rounded-[2.5rem] border border-slate-100 text-slate-400">
-                        <Calendar className="w-16 h-16 mx-auto mb-4 opacity-20 text-slate-900" />
-                        <p className="font-black text-slate-900 text-lg">Your future looks clear!</p>
-                        <p className="font-bold text-sm mt-1">No upcoming jobs scheduled yet.</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'availability' && (
-                <div className="space-y-6 animate-in slide-in-from-right duration-300">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-start px-2">
-                    <div>
-                      <h3 className="text-xl font-black text-slate-900">My Rota</h3>
-                      <p className="text-xs font-bold text-slate-500 mt-1">
-                        {rotaDayLabel}
-                        {selectedDateJobs.length > 0
-                          ? ` · ${selectedDateJobs.length} job${selectedDateJobs.length === 1 ? '' : 's'} this date (by start time)`
-                          : ' · pick any date to see past and upcoming assignments'}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedRotaDate((d) => shiftCalendarDay(d, -1))}
-                        className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-xs font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50"
-                      >
-                        Prev
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedRotaDate(getTodayYYYYMMDD())}
-                        className="px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-xs font-black uppercase tracking-widest text-primary hover:bg-primary/15"
-                      >
-                        Today
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedRotaDate((d) => shiftCalendarDay(d, 1))}
-                        className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-xs font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50"
-                      >
-                        Next
-                      </button>
-                      <input
-                        type="date"
-                        value={selectedRotaDate}
-                        onChange={(e) => setSelectedRotaDate(e.target.value)}
-                        className="text-sm font-bold bg-card text-foreground px-4 py-2 border-2 border-input rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                      />
-                    </div>
-                  </div>
-
-                  {selectedDateJobs.length > 0 ? (
-                    <ol className="m-0 list-none space-y-4 p-0">
-                      {selectedDateJobs.map((job) => (
-                        <li key={job.id}>
-                          <JobCard
-                            job={job}
-                            onClick={() => openJobDetails(job)}
-                            timeOrdered
-                            rotaNotes
-                            currentStaffId={currentStaff?.id}
-                            staffDirectory={staffDirectory}
-                            serviceCatalog={serviceCatalog}
-                            extraServices={extraServices}
-                          />
-                        </li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <div className="text-center py-16 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm text-slate-400">
-                      <Calendar className="w-16 h-16 mx-auto mb-4 opacity-20 text-slate-900" />
-                      <p className="font-black text-slate-900 text-lg">No Jobs Found</p>
-                      <p className="font-bold text-sm mt-1">You have no assignments on {selectedRotaDate}.</p>
-                    </div>
-                  )}
-
-                  <div className="bg-white p-5 sm:p-8 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] mt-8">
-                    <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-xl font-black text-slate-900">Weekly Availability</h3>
-                      {!isEditingAvailability ? (
-                        <button onClick={() => setIsEditingAvailability(true)} className="text-xs font-black text-primary bg-primary/12 px-3 py-1.5 rounded-xl uppercase tracking-widest hover:bg-primary/18 transition-colors">Edit</button>
-                      ) : (
-                        <button onClick={handleTimeOffRequest} className="text-xs font-black text-primary-foreground bg-primary px-3 py-1.5 rounded-xl uppercase tracking-widest hover:opacity-90 shadow-md shadow-primary/25 transition-all">Save Changes</button>
-                      )}
-                    </div>
-                    <div className="space-y-3">
-                      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                        <div key={day} className="flex justify-between items-center p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-                          <div className="flex items-center space-x-3 w-1/3">
-                            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center font-black text-slate-400 text-xs shadow-sm">{day.charAt(0)}</div>
-                            <span className="font-bold text-slate-700 text-sm">{day}</span>
-                          </div>
-
-                          {!isEditingAvailability ? (
-                            <div className="flex items-center justify-end w-2/3">
-                              {availabilityForm[day]?.active ? (
-                                <span className="text-[10px] font-black text-green-600 bg-green-100 px-3 py-1.5 rounded-lg uppercase tracking-wide">{availabilityForm[day].start} - {availabilityForm[day].end}</span>
-                              ) : (
-                                <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg uppercase tracking-wide">Off Duty</span>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-end space-x-2 w-2/3">
-                              <label className="relative inline-flex items-center cursor-pointer mr-2">
-                                <input type="checkbox" className="sr-only peer" checked={availabilityForm[day]?.active} onChange={(e) => setAvailabilityForm({ ...availabilityForm, [day]: { ...availabilityForm[day], active: e.target.checked } })} />
-                                <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
-                              </label>
-
-                              {availabilityForm[day]?.active && (
-                                <>
-                                  <input type="time" value={availabilityForm[day].start} onChange={(e) => setAvailabilityForm({ ...availabilityForm, [day]: { ...availabilityForm[day], start: e.target.value } })} className="text-xs font-bold bg-white text-slate-900 px-2 py-1 border border-slate-200 rounded-lg focus:outline-none" />
-                                  <span className="text-slate-400 font-bold text-xs">-</span>
-                                  <input type="time" value={availabilityForm[day].end} onChange={(e) => setAvailabilityForm({ ...availabilityForm, [day]: { ...availabilityForm[day], end: e.target.value } })} className="text-xs font-bold bg-white text-slate-900 px-2 py-1 border border-slate-200 rounded-lg focus:outline-none" />
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'invoice' && (
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-                  <div className="bg-emerald-600 text-white p-5 sm:p-8 rounded-[2.5rem] shadow-xl shadow-emerald-200">
-                    <p className="text-emerald-100 text-xs font-black uppercase tracking-widest mb-1">This week (Mon–Sun)</p>
-                    <p className="text-emerald-100/90 text-[10px] font-bold uppercase tracking-widest mb-3">{invoiceData.weekStart} → {invoiceData.weekEnd}</p>
-                    <h2 className="text-4xl font-black">£{Number(invoiceData.weekTotalShare || 0).toFixed(2)}</h2>
-                    <p className="text-emerald-100 text-sm mt-2 font-medium">
-                      {invoiceData.weekJobCount} job{invoiceData.weekJobCount === 1 ? '' : 's'} · {Number(invoiceData.weekTotalYourHours || 0).toFixed(2)} your hrs (booked time ÷ team size)
-                    </p>
-
-                    <button
-                      onClick={handleSendInvoice}
-                      disabled={invoiceData.weekJobs.length === 0}
-                      className="mt-6 w-full py-4 bg-white text-emerald-600 rounded-2xl font-black hover:bg-emerald-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                    >
-                      <Send className="w-4 h-4" /> <span>Submit Weekly Invoice</span>
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-slate-900 text-white p-6 rounded-[2rem] shadow-lg">
-                      <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">This month (completed)</p>
-                      <p className="text-3xl font-black tabular-nums">£{Number(invoiceData.monthShare || 0).toFixed(2)}</p>
-                      <p className="text-slate-500 text-xs font-medium mt-2">{invoiceData.monthJobs.length} job{invoiceData.monthJobs.length === 1 ? '' : 's'} in {new Date().toLocaleString('default', { month: 'long' })}</p>
-                    </div>
-                    <div className="bg-white border border-slate-100 p-6 rounded-[2rem] shadow-sm flex flex-col justify-center">
-                      <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">All-time earnings (hourly)</p>
-                      <p className="text-2xl font-black text-slate-900 tabular-nums">£{Number(invoiceData.totalShare || 0).toFixed(2)}</p>
-                      <p className="text-slate-500 text-xs font-medium mt-2">From {invoiceData.jobs.length} completed job{invoiceData.jobs.length === 1 ? '' : 's'} on record</p>
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-[2.5rem] p-5 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
-                      <h3 className="text-xl font-black text-slate-900">This week&apos;s jobs (invoice)</h3>
-                      <div className="text-xs font-black uppercase tracking-widest text-slate-400">
-                        {invoiceData.weekJobCount} jobs · {Number(invoiceData.weekTotalYourHours || 0).toFixed(2)} your hrs
-                      </div>
-                    </div>
-                    {invoiceData.weekJobs.length === 0 ? (
-                      <p className="text-slate-400 text-sm font-bold text-center py-8">
-                        No completed jobs in this calendar week ({invoiceData.weekStart} – {invoiceData.weekEnd}).
-                      </p>
-                    ) : (
-                      <div className="space-y-4">
-                        {invoiceData.weekJobs.map((job: any) => (
-                          <div key={job.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                            <div className="flex justify-between items-start mb-2">
-                              <div>
-                                <div className="font-black text-slate-900">{job.customer}</div>
-                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{job.date} • ID: {job.id}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-emerald-600 font-black">£{Number(job.yourShare || 0).toFixed(2)}</div>
-                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">your pay</div>
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1 items-center text-xs font-bold text-slate-500 mt-2 pt-2 border-t border-slate-200">
-                              <span className={job.staffCount > 1 ? 'text-primary' : ''}>
-                                {job.staffCount > 1 ? `Team job - ${job.staffCount} staff` : 'Solo job'}
-                              </span>
-                              <span>Booked: {Number(job.bookedHours || 0).toFixed(2)}h</span>
-                              <span>Your hours: {Number(job.yourHours || 0).toFixed(2)}h</span>
-                              <span>£{Number(job.hourlyRate || 0).toFixed(2)}/hr</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="bg-white rounded-[2.5rem] p-5 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                    <div className="flex items-center justify-between gap-2 mb-6">
-                      <h3 className="text-xl font-black text-slate-900">Submitted invoices</h3>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        Includes admin decision notes
-                      </p>
-                    </div>
-                    {submittedInvoices.length === 0 ? (
-                      <p className="text-slate-400 text-sm font-bold text-center py-8">No submitted invoices yet.</p>
-                    ) : (
-                      <div className="space-y-4">
-                        {submittedInvoices.map((inv) => (
-                          <div key={inv.id} className="p-4 rounded-2xl border border-slate-100 bg-slate-50">
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                              <div>
-                                <p className="font-black text-slate-900">{inv.weekLabel || 'Current week'}</p>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                                  #{inv.id} · {inv.weekJobCount} jobs · {Number(inv.weekTotalHours || 0).toFixed(2)}h
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-black text-slate-900">£{Number(inv.totalAmount || 0).toFixed(2)}</p>
-                                <span className={`inline-block mt-1 px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${inv.status === 'Approved'
-                                  ? 'bg-emerald-100 text-emerald-700'
-                                  : inv.status === 'Rejected'
-                                    ? 'bg-red-100 text-red-700'
-                                    : 'bg-amber-100 text-amber-700'
-                                  }`}>
-                                  {inv.status || 'Pending'}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="mt-3 flex justify-end">
-                              <button
-                                type="button"
-                                onClick={() => setExpandedSubmittedInvoiceId((prev) => (prev === inv.id ? null : inv.id))}
-                                className="rounded-xl bg-slate-200 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 hover:bg-slate-300"
-                              >
-                                {expandedSubmittedInvoiceId === inv.id ? 'Hide invoice' : 'View invoice'}
-                              </button>
-                            </div>
-                            <div className="mt-3 p-3 rounded-xl bg-white border border-slate-100">
-                              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Admin note</p>
-                              <p className="text-sm font-medium text-slate-700">
-                                {inv.adminNotes && String(inv.adminNotes).trim()
-                                  ? inv.adminNotes
-                                  : 'No admin note yet.'}
-                              </p>
-                            </div>
-                            {expandedSubmittedInvoiceId === inv.id && (
-                              <div className="mt-4 border-t border-slate-200 pt-4">
-                                <StaffInvoiceDocument
-                                  invoiceId={inv.id}
-                                  weekLabel={inv.weekLabel}
-                                  weekStart={inv.weekStart}
-                                  weekEnd={inv.weekEnd}
-                                  createdAt={inv.createdAt}
-                                  status={inv.status}
-                                  adminNotes={inv.adminNotes}
-                                  totalAmount={Number(inv.totalAmount || 0)}
-                                  weekTotalHours={Number(inv.weekTotalHours || 0)}
-                                  weekJobCount={Number(inv.weekJobCount || 0)}
-                                  jobs={(Array.isArray(inv.jobs) ? inv.jobs : []) as any[]}
-                                  bankDetails={
-                                    (inv.bankDetails as { bankName?: string; accountNumber?: string; sortCode?: string } | undefined) ||
-                                    {
-                                      bankName: currentStaff?.bankName || '',
-                                      accountNumber: currentStaff?.accountNumber || '',
-                                      sortCode: currentStaff?.sortCode || '',
-                                    }
-                                  }
-                                  staff={{
-                                    name: currentStaff?.name || inv.staffName || displayName,
-                                    email: currentStaff?.email || currentUser?.email || '',
-                                    phone: (currentStaff as any)?.phone || '',
-                                    address: (currentStaff as any)?.address || '',
-                                    postcode: (currentStaff as any)?.postcode || '',
-                                  }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'referrals' && (
-                <div className="space-y-8 animate-in fade-in duration-500">
-                  <div className="bg-purple-600 text-white p-5 sm:p-8 rounded-[2.5rem] shadow-xl shadow-purple-200">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-purple-100 text-xs font-black uppercase tracking-widest mb-1">Total Referral Earnings</p>
-                        <h2 className="text-4xl font-black">£{referrals.reduce((sum, r) => sum + Number(r.rewardAmount || 0), 0).toFixed(2)}</h2>
-                        <p className="text-purple-100 text-[10px] font-bold mt-2 uppercase tracking-widest leading-relaxed max-w-xs">
-                          Refer friends and clients using your code and earn bonuses when they book their first clean!
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-purple-200 mb-2 mt-1">Your Code</p>
-                        <div className="px-4 py-2 bg-white text-purple-600 rounded-xl font-black inline-block text-sm cursor-pointer hover:bg-slate-50 transition-colors shadow-sm" onClick={() => { navigator.clipboard.writeText(currentUser?.referralCode || 'N/A'); showFlyer('Referral code copied!', 'success'); }}>
-                          {currentUser?.referralCode || 'N/A'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-[2.5rem] p-5 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-                    <h3 className="text-xl font-black text-slate-900 mb-6 tracking-tight">Referral History</h3>
-                    <div className="space-y-4">
-                      {referrals.length === 0 && (
-                        <div className="py-12 text-center text-slate-400">
-                          <Gift className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                          <p className="font-bold text-sm">You haven't referred anyone yet.</p>
-                        </div>
-                      )}
-                      {referrals.map((r) => (
-                        <div key={r.id} className="p-5 rounded-3xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-                          <div>
-                            <p className="font-black text-slate-900 leading-tight">{r.referredClientName}</p>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                              {new Date(r.dateReferred).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className={`font-black tracking-tight text-lg mb-0.5 ${r.status !== 'Paid Out' ? 'text-slate-900' : 'text-green-600'}`}>£{Number(r.rewardAmount || 0).toFixed(2)}</p>
-                            <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${r.status === 'Paid Out' ? 'bg-green-100 text-green-700' :
-                              r.status === 'Completed' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                              }`}>
-                              {r.status}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'profile' && (
-                <div className="space-y-6 animate-in slide-in-from-right duration-300">
-                  <div className="bg-white p-5 sm:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm relative">
-                    {!isEditingProfile ? (
-                      <div className="text-center">
-                        <button onClick={() => { setEditForm(currentStaff || {}); setIsEditingProfile(true); }} className="absolute top-6 right-6 p-2 bg-muted text-slate-400 hover:text-primary rounded-xl transition-colors">
-                          <Settings className="w-5 h-5" />
-                        </button>
-                        <div className="w-24 h-24 bg-slate-100 bg-cover bg-center rounded-[2rem] mx-auto flex items-center justify-center text-3xl font-black text-slate-300 mb-6 overflow-hidden" style={currentStaff?.imageUrl ? { backgroundImage: `url(${currentStaff.imageUrl})` } : {}}>
-                          {!currentStaff?.imageUrl && displayInitial}
-                        </div>
-                        <h3 className="text-2xl font-black text-slate-900">{displayName}</h3>
-                        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mt-1">{currentStaff?.role || 'Staff Member'}</p>
-
-                        <div className="mt-8 flex flex-wrap gap-2 justify-center">
-                          {(currentStaff?.skills as string[] || ['General Cleaning', 'Deep Clean']).map(s => (
-                            <span key={s} className="px-4 py-2 bg-[#f4f2fc] text-blue-700 rounded-xl text-[10px] font-black uppercase tracking-widest">{s}</span>
-                          ))}
-                        </div>
-
-                        <div className="mt-8 text-left space-y-4">
-                          <DetailRow label="Phone" value={currentStaff?.phone || 'Not provided'} icon={<Phone className="w-4 h-4" />} />
-                          <DetailRow label="Postcode" value={currentStaff?.postcode || 'Not provided'} icon={<MapPin className="w-4 h-4" />} />
-                          <DetailRow label="Address" value={currentStaff?.address || 'Not provided'} icon={<MapPin className="w-4 h-4" />} />
-                          <h4 className="font-black text-slate-900 mt-6 mb-2 border-b border-slate-100 pb-2">Bank Details</h4>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Bank</span>
-                              <div className="font-bold text-sm text-slate-800">{currentStaff?.bankName || 'Not Set'}</div>
-                            </div>
-                            <div>
-                              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Acc Num</span>
-                              <div className="font-bold text-sm text-slate-800">{currentStaff?.accountNumber ? '****' + String(currentStaff.accountNumber).slice(-4) : 'Not Set'}</div>
-                            </div>
-                            <div>
-                              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sort Code</span>
-                              <div className="font-bold text-sm text-slate-800">{currentStaff?.sortCode || 'Not Set'}</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
-                          <h3 className="text-xl font-black text-slate-900">Edit Profile</h3>
-                          <button onClick={() => setIsEditingProfile(false)} className="p-2 bg-slate-50 text-slate-400 hover:text-red-500 rounded-xl transition-colors">
-                            <X className="w-5 h-5" />
-                          </button>
-                        </div>
-
-                        <div>
-                          <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1 block">Upload Profile Photo (Optional)</label>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              try {
-                                const dataUrl = await toOptimizedProfileImageDataUrl(file);
-                                if (dataUrl.length > MAX_PROFILE_IMAGE_DATA_URL_LENGTH) {
-                                  showFlyer('Image is too large. Please choose a smaller photo.', 'error');
-                                  return;
-                                }
-                                setEditForm({ ...editForm, imageUrl: dataUrl });
-                                showFlyer('Profile photo selected.', 'success');
-                              } catch {
-                                showFlyer('Failed to load profile photo.', 'error');
-                              } finally {
-                                e.currentTarget.value = '';
-                              }
-                            }}
-                            className="w-full p-3 bg-card rounded-2xl font-medium text-foreground border-2 border-input focus:border-primary focus:ring-2 focus:ring-primary/25"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1 block">Profile Photo URL</label>
-                          <input type="text" className="w-full p-4 bg-card rounded-2xl font-medium text-foreground border-2 border-input focus:border-primary focus:ring-2 focus:ring-primary/25" value={editForm.imageUrl || ''} onChange={e => setEditForm({ ...editForm, imageUrl: e.target.value })} placeholder="https://..." />
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-2">Use file upload or paste URL</p>
-                        </div>
-                        <div>
-                          <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1 block">Phone Number</label>
-                          <input type="text" className="w-full p-4 bg-card rounded-2xl font-medium text-foreground border-2 border-input focus:border-primary focus:ring-2 focus:ring-primary/25" value={editForm.phone || ''} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} />
-                        </div>
-                        <div>
-                          <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1 block">Postcode</label>
-                          <div className="flex items-stretch gap-2">
-                            <input
-                              type="text"
-                              className="flex-1 min-w-0 p-4 bg-card rounded-2xl font-semibold uppercase tracking-wider text-foreground border-2 border-input focus:border-primary focus:ring-2 focus:ring-primary/25"
-                              value={editForm.postcode || ''}
-                              onChange={(e) => {
-                                setEditForm({ ...editForm, postcode: e.target.value.toUpperCase() });
-                                if (postcodeLookup.note || postcodeLookup.error) {
-                                  setPostcodeLookup({ loading: false, note: null, error: null });
-                                }
-                              }}
-                              placeholder="e.g. SW1A 1AA"
-                              maxLength={10}
-                              autoComplete="postal-code"
-                            />
-                            <button
-                              type="button"
-                              onClick={handleLookupPostcode}
-                              disabled={postcodeLookup.loading}
-                              className="px-4 rounded-2xl bg-slate-900 text-white text-[11px] font-black uppercase tracking-widest hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                            >
-                              {postcodeLookup.loading ? '…' : 'Verify'}
-                            </button>
-                          </div>
-                          {postcodeLookup.note && (
-                            <p className="text-[11px] font-bold text-emerald-600 mt-2">{postcodeLookup.note}</p>
-                          )}
-                          {postcodeLookup.error && (
-                            <p className="text-[11px] font-bold text-red-500 mt-2">{postcodeLookup.error}</p>
-                          )}
-                          <p className="text-[11px] text-slate-400 font-semibold mt-1.5">We verify the postcode with Royal Mail's public lookup. Enter the full address below.</p>
-                        </div>
-                        <div>
-                          <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1 block">Home Address</label>
-                          <input type="text" className="w-full p-4 bg-card rounded-2xl font-medium text-foreground border-2 border-input focus:border-primary focus:ring-2 focus:ring-primary/25" value={editForm.address || ''} onChange={e => setEditForm({ ...editForm, address: e.target.value })} placeholder="House name/number, street, city" autoComplete="street-address" />
-                        </div>
-
-                        <h4 className="font-black text-slate-900 mt-6 mb-2 border-b border-slate-100 pb-2">Banking Details</h4>
-                        <div>
-                          <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1 block">Bank Name</label>
-                          <input type="text" className="w-full p-4 bg-card rounded-2xl font-medium text-foreground border-2 border-input focus:border-primary focus:ring-2 focus:ring-primary/25" value={editForm.bankName || ''} onChange={e => setEditForm({ ...editForm, bankName: e.target.value })} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1 block">Account Number</label>
-                            <input type="text" className="w-full p-4 bg-card rounded-2xl font-medium text-foreground border-2 border-input focus:border-primary focus:ring-2 focus:ring-primary/25" value={editForm.accountNumber || ''} onChange={e => setEditForm({ ...editForm, accountNumber: e.target.value })} />
-                          </div>
-                          <div>
-                            <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1 block">Sort Code</label>
-                            <input type="text" className="w-full p-4 bg-card rounded-2xl font-medium text-foreground border-2 border-input focus:border-primary focus:ring-2 focus:ring-primary/25" value={editForm.sortCode || ''} onChange={e => setEditForm({ ...editForm, sortCode: e.target.value })} />
-                          </div>
-                        </div>
-
-                        <button onClick={handleProfileSave} className="w-full mt-6 py-4 bg-primary text-primary-foreground rounded-2xl font-black shadow-xl shadow-primary/30 hover:opacity-90 transition-colors">
-                          Save Changes
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  {!isEditingProfile && (
-                    <>
-                      <div className="bg-white p-5 sm:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                        <div className="flex items-start gap-3 mb-5">
-                          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                            <Lock className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <h4 className="text-lg font-black text-slate-900 leading-tight">Change password</h4>
-                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Keep your account secure</p>
-                          </div>
-                        </div>
-                        <div className="space-y-4">
-                          <div>
-                            <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1 block">Current password</label>
-                            <input
-                              type="password"
-                              autoComplete="current-password"
-                              className="w-full p-4 bg-card rounded-2xl font-medium text-foreground border-2 border-input focus:border-primary focus:ring-2 focus:ring-primary/25"
-                              value={passwordForm.current}
-                              onChange={(e) => setPasswordForm((p) => ({ ...p, current: e.target.value }))}
-                              placeholder="Enter your current password"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1 block">New password</label>
-                            <input
-                              type="password"
-                              autoComplete="new-password"
-                              className="w-full p-4 bg-card rounded-2xl font-medium text-foreground border-2 border-input focus:border-primary focus:ring-2 focus:ring-primary/25"
-                              value={passwordForm.next}
-                              onChange={(e) => setPasswordForm((p) => ({ ...p, next: e.target.value }))}
-                              placeholder="At least 8 characters"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1 block">Confirm new password</label>
-                            <input
-                              type="password"
-                              autoComplete="new-password"
-                              className="w-full p-4 bg-card rounded-2xl font-medium text-foreground border-2 border-input focus:border-primary focus:ring-2 focus:ring-primary/25"
-                              value={passwordForm.confirm}
-                              onChange={(e) => setPasswordForm((p) => ({ ...p, confirm: e.target.value }))}
-                              placeholder="Repeat the new password"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handlePasswordSave}
-                            disabled={passwordForm.saving}
-                            className="w-full mt-2 py-4 bg-slate-900 text-white rounded-2xl font-black shadow-xl shadow-slate-900/20 hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                          >
-                            {passwordForm.saving ? 'Updating…' : 'Update password'}
-                          </button>
-                        </div>
-                      </div>
-
-                      <button onClick={onLogout} className="w-full py-4 bg-red-50 text-red-500 rounded-[2rem] font-black hover:bg-red-100 transition-colors">
-                        Log Out
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {activeTab === 'reviews' && (
-                <ReviewsPanel role="staff" api={apiStaff as any} />
-              )}
-
-              {activeTab === 'late' && (
-                <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-5 md:p-8 animate-in slide-in-from-right duration-300">
-                  <RunningLatePanel
-                    jobs={jobs}
-                    staffName={displayName}
-                    brandName={brandName}
-                    onSent={() => void refreshMyJobs()}
-                  />
-                </div>
-              )}
-
-              {activeTab === 'messages' && (
-                <div className="flex flex-wrap items-center gap-2 mb-4">
-                  <InboxPill
-                    active={inboxView === 'alerts'}
-                    onClick={() => setInboxView('alerts')}
-                    icon={<Bell className="w-4 h-4" />}
-                    label="Alerts"
-                    count={staffAlerts.length}
-                    activeClass="bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-300/50"
-                  />
-                  <InboxPill
-                    active={inboxView === 'chats'}
-                    onClick={() => setInboxView('chats')}
-                    icon={<MessageSquare className="w-4 h-4" />}
-                    label="Chats"
-                    count={openChatJobs.length}
-                    activeClass="bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-lg shadow-indigo-300/50"
-                  />
-                  <InboxPill
-                    active={inboxView === 'admin'}
-                    onClick={() => { setInboxView('admin'); void loadAdminChat(); }}
-                    icon={<Users className="w-4 h-4" />}
-                    label="Admin"
-                    count={adminChatMessages.filter(m => !m.isRead && m.senderRole === 'admin').length}
-                    activeClass="bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-lg shadow-teal-300/50"
-                  />
-                </div>
-              )}
-
-              {activeTab === 'messages' && inboxView === 'alerts' && (
-                <div className="space-y-4">
-                  <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Desktop alerts</p>
-                      <p className="text-sm font-bold text-slate-700">Get browser notifications for new assignments (when supported).</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await requestNotificationPermission();
-                        showFlyer('If your browser allowed it, notifications are enabled.', 'success');
-                      }}
-                      className="shrink-0 px-5 py-3 rounded-xl bg-slate-900 text-white text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-colors"
-                    >
-                      Enable alerts
-                    </button>
-                  </div>
-                  {staffAlerts.length === 0 ? (
-                    <div className="text-center py-10 text-slate-400">
-                      <Bell className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                      <p className="font-bold text-sm">No new notifications.</p>
-                    </div>
-                  ) : (
-                    staffAlerts.map(n => (
-                      <div key={n.id} className={`p-6 rounded-3xl border ${n.priority === 'urgent' ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100'} shadow-sm`}>
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-black text-slate-900">{n.title}</h4>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] bg-white px-2 py-1 rounded-lg border border-slate-100 font-bold uppercase">{n.timestamp}</span>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  await apiStaff.deleteNotification(Number(n.id));
-                                  setStaffAlerts((prev) => prev.filter((x) => String(x.id) !== String(n.id)));
-                                  showFlyer('Notification deleted.', 'success');
-                                } catch (err) {
-                                  showFlyer(err instanceof Error ? err.message : 'Failed to delete notification', 'error');
-                                }
-                              }}
-                              className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                              title="Delete notification"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                        <p className="text-slate-500 text-sm font-medium">{n.message}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-
-              {activeTab === 'messages' && inboxView === 'chats' && (
-                <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 min-h-[500px]">
-                  <div className="bg-gradient-to-b from-emerald-50/70 to-white rounded-3xl border border-emerald-100 p-4 space-y-3 overflow-y-auto">
-                    <div className="md:hidden">
-                      {mobileChatView === 'list' ? (
-                        <div className="space-y-4">
-                          {openChatJobs.length > 0 ? (
-                            <div className="space-y-2">
-                              <p className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Open chats</p>
-                              {visibleOpenChatJobs.map((job) => (
-                                <button
-                                  key={job.id}
-                                  onClick={() => {
-                                    setActiveChatJobId(job.id);
-                                    setMobileChatView('chat');
-                                    void loadStaffChat(job.id);
-                                  }}
-                                  className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 ${activeChatJobId === job.id
-                                    ? 'bg-emerald-50 border-emerald-400 text-emerald-950 shadow-[0_0_24px_rgba(16,185,129,0.45)] ring-2 ring-emerald-400/90'
-                                    : 'bg-slate-50 border-slate-100 hover:border-emerald-300/60'
-                                    }`}
-                                >
-                                  <div className="font-black text-sm text-slate-900">{job.contact?.name || 'Client'}</div>
-                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                    Booking #{job.id} • {job.date} @ {job.time}
-                                  </div>
-                                </button>
-                              ))}
-                              {openChatJobs.length > 4 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setShowAllOpenChats((prev) => !prev)}
-                                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50"
-                                >
-                                  {showAllOpenChats ? 'Show less' : `Show more (${openChatJobs.length - 4})`}
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <p className="text-sm font-bold text-slate-400 p-2">No open chats right now.</p>
-                          )}
-                          {closedChatHistoryJobs.length > 0 && (
-                            <div className="space-y-2 pt-1">
-                              <p className="px-1 text-[10px] font-black uppercase tracking-widest text-red-500">History (closed by admin)</p>
-                              {closedChatHistoryJobs.map((job) => (
-                                <button
-                                  key={job.id}
-                                  onClick={() => {
-                                    setActiveChatJobId(job.id);
-                                    setMobileChatView('chat');
-                                    void loadStaffChat(job.id);
-                                  }}
-                                  className="w-full text-left p-4 rounded-2xl border border-red-200 bg-red-50 text-red-900"
-                                >
-                                  <div className="font-black text-sm">{job.contact?.name || 'Client'}</div>
-                                  <div className="text-[10px] font-bold uppercase tracking-widest text-red-500">
-                                    Booking #{job.id} • closed
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="bg-white rounded-3xl border border-slate-100 flex flex-col min-h-[420px]">
-                          <div className="p-4 border-b border-slate-100">
-                            <button
-                              type="button"
-                              onClick={() => setMobileChatView('list')}
-                              className="mb-2 inline-flex items-center gap-1 text-xs font-black uppercase tracking-widest text-primary"
-                            >
-                              <ChevronLeft className="h-4 w-4" />
-                              Back
-                            </button>
-                            <p className="text-sm font-black text-slate-900">{activeChatJob?.contact?.name || 'Client'}</p>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                              Booking #{activeChatJob?.id || activeChatJobId || 'N/A'}
-                            </p>
-                            {!staffChatCanStart && <p className="mt-1 text-xs font-bold text-amber-600">Chat opens 10 minutes before start time.</p>}
-                            {staffChatClosed && <p className="mt-1 text-xs font-bold text-red-600">Closed by admin (history).</p>}
-                          </div>
-                          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                            {staffChatMessages.map((m) => (
-                              <div key={m.id} className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm ${m.senderRole === 'staff' ? 'ml-auto bg-primary text-primary-foreground' : 'bg-slate-100 text-slate-900'}`}>
-                                <div className="text-[10px] font-black uppercase opacity-70 mb-1">{m.senderName}</div>
-                                {m.text}
-                              </div>
+                      <section className="space-y-3">
+                        <SectionHeader title="Upcoming" subtitle={`${upcomingJobs.length} ${upcomingJobs.length === 1 ? 'job' : 'jobs'}`} />
+                        {upcomingJobs.length > 0 ? (
+                          <ol className="m-0 list-none space-y-3 p-0">
+                            {upcomingJobs.map((job) => (
+                              <li key={job.id}>
+                                <JobCard job={job} onClick={() => openJobDetails(job)} timeOrdered {...jobCardProps} />
+                              </li>
                             ))}
-                          </div>
-                          <div className="p-4 border-t border-slate-100 flex gap-2">
-                            <input
-                              value={staffChatMessage}
-                              onChange={(e) => setStaffChatMessage(e.target.value)}
-                              disabled={staffChatClosed || !staffChatCanStart}
-                              placeholder="Type message..."
-                              className="flex-1 p-3 rounded-xl border border-slate-200"
-                            />
-                            <button
-                              onClick={() => {
-                                if (!activeChatJobId || !staffChatMessage.trim()) return;
-                                void apiStaff.sendBookingChat(activeChatJobId, staffChatMessage).then(() => {
-                                  setStaffChatMessage('');
-                                  return loadStaffChat(activeChatJobId);
-                                });
-                              }}
-                              disabled={staffChatClosed || !staffChatCanStart || !staffChatMessage.trim()}
-                              className="px-4 py-3 rounded-xl bg-primary text-primary-foreground text-xs font-black uppercase tracking-widest disabled:opacity-50"
-                            >
-                              Send
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <div className="hidden md:block space-y-3">
-                      {openChatJobs.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="px-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Open chats</p>
-                          {visibleOpenChatJobs.map((job) => (
-                            <button
-                              key={job.id}
-                              onClick={() => {
-                                setActiveChatJobId(job.id);
-                                void loadStaffChat(job.id);
-                              }}
-                              className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 ${activeChatJobId === job.id
-                                ? 'bg-emerald-50 border-emerald-400 text-emerald-950 shadow-[0_0_24px_rgba(16,185,129,0.45)] ring-2 ring-emerald-400/90'
-                                : 'bg-slate-50 border-slate-100 hover:border-emerald-300/60'
-                                }`}
-                            >
-                              <div className="font-black text-sm text-slate-900">{job.contact?.name || 'Client'}</div>
-                              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                Booking #{job.id} • {job.date} @ {job.time}
-                              </div>
-                            </button>
-                          ))}
-                          {openChatJobs.length > 4 && (
-                            <button
-                              type="button"
-                              onClick={() => setShowAllOpenChats((prev) => !prev)}
-                              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50"
-                            >
-                              {showAllOpenChats ? 'Show less' : `Show more (${openChatJobs.length - 4})`}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      {closedChatHistoryJobs.length > 0 && (
-                        <div className="space-y-2 pt-1">
-                          <p className="px-1 text-[10px] font-black uppercase tracking-widest text-red-500">History (closed by admin)</p>
-                          {closedChatHistoryJobs.map((job) => (
-                            <button
-                              key={job.id}
-                              onClick={() => {
-                                setActiveChatJobId(job.id);
-                                void loadStaffChat(job.id);
-                              }}
-                              className="w-full text-left p-4 rounded-2xl border border-red-200 bg-red-50 text-red-900"
-                            >
-                              <div className="font-black text-sm">{job.contact?.name || 'Client'}</div>
-                              <div className="text-[10px] font-bold uppercase tracking-widest text-red-500">
-                                Booking #{job.id} • closed
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {openChatJobs.length === 0 && closedChatHistoryJobs.length === 0 && (
-                        <p className="text-sm font-bold text-slate-400 p-4">No chats available yet.</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="hidden md:flex bg-white rounded-3xl border border-slate-100 flex-col min-h-0">
-                    {!activeChatJobId ? (
-                      <div className="flex-1 flex items-center justify-center text-slate-400 font-bold">Select a booking chat</div>
-                    ) : (
-                      <>
-                        <div className="p-4 border-b border-slate-100">
-                          <p className="text-sm font-black text-slate-900">{activeChatJob?.contact?.name || 'Client'}</p>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Booking #{activeChatJob?.id || activeChatJobId}
-                          </p>
-                          {!staffChatCanStart && <p className="text-xs font-bold text-amber-600">Chat opens 10 minutes before start time.</p>}
-                          {staffChatClosed && <p className="text-xs font-bold text-red-600">Chat closed by admin after job completion.</p>}
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                          {staffChatMessages.map((m) => (
-                            <div key={m.id} className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm ${m.senderRole === 'staff' ? 'ml-auto bg-primary text-primary-foreground' : 'bg-slate-100 text-slate-900'}`}>
-                              <div className="text-[10px] font-black uppercase opacity-70 mb-1">{m.senderName}</div>
-                              {m.text}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="p-4 border-t border-slate-100 flex gap-2">
-                          <input
-                            value={staffChatMessage}
-                            onChange={(e) => setStaffChatMessage(e.target.value)}
-                            disabled={staffChatClosed || !staffChatCanStart}
-                            placeholder="Type message..."
-                            className="flex-1 p-3 rounded-xl border border-slate-200"
-                          />
-                          <button
-                            onClick={() => {
-                              if (!activeChatJobId || !staffChatMessage.trim()) return;
-                              void apiStaff.sendBookingChat(activeChatJobId, staffChatMessage).then(() => {
-                                setStaffChatMessage('');
-                                return loadStaffChat(activeChatJobId);
-                              });
-                            }}
-                            disabled={staffChatClosed || !staffChatCanStart || !staffChatMessage.trim()}
-                            className="px-4 py-3 rounded-xl bg-primary text-primary-foreground text-xs font-black uppercase tracking-widest disabled:opacity-50"
-                          >
-                            Send
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'messages' && inboxView === 'admin' && (
-                <div className="bg-white rounded-3xl border border-slate-100 flex flex-col min-h-[500px] max-h-[600px]">
-                  <div className="p-4 border-b border-slate-100 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-600 flex items-center justify-center shrink-0">
-                      <Users className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-black text-slate-900">Admin Chat</p>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Direct messages with management</p>
-                    </div>
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                    {adminChatLoading ? (
-                      <div className="flex items-center justify-center py-10">
-                        <div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    ) : adminChatMessages.length === 0 ? (
-                      <div className="text-center py-10 text-slate-400">
-                        <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                        <p className="font-bold text-sm">No messages yet</p>
-                        <p className="text-xs">Send a message to admin below.</p>
-                      </div>
-                    ) : (
-                      adminChatMessages.map((m) => (
-                        <div key={m.id} className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm ${m.senderRole === 'staff' ? 'ml-auto bg-teal-600 text-white' : 'bg-slate-100 text-slate-900'}`}>
-                          <div className="text-[10px] font-black uppercase opacity-70 mb-1">{m.senderName} {m.senderRole === 'admin' ? '(Admin)' : ''}</div>
-                          <p className="whitespace-pre-wrap">{m.text}</p>
-                          <div className="text-[9px] opacity-50 mt-1">
-                            {m.createdAt ? new Date(m.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <div className="p-4 border-t border-slate-100 flex gap-2">
-                    <input
-                      value={adminChatInput}
-                      onChange={(e) => setAdminChatInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendAdminChat(); } }}
-                      placeholder="Message admin..."
-                      className="flex-1 p-3 rounded-xl border border-slate-200 text-sm font-medium focus:border-teal-400 focus:ring-2 focus:ring-teal-200/60 outline-none"
-                    />
-                    <button
-                      onClick={() => void sendAdminChat()}
-                      disabled={!adminChatInput.trim()}
-                      className="px-4 py-3 rounded-xl bg-teal-600 text-white text-xs font-black uppercase tracking-widest disabled:opacity-50 hover:bg-teal-700 transition-colors"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-            )}
-          </div>
-        )}
-        {selectedJob && (
-          <div className="mx-auto w-full max-w-4xl px-2 pb-28 pt-3 md:px-6 md:pt-8 animate-in fade-in slide-in-from-bottom-6 duration-500">
-            <div className="w-full overflow-hidden rounded-[2.25rem] md:rounded-[3rem] border border-white/70 bg-white/95 shadow-[0_26px_70px_-34px_rgba(15,23,42,0.45)] backdrop-blur-sm">
-              <div className="p-6 md:p-10 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
-                <div>
-                  <h3 className="text-2xl font-black tracking-tight">{selectedJob.contact?.name}</h3>
-                  <div className="flex items-center text-[10px] text-slate-400 font-black uppercase tracking-widest">
-                    <Clock className="w-3.5 h-3.5 mr-1.5" /> Start: {selectedJob.time}
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    if (clockInData && jobStage === 'work') return;
-                    setSelectedJob(null);
-                    setJobStage('details');
-                    setClockOutTimeLabel(null);
-                    setClockOutAtIso(null);
-                    setEarlyClockOutModalOpen(false);
-                    setEarlyClockOutReasonInput('');
-                    setEarlyClockOutReason(null);
-                  }}
-                  disabled={!!clockInData && jobStage === 'work'}
-                  title={clockInData && jobStage === 'work' ? 'Clock out to close this active job' : 'Close'}
-                  className={`w-12 h-12 bg-white rounded-2xl shadow-[0_4px_14px_rgb(0,0,0,0.05)] flex items-center justify-center transition-all ${clockInData && jobStage === 'work' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 hover:scale-105'}`}
-                >
-                  <X className="w-6 h-6 text-slate-400" />
-                </button>
-              </div>
-
-              <div className="p-6 md:p-10 space-y-10 pb-10">
-                {jobStage === 'details' && (
-                  <div className="space-y-8">
-                    <div className="space-y-8">
-                      <DetailRow label="Booking Ref" value={selectedJob.bookingId} icon={<ClipboardList className="w-4 h-4" />} />
-                      <DetailRow label="Client Name" value={selectedJob.contact?.name || 'Guest'} icon={<User className="w-4 h-4" />} />
-                      <DetailRow label="Service Type" value={selectedJob.serviceType} icon={<Briefcase className="w-4 h-4" />} />
-                      <DetailRow label="Date" value={selectedJob.date} icon={<Calendar className="w-4 h-4" />} />
-                      <DetailRow label="Start Time" value={selectedJob.time} icon={<Clock className="w-4 h-4" />} />
-                      <DetailRow
-                        label="Duration"
-                        value={
-                          selectedJobBreakdown && selectedJobEarningsPreview
-                            ? selectedJobEarningsPreview.staffCount > 1
-                              ? `${formatBookedHoursLabel(selectedJobBreakdown.totalHours)}h booked on job · ${formatBookedHoursLabel(selectedJobEarningsPreview.yourHours)}h your share (${selectedJobEarningsPreview.staffCount} staff)`
-                              : `${formatBookedHoursLabel(selectedJobBreakdown.totalHours)}h booked`
-                            : 'N/A'
-                        }
-                        icon={<History className="w-4 h-4" />}
-                      />
-                      {selectedJobBreakdown ? (
-                        <DurationBreakdownBlock breakdown={selectedJobBreakdown} title="Time breakdown" />
-                      ) : null}
-                      {(coworkersOnSelectedJob.length > 0 || (selectedJobEarningsPreview && selectedJobEarningsPreview.staffCount > 1)) && (
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2 text-slate-400">
-                            <Users className="w-4 h-4" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Team on this job</span>
-                          </div>
-                          <div className="text-lg font-black text-slate-900 uppercase tracking-tight">
-                            {coworkersOnSelectedJob.length > 0
-                              ? coworkersOnSelectedJob.map((s) => s.name).join(', ')
-                              : `${selectedJobEarningsPreview!.staffCount - 1} other cleaner(s) assigned`}
-                          </div>
-                          <p className="text-xs font-bold text-slate-500">
-                            Pay uses booked hours ÷ {selectedJobEarningsPreview?.staffCount ?? 1} staff × your profile rate.
-                          </p>
-                        </div>
-                      )}
-                      <DetailRow label="Status" value={selectedJob.status} icon={<CheckCircle2 className="w-4 h-4" />} />
-                      <DetailRow
-                        label="Address"
-                        value={[
-                          (selectedJob as any)?.address?.line1 ?? (selectedJob as any)?.addressLine1 ?? '',
-                          (selectedJob as any)?.address?.city ?? (selectedJob as any)?.addressCity ?? '',
-                          (selectedJob as any)?.address?.postcode ?? (selectedJob as any)?.addressPostcode ?? '',
-                        ]
-                          .filter(Boolean)
-                          .join(', ') || 'Address not available'}
-                        icon={<MapPin className="w-4 h-4" />}
-                      />
-                      {selectedJobEarningsPreview ? (
-                        <DetailRow
-                          label="Your estimated pay"
-                          value={`£${Number(selectedJobEarningsPreview.pay || 0).toFixed(2)} (${formatBookedHoursLabel(selectedJobEarningsPreview.yourHours)}h × £${Number(selectedJobEarningsPreview.rate).toFixed(2)}/hr)`}
-                          icon={<Wallet className="w-4 h-4" />}
-                        />
-                      ) : null}
-                      {Array.isArray(selectedJob.extras) && selectedJob.extras.length > 0 && (
-                        <DetailRow
-                          label="Extras"
-                          value={selectedJob.extras.map((e) => {
-                            const extraName = extraServices.find((x) => String(x.id) === String(e.id))?.name || String(e.id);
-                            return `${getExtraDisplayLabel(extraName)} x${e.quantity}`;
-                          }).join(', ')}
-                          icon={<Box className="w-4 h-4" />}
-                        />
-                      )}
-                      {selectedJob.instructions && (
-                        <div className="p-6 bg-amber-50/50 rounded-3xl text-amber-900">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <AlertCircle className="w-4 h-4" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Instructions</span>
-                          </div>
-                          <p className="text-sm italic">"{selectedJob.instructions}"</p>
-                        </div>
-                      )}
-
-                      {selectedJob.workCompletion && (
-                        <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200 space-y-4">
-                          <div className="flex items-center space-x-2">
-                            <ClipboardList className="w-4 h-4 text-primary" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Work completion report</span>
-                          </div>
-                          {(() => {
-                            const wc = selectedJob.workCompletion as WorkCompletionData;
-                            return (
-                              <>
-                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                  <div>
-                                    <span className="text-[10px] font-black uppercase text-slate-400 block">Clock in</span>
-                                    <span className="font-black text-slate-900">{wc.clockInTime || '-'}</span>
-                                    {wc.clockInAtIso ? (
-                                      <span className="text-[10px] font-bold text-slate-500 block mt-0.5">
-                                        {new Date(wc.clockInAtIso).toLocaleString()}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  <div>
-                                    <span className="text-[10px] font-black uppercase text-slate-400 block">Clock out</span>
-                                    <span className="font-black text-slate-900">{wc.clockOutTime || '-'}</span>
-                                    {wc.clockOutAtIso ? (
-                                      <span className="text-[10px] font-bold text-slate-500 block mt-0.5">
-                                        {new Date(wc.clockOutAtIso).toLocaleString()}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                </div>
-                                {wc.notes ? (
-                                  <div>
-                                    <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">Job notes</span>
-                                    <p className="text-sm font-medium text-slate-800 whitespace-pre-wrap">{wc.notes}</p>
-                                  </div>
-                                ) : null}
-                                {wc.earlyClockOutReason ? (
-                                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
-                                    <span className="text-[10px] font-black uppercase text-amber-800 block mb-1">Early clock-out</span>
-                                    <p className="text-sm font-medium text-amber-950 whitespace-pre-wrap">{wc.earlyClockOutReason}</p>
-                                  </div>
-                                ) : null}
-                                {wc.issues ? (
-                                  <div className="p-4 bg-red-50 rounded-2xl border border-red-100">
-                                    <span className="text-[10px] font-black uppercase text-red-700 block mb-1">Issues / report</span>
-                                    <p className="text-sm font-medium text-red-900 whitespace-pre-wrap">{wc.issues}</p>
-                                  </div>
-                                ) : null}
-                                {wc.photos && wc.photos.length > 0 ? (
-                                  <div>
-                                    <span className="text-[10px] font-black uppercase text-slate-400 block mb-2">Photos</span>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      {wc.photos.map((src, idx) => (
-                                        <a key={idx} href={src} target="_blank" rel="noreferrer" className="block rounded-xl overflow-hidden border border-slate-200 bg-white">
-                                          <img src={src} alt="" className="w-full h-24 object-cover" />
-                                        </a>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ) : null}
-                                {wc.signature ? (
-                                  <p className="text-xs font-bold text-slate-500">Signature: {wc.signature}</p>
-                                ) : null}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-3">
-                      {(selectedJob.status === BookingStatus.PENDING || selectedJob.status === BookingStatus.CONFIRMED) && (
-                        <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                              Need to cancel this assigned job?
-                            </p>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                              Admin approval only
-                            </span>
-                          </div>
-                          <p className="text-xs font-bold text-slate-600">
-                            You can request cancellation only 3+ days before the start time. Admin must approve.
-                          </p>
-                          <textarea
-                            value={cancelRequestReason}
-                            onChange={(e) => setCancelRequestReason(e.target.value)}
-                            rows={2}
-                            className="w-full p-3 bg-white rounded-xl border border-slate-200 text-sm font-medium text-slate-900"
-                            placeholder="Optional reason for admin..."
-                          />
-                          <button
-                            type="button"
-                            onClick={handleRequestCancellation}
-                            disabled={isRequestingCancel || hoursUntilJob(selectedJob.date, selectedJob.time) < 72}
-                            className="w-full py-3 rounded-xl font-black text-[11px] uppercase tracking-widest border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          >
-                            {isRequestingCancel ? 'Sending request...' : 'Request cancellation from admin'}
-                          </button>
-                          {hoursUntilJob(selectedJob.date, selectedJob.time) < 72 && (
-                            <p className="text-[11px] font-bold text-red-600">
-                              This job is within 3 days, so cancellation request is locked.
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {(selectedJob.status === BookingStatus.PENDING || selectedJob.status === BookingStatus.CONFIRMED) ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={handleRunningLate}
-                            className="w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest border-2 border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-colors"
-                          >
-                            Running late - notify client & office
-                          </button>
-                          <button onClick={() => void handleStartTravel()} className="w-full bg-gradient-to-r from-primary to-indigo-700 text-primary-foreground py-6 rounded-[2.5rem] font-black shadow-xl shadow-primary/35 hover:-translate-y-1 hover:shadow-primary/45 transition-all">
-                            Start Travel
-                          </button>
-                        </>
-                      ) : (
-                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center text-sm font-bold text-slate-500">
-                          This booking is {selectedJob.status}. Travel/work actions are disabled.
-                        </div>
-                      )}
+                          </ol>
+                        ) : (
+                          <EmptyState icon={<Calendar className="h-6 w-6" />} title="Your diary is clear" body="New jobs appear here as soon as the office assigns them to you." />
+                        )}
+                      </section>
                     </div>
                   </div>
                 )}
 
-                {jobStage === 'travel' && (
-                  <div className="relative -mx-2 overflow-hidden rounded-[1.75rem] border border-slate-200/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] sm:mx-0 md:rounded-[2rem]">
-                    <div className="pointer-events-none absolute inset-0 z-0 min-h-[300px] md:min-h-[340px]">
-                      <React.Suspense
-                        fallback={
-                          <div className="flex h-full min-h-[300px] w-full items-center justify-center bg-gradient-to-br from-slate-200 to-slate-300 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                            Loading map…
+                {/* ───────── Rota ───────── */}
+                {activeTab === 'availability' && (
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    <Card>
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-lg font-semibold text-slate-900">{rotaDayLabel}</p>
+                          <p className="text-sm text-slate-500">
+                            {selectedDateJobs.length > 0
+                              ? `${selectedDateJobs.length} ${selectedDateJobs.length === 1 ? 'job' : 'jobs'} on this date`
+                              : 'Pick any date to see past and upcoming jobs'}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="inline-flex rounded-xl bg-slate-100 p-1">
+                            <button type="button" onClick={() => setSelectedRotaDate((d) => shiftCalendarDay(d, -1))} className="rounded-lg px-2.5 py-1.5 text-slate-600 hover:bg-white" aria-label="Previous day">
+                              <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <button type="button" onClick={() => setSelectedRotaDate(getTodayYYYYMMDD())} className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-white">
+                              Today
+                            </button>
+                            <button type="button" onClick={() => setSelectedRotaDate((d) => shiftCalendarDay(d, 1))} className="rounded-lg px-2.5 py-1.5 text-slate-600 hover:bg-white" aria-label="Next day">
+                              <ChevronRight className="h-4 w-4" />
+                            </button>
                           </div>
+                          <input type="date" value={selectedRotaDate} onChange={(e) => setSelectedRotaDate(e.target.value)} className={cx(inputClass, 'w-auto py-2')} aria-label="Choose a date" />
+                        </div>
+                      </div>
+                    </Card>
+
+                    {selectedDateJobs.length > 0 ? (
+                      <ol className="m-0 list-none space-y-3 p-0">
+                        {selectedDateJobs.map((job) => (
+                          <li key={job.id}>
+                            <JobCard job={job} onClick={() => openJobDetails(job)} timeOrdered rotaNotes {...jobCardProps} />
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <EmptyState icon={<Calendar className="h-6 w-6" />} title="No jobs on this date" body={`You have nothing assigned on ${formatScheduleCardDate(selectedRotaDate)}.`} />
+                    )}
+
+                    <Card>
+                      <SectionHeader
+                        title="Weekly availability"
+                        subtitle="The office uses this when assigning jobs."
+                        action={
+                          !isEditingAvailability ? (
+                            <Button variant="secondary" size="sm" onClick={() => setIsEditingAvailability(true)} icon={<Settings className="h-4 w-4" />}>
+                              Edit
+                            </Button>
+                          ) : (
+                            <Button size="sm" onClick={handleTimeOffRequest} icon={<CheckCircle2 className="h-4 w-4" />}>
+                              Save
+                            </Button>
+                          )
                         }
-                      >
+                      />
+                      <div className="mt-5 divide-y divide-slate-100">
+                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => {
+                          const slot = availabilityForm[day];
+                          return (
+                            <div key={day} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                              <div className="flex items-center gap-3">
+                                <span className={cx('flex h-9 w-9 items-center justify-center rounded-xl text-sm font-semibold', slot?.active ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-400')}>
+                                  {day.charAt(0)}
+                                </span>
+                                <span className="text-sm font-medium text-slate-800">{day}</span>
+                              </div>
+                              {!isEditingAvailability ? (
+                                slot?.active ? (
+                                  <Badge tone="success">
+                                    {slot.start} – {slot.end}
+                                  </Badge>
+                                ) : (
+                                  <Badge tone="neutral">Off</Badge>
+                                )
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <label className="relative inline-flex cursor-pointer items-center" title={slot?.active ? 'Available' : 'Off'}>
+                                    <input
+                                      type="checkbox"
+                                      className="peer sr-only"
+                                      checked={!!slot?.active}
+                                      onChange={(e) => setAvailabilityForm({ ...availabilityForm, [day]: { ...availabilityForm[day], active: e.target.checked } })}
+                                      aria-label={`Available on ${day}`}
+                                    />
+                                    <div className="h-6 w-11 rounded-full bg-slate-200 transition after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-5" />
+                                  </label>
+                                  {slot?.active && (
+                                    <>
+                                      <input
+                                        type="time"
+                                        value={slot.start}
+                                        onChange={(e) => setAvailabilityForm({ ...availabilityForm, [day]: { ...availabilityForm[day], start: e.target.value } })}
+                                        className={cx(inputClass, 'w-28 py-1.5')}
+                                        aria-label={`${day} start`}
+                                      />
+                                      <span className="text-slate-400">–</span>
+                                      <input
+                                        type="time"
+                                        value={slot.end}
+                                        onChange={(e) => setAvailabilityForm({ ...availabilityForm, [day]: { ...availabilityForm[day], end: e.target.value } })}
+                                        className={cx(inputClass, 'w-28 py-1.5')}
+                                        aria-label={`${day} end`}
+                                      />
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                  </div>
+                )}
+
+                {/* ───────── Earnings ───────── */}
+                {activeTab === 'invoice' && (
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 p-6 text-white shadow-lg shadow-emerald-600/20">
+                      <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/10" aria-hidden />
+                      <div className="relative">
+                        <p className="text-sm font-medium text-emerald-50">This week · {shortDate(invoiceData.weekStart)} to {shortDate(invoiceData.weekEnd)}</p>
+                        <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums">£{Number(invoiceData.weekTotalShare || 0).toFixed(2)}</p>
+                        <p className="mt-1 text-sm text-emerald-50/90">
+                          {invoiceData.weekJobCount} {invoiceData.weekJobCount === 1 ? 'job' : 'jobs'} · {Number(invoiceData.weekTotalYourHours || 0).toFixed(2)} of your hours
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleSendInvoice}
+                          disabled={invoiceData.weekJobs.length === 0}
+                          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        >
+                          <Send className="h-4 w-4" /> Submit weekly invoice
+                        </button>
+                        {invoiceData.weekJobs.length === 0 ? <p className="mt-2 text-xs text-emerald-50/80">You can submit once you have a completed job this week.</p> : null}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <StatTile
+                        label={`${new Date().toLocaleString('default', { month: 'long' })} so far`}
+                        value={`£${Number(invoiceData.monthShare || 0).toFixed(2)}`}
+                        hint={`${invoiceData.monthJobs.length} completed ${invoiceData.monthJobs.length === 1 ? 'job' : 'jobs'}`}
+                        icon={<Calendar className="h-5 w-5" />}
+                      />
+                      <StatTile
+                        label="All-time earnings"
+                        value={`£${Number(invoiceData.totalShare || 0).toFixed(2)}`}
+                        hint={`From ${invoiceData.jobs.length} completed ${invoiceData.jobs.length === 1 ? 'job' : 'jobs'}`}
+                        icon={<Wallet className="h-5 w-5" />}
+                        accent="bg-emerald-50 text-emerald-600"
+                      />
+                    </div>
+
+                    <Card>
+                      <SectionHeader
+                        title="This week's jobs"
+                        subtitle="Pay = booked hours ÷ people on the job × your hourly rate."
+                        action={<Badge tone="neutral">{Number(invoiceData.weekTotalYourHours || 0).toFixed(2)}h</Badge>}
+                      />
+                      {invoiceData.weekJobs.length === 0 ? (
+                        <EmptyState className="mt-5" icon={<FileText className="h-6 w-6" />} title="No completed jobs this week" body={`${shortDate(invoiceData.weekStart)} to ${shortDate(invoiceData.weekEnd)}`} />
+                      ) : (
+                        <ul className="mt-4 divide-y divide-slate-100">
+                          {invoiceData.weekJobs.map((job: any) => (
+                            <li key={job.id} className="flex items-start justify-between gap-4 py-3.5">
+                              <div className="min-w-0">
+                                <p className="truncate font-medium text-slate-900">{job.customer}</p>
+                                <p className="text-sm text-slate-500">
+                                  {formatScheduleCardDate(job.date)} · {Number(job.yourHours || 0).toFixed(2)}h × £{Number(job.hourlyRate || 0).toFixed(2)}
+                                </p>
+                                {job.staffCount > 1 ? (
+                                  <Badge tone="primary" className="mt-1.5">
+                                    <Users className="h-3 w-3" /> Team of {job.staffCount} · {Number(job.bookedHours || 0).toFixed(2)}h booked
+                                  </Badge>
+                                ) : null}
+                              </div>
+                              <p className="shrink-0 font-semibold tabular-nums text-emerald-600">£{Number(job.yourShare || 0).toFixed(2)}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </Card>
+
+                    <Card>
+                      <SectionHeader title="Submitted invoices" subtitle="Status and notes from the office." />
+                      {submittedInvoices.length === 0 ? (
+                        <EmptyState className="mt-5" icon={<FileText className="h-6 w-6" />} title="No invoices yet" body="Submit your first weekly invoice above." />
+                      ) : (
+                        <ul className="mt-4 space-y-3">
+                          {submittedInvoices.map((inv) => (
+                            <li key={inv.id} className="rounded-xl border border-slate-200/80 p-4">
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <p className="font-medium text-slate-900">{inv.weekLabel || 'Current week'}</p>
+                                  <p className="text-sm text-slate-500">
+                                    {inv.weekJobCount} {Number(inv.weekJobCount) === 1 ? 'job' : 'jobs'} · {Number(inv.weekTotalHours || 0).toFixed(2)}h
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <Badge tone={statusTone(inv.status || 'Pending')} dot>
+                                    {inv.status || 'Pending'}
+                                  </Badge>
+                                  <p className="font-semibold tabular-nums text-slate-900">£{Number(inv.totalAmount || 0).toFixed(2)}</p>
+                                </div>
+                              </div>
+                              {inv.adminNotes && String(inv.adminNotes).trim() ? (
+                                <Callout tone="neutral" className="mt-3" title="Note from the office">
+                                  <span className="whitespace-pre-line">{inv.adminNotes}</span>
+                                </Callout>
+                              ) : null}
+                              <div className="mt-3">
+                                <Button variant="ghost" size="sm" onClick={() => setExpandedSubmittedInvoiceId((prev) => (prev === inv.id ? null : inv.id))} icon={<FileText className="h-4 w-4" />}>
+                                  {expandedSubmittedInvoiceId === inv.id ? 'Hide invoice' : 'View invoice'}
+                                </Button>
+                              </div>
+                              {expandedSubmittedInvoiceId === inv.id && (
+                                <div className="mt-3 border-t border-slate-100 pt-4">
+                                  <StaffInvoiceDocument
+                                    invoiceId={inv.id}
+                                    weekLabel={inv.weekLabel}
+                                    weekStart={inv.weekStart}
+                                    weekEnd={inv.weekEnd}
+                                    createdAt={inv.createdAt}
+                                    status={inv.status}
+                                    adminNotes={inv.adminNotes}
+                                    totalAmount={Number(inv.totalAmount || 0)}
+                                    weekTotalHours={Number(inv.weekTotalHours || 0)}
+                                    weekJobCount={Number(inv.weekJobCount || 0)}
+                                    jobs={(Array.isArray(inv.jobs) ? inv.jobs : []) as any[]}
+                                    bankDetails={
+                                      (inv.bankDetails as { bankName?: string; accountNumber?: string; sortCode?: string } | undefined) || {
+                                        bankName: currentStaff?.bankName || '',
+                                        accountNumber: currentStaff?.accountNumber || '',
+                                        sortCode: currentStaff?.sortCode || '',
+                                      }
+                                    }
+                                    staff={{
+                                      name: currentStaff?.name || inv.staffName || displayName,
+                                      email: currentStaff?.email || currentUser?.email || '',
+                                      phone: (currentStaff as any)?.phone || '',
+                                      address: (currentStaff as any)?.address || '',
+                                      postcode: (currentStaff as any)?.postcode || '',
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </Card>
+                  </div>
+                )}
+
+                {/* ───────── Referrals ───────── */}
+                {activeTab === 'referrals' && (
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 p-6 text-white shadow-lg shadow-violet-600/20">
+                      <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/10" aria-hidden />
+                      <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-violet-100">Referral earnings</p>
+                          <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums">
+                            £{referrals.reduce((sum, r) => sum + Number(r.rewardAmount || 0), 0).toFixed(2)}
+                          </p>
+                          <p className="mt-2 max-w-sm text-sm text-violet-100">Share your code with friends and clients. You earn a bonus when they book their first clean.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(currentUser?.referralCode || 'N/A');
+                            showFlyer('Referral code copied!', 'success');
+                          }}
+                          className="group inline-flex items-center justify-between gap-4 rounded-xl bg-white px-4 py-3 text-left text-violet-700 shadow-sm transition hover:bg-violet-50"
+                        >
+                          <span>
+                            <span className="block text-xs font-medium text-violet-400">Your code</span>
+                            <span className="block font-mono text-lg font-semibold tracking-wider">{currentUser?.referralCode || 'N/A'}</span>
+                          </span>
+                          <span className="text-sm font-semibold">Copy</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <Card>
+                      <SectionHeader title="Referral history" />
+                      {referrals.length === 0 ? (
+                        <EmptyState className="mt-5" icon={<Gift className="h-6 w-6" />} title="No referrals yet" body="When someone books with your code they will show up here." />
+                      ) : (
+                        <ul className="mt-4 divide-y divide-slate-100">
+                          {referrals.map((r) => (
+                            <li key={r.id} className="flex items-center justify-between gap-4 py-3.5">
+                              <div className="flex min-w-0 items-center gap-3">
+                                <Avatar name={r.referredClientName || '?'} size="sm" />
+                                <div className="min-w-0">
+                                  <p className="truncate font-medium text-slate-900">{r.referredClientName}</p>
+                                  <p className="text-sm text-slate-500">{new Date(r.dateReferred).toLocaleDateString()}</p>
+                                </div>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-3">
+                                <Badge tone={r.status === 'Paid Out' ? 'success' : r.status === 'Completed' ? 'info' : 'warning'}>{r.status}</Badge>
+                                <p className="font-semibold tabular-nums text-slate-900">£{Number(r.rewardAmount || 0).toFixed(2)}</p>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </Card>
+                  </div>
+                )}
+
+                {/* ───────── Profile ───────── */}
+                {activeTab === 'profile' && (
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    {!isEditingProfile ? (
+                      <>
+                        <Card padded={false} className="overflow-hidden">
+                          <div className="h-24 bg-gradient-to-r from-primary/80 to-primary/40" aria-hidden />
+                          <div className="px-5 pb-6 sm:px-6">
+                            <div className="-mt-12 flex flex-wrap items-end justify-between gap-4">
+                              <Avatar src={currentStaff?.imageUrl} name={displayName} size="xl" className="ring-4" />
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => {
+                                  setEditForm(currentStaff || {});
+                                  setIsEditingProfile(true);
+                                }}
+                                icon={<Settings className="h-4 w-4" />}
+                              >
+                                Edit profile
+                              </Button>
+                            </div>
+                            <h2 className="mt-3 text-xl font-semibold text-slate-900">{displayName}</h2>
+                            <p className="text-sm text-slate-500">{currentStaff?.role || 'Staff member'}</p>
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              {((currentStaff?.skills as string[]) || ['General Cleaning', 'Deep Clean']).map((s) => (
+                                <Badge key={s} tone="primary">
+                                  {s}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </Card>
+
+                        <div className="grid gap-6 lg:grid-cols-2">
+                          <Card>
+                            <SectionHeader title="Contact details" />
+                            <div className="mt-4 grid gap-3">
+                              <InfoItem label="Phone" value={currentStaff?.phone || 'Not provided'} icon={<Phone className="h-4 w-4" />} />
+                              <InfoItem label="Postcode" value={currentStaff?.postcode || 'Not provided'} icon={<MapPin className="h-4 w-4" />} />
+                              <InfoItem label="Home address" value={currentStaff?.address || 'Not provided'} icon={<MapPin className="h-4 w-4" />} />
+                            </div>
+                          </Card>
+                          <Card>
+                            <SectionHeader title="Bank details" subtitle="Used to pay your invoices." />
+                            <div className="mt-4 grid gap-3">
+                              <InfoItem label="Bank" value={currentStaff?.bankName || 'Not set'} icon={<Wallet className="h-4 w-4" />} />
+                              <div className="grid grid-cols-2 gap-3">
+                                <InfoItem label="Account number" value={currentStaff?.accountNumber ? `•••• ${String(currentStaff.accountNumber).slice(-4)}` : 'Not set'} />
+                                <InfoItem label="Sort code" value={currentStaff?.sortCode || 'Not set'} />
+                              </div>
+                            </div>
+                          </Card>
+                        </div>
+
+                        <Card>
+                          <SectionHeader title="Change password" subtitle="Use at least 8 characters." />
+                          <form
+                            className="mt-4 grid gap-4 sm:grid-cols-3"
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              handlePasswordSave();
+                            }}
+                          >
+                            <Field label="Current password" htmlFor="pw-current">
+                              <input
+                                id="pw-current"
+                                type="password"
+                                autoComplete="current-password"
+                                className={inputClass}
+                                value={passwordForm.current}
+                                onChange={(e) => setPasswordForm((p) => ({ ...p, current: e.target.value }))}
+                              />
+                            </Field>
+                            <Field label="New password" htmlFor="pw-next">
+                              <input
+                                id="pw-next"
+                                type="password"
+                                autoComplete="new-password"
+                                className={inputClass}
+                                value={passwordForm.next}
+                                onChange={(e) => setPasswordForm((p) => ({ ...p, next: e.target.value }))}
+                              />
+                            </Field>
+                            <Field label="Confirm new password" htmlFor="pw-confirm">
+                              <input
+                                id="pw-confirm"
+                                type="password"
+                                autoComplete="new-password"
+                                className={inputClass}
+                                value={passwordForm.confirm}
+                                onChange={(e) => setPasswordForm((p) => ({ ...p, confirm: e.target.value }))}
+                              />
+                            </Field>
+                            <div className="sm:col-span-3">
+                              <Button type="submit" variant="dark" disabled={passwordForm.saving} icon={<Lock className="h-4 w-4" />}>
+                                {passwordForm.saving ? 'Updating…' : 'Update password'}
+                              </Button>
+                            </div>
+                          </form>
+                        </Card>
+
+                        <Button variant="danger" block size="lg" onClick={onLogout} icon={<LogOut className="h-4 w-4" />} className="md:hidden">
+                          Sign out
+                        </Button>
+                      </>
+                    ) : (
+                      <Card>
+                        <SectionHeader
+                          title="Edit profile"
+                          subtitle="Keep your details up to date so the office can reach and pay you."
+                          action={<Button variant="ghost" size="sm" onClick={() => setIsEditingProfile(false)} icon={<X className="h-4 w-4" />} aria-label="Cancel editing" />}
+                        />
+                        <div className="mt-6 grid gap-5">
+                          <div className="flex flex-wrap items-center gap-4">
+                            <Avatar src={editForm.imageUrl} name={displayName} size="lg" />
+                            <div className="min-w-0 flex-1 space-y-2">
+                              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 ring-1 ring-inset ring-slate-200 hover:bg-slate-50">
+                                <Camera className="h-4 w-4" /> Upload photo
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="sr-only"
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    try {
+                                      const dataUrl = await toOptimizedProfileImageDataUrl(file);
+                                      if (dataUrl.length > MAX_PROFILE_IMAGE_DATA_URL_LENGTH) {
+                                        showFlyer('Image is too large. Please choose a smaller photo.', 'error');
+                                        return;
+                                      }
+                                      setEditForm({ ...editForm, imageUrl: dataUrl });
+                                      showFlyer('Profile photo selected.', 'success');
+                                    } catch {
+                                      showFlyer('Failed to load profile photo.', 'error');
+                                    } finally {
+                                      e.currentTarget.value = '';
+                                    }
+                                  }}
+                                />
+                              </label>
+                              <input
+                                type="text"
+                                className={inputClass}
+                                value={editForm.imageUrl || ''}
+                                onChange={(e) => setEditForm({ ...editForm, imageUrl: e.target.value })}
+                                placeholder="Or paste an image link (https://…)"
+                                aria-label="Profile photo link"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <Field label="Phone number" htmlFor="pf-phone">
+                              <input id="pf-phone" type="tel" className={inputClass} value={editForm.phone || ''} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+                            </Field>
+                            <Field
+                              label="Postcode"
+                              htmlFor="pf-postcode"
+                              hint={
+                                postcodeLookup.error ? (
+                                  <span className="text-red-600">{postcodeLookup.error}</span>
+                                ) : postcodeLookup.note ? (
+                                  <span className="text-emerald-600">{postcodeLookup.note}</span>
+                                ) : (
+                                  "We check it with Royal Mail's public lookup."
+                                )
+                              }
+                            >
+                              <div className="flex gap-2">
+                                <input
+                                  id="pf-postcode"
+                                  type="text"
+                                  className={cx(inputClass, 'uppercase')}
+                                  value={editForm.postcode || ''}
+                                  onChange={(e) => {
+                                    setEditForm({ ...editForm, postcode: e.target.value.toUpperCase() });
+                                    if (postcodeLookup.note || postcodeLookup.error) {
+                                      setPostcodeLookup({ loading: false, note: null, error: null });
+                                    }
+                                  }}
+                                  placeholder="e.g. M1 5QA"
+                                  maxLength={10}
+                                  autoComplete="postal-code"
+                                />
+                                <Button variant="dark" onClick={handleLookupPostcode} disabled={postcodeLookup.loading}>
+                                  {postcodeLookup.loading ? '…' : 'Verify'}
+                                </Button>
+                              </div>
+                            </Field>
+                          </div>
+                          <Field label="Home address" htmlFor="pf-address">
+                            <input
+                              id="pf-address"
+                              type="text"
+                              className={inputClass}
+                              value={editForm.address || ''}
+                              onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                              placeholder="House number, street, city"
+                              autoComplete="street-address"
+                            />
+                          </Field>
+
+                          <div className="border-t border-slate-100 pt-5">
+                            <p className="mb-4 font-semibold text-slate-900">Bank details</p>
+                            <div className="grid gap-4 sm:grid-cols-3">
+                              <Field label="Bank name" htmlFor="pf-bank">
+                                <input id="pf-bank" type="text" className={inputClass} value={editForm.bankName || ''} onChange={(e) => setEditForm({ ...editForm, bankName: e.target.value })} />
+                              </Field>
+                              <Field label="Account number" htmlFor="pf-acc">
+                                <input id="pf-acc" type="text" inputMode="numeric" className={inputClass} value={editForm.accountNumber || ''} onChange={(e) => setEditForm({ ...editForm, accountNumber: e.target.value })} />
+                              </Field>
+                              <Field label="Sort code" htmlFor="pf-sort">
+                                <input id="pf-sort" type="text" inputMode="numeric" className={inputClass} value={editForm.sortCode || ''} onChange={(e) => setEditForm({ ...editForm, sortCode: e.target.value })} />
+                              </Field>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                            <Button variant="secondary" onClick={() => setIsEditingProfile(false)}>
+                              Cancel
+                            </Button>
+                            <Button onClick={handleProfileSave} icon={<CheckCircle2 className="h-4 w-4" />}>
+                              Save changes
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {/* ───────── Reviews ───────── */}
+                {activeTab === 'reviews' && <ReviewsPanel role="staff" api={apiStaff as any} />}
+
+                {/* ───────── Running late ───────── */}
+                {activeTab === 'late' && (
+                  <Card className="animate-in fade-in duration-300">
+                    <RunningLatePanel jobs={jobs} staffName={displayName} brandName={brandName} onSent={() => void refreshMyJobs()} />
+                  </Card>
+                )}
+
+                {/* ───────── Inbox ───────── */}
+                {activeTab === 'messages' && (
+                  <Segmented
+                    value={inboxView}
+                    onChange={(v) => {
+                      setInboxView(v);
+                      if (v === 'admin') void loadAdminChat();
+                    }}
+                    items={[
+                      { id: 'alerts', label: 'Alerts', icon: <Bell className="h-4 w-4" />, count: staffAlerts.length },
+                      { id: 'chats', label: 'Clients', icon: <MessageSquare className="h-4 w-4" />, count: openChatJobs.length },
+                      { id: 'admin', label: 'Office', icon: <Users className="h-4 w-4" />, count: adminChatMessages.filter((m) => !m.isRead && m.senderRole === 'admin').length },
+                    ]}
+                  />
+                )}
+
+                {activeTab === 'messages' && inboxView === 'alerts' && (
+                  <div className="space-y-3 animate-in fade-in duration-200">
+                    <Callout
+                      tone="neutral"
+                      icon={<Bell className="h-4 w-4 text-slate-500" />}
+                      title="Browser notifications"
+                      className="items-center"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <span>Get a pop-up on this device when you are assigned a new job.</span>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={async () => {
+                            await requestNotificationPermission();
+                            showFlyer('If your browser allowed it, notifications are enabled.', 'success');
+                          }}
+                        >
+                          Turn on
+                        </Button>
+                      </div>
+                    </Callout>
+                    {staffAlerts.length === 0 ? (
+                      <EmptyState icon={<Bell className="h-6 w-6" />} title="You're all caught up" body="New assignments and office updates will appear here." />
+                    ) : (
+                      <ul className="space-y-2">
+                        {staffAlerts.map((n) => (
+                          <li key={n.id}>
+                            <Card padded={false} className={cx('flex items-start gap-3 p-4', n.priority === 'urgent' && 'border-red-200 bg-red-50/60')}>
+                              <div className={cx('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', n.priority === 'urgent' ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary')}>
+                                {n.priority === 'urgent' ? <AlertCircle className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                                  <p className="font-medium text-slate-900">{n.title}</p>
+                                  <span className="text-xs text-slate-400">{n.timestamp}</span>
+                                </div>
+                                <p className="mt-0.5 text-sm text-slate-600">{n.message}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await apiStaff.deleteNotification(Number(n.id));
+                                    setStaffAlerts((prev) => prev.filter((x) => String(x.id) !== String(n.id)));
+                                    showFlyer('Notification deleted.', 'success');
+                                  } catch (err) {
+                                    showFlyer(err instanceof Error ? err.message : 'Failed to delete notification', 'error');
+                                  }
+                                }}
+                                className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                                aria-label="Delete notification"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </Card>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'messages' && inboxView === 'chats' && (
+                  <div className="animate-in fade-in duration-200">
+                    <div className="md:hidden">
+                      {mobileChatView === 'list' ? (
+                        <Card padded={false} className="p-2">
+                          {chatList((job) => {
+                            setActiveChatJobId(String(job.id));
+                            setMobileChatView('chat');
+                            void loadStaffChat(String(job.id));
+                          })}
+                        </Card>
+                      ) : (
+                        <Card padded={false} className="overflow-hidden">
+                          {chatThread('mobile')}
+                        </Card>
+                      )}
+                    </div>
+                    <Card padded={false} className="hidden h-[560px] overflow-hidden md:grid md:grid-cols-[280px_minmax(0,1fr)]">
+                      <div className="overflow-y-auto border-r border-slate-100 p-2">
+                        {chatList((job) => {
+                          setActiveChatJobId(String(job.id));
+                          void loadStaffChat(String(job.id));
+                        })}
+                      </div>
+                      {!activeChatJobId ? (
+                        <div className="flex items-center justify-center p-8">
+                          <EmptyState className="border-none bg-transparent" icon={<MessageSquare className="h-6 w-6" />} title="Pick a chat" body="Choose a client on the left to read and reply." />
+                        </div>
+                      ) : (
+                        chatThread('desktop')
+                      )}
+                    </Card>
+                  </div>
+                )}
+
+                {activeTab === 'messages' && inboxView === 'admin' && (
+                  <Card padded={false} className="flex h-[560px] flex-col overflow-hidden animate-in fade-in duration-200">
+                    <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <Users className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">Office</p>
+                        <p className="text-xs text-slate-500">Message the {brandName} team directly</p>
+                      </div>
+                    </div>
+                    <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 p-4">
+                      {adminChatLoading ? (
+                        <div className="flex justify-center py-10">
+                          <Spinner />
+                        </div>
+                      ) : adminChatMessages.length === 0 ? (
+                        <EmptyState className="border-none bg-transparent" icon={<MessageSquare className="h-6 w-6" />} title="No messages yet" body="Ask a question or let the office know about anything below." />
+                      ) : (
+                        adminChatMessages.map((m) => (
+                          <div key={m.id} className={cx('flex', m.senderRole === 'staff' ? 'justify-end' : 'justify-start')}>
+                            <div
+                              className={cx(
+                                'max-w-[85%] rounded-2xl px-4 py-2.5 text-sm shadow-sm',
+                                m.senderRole === 'staff' ? 'rounded-br-md bg-primary text-primary-foreground' : 'rounded-bl-md bg-white text-slate-900 ring-1 ring-slate-200',
+                              )}
+                            >
+                              <p className="mb-0.5 text-xs font-medium opacity-70">
+                                {m.senderName}
+                                {m.senderRole === 'admin' ? ' · Office' : ''}
+                              </p>
+                              <p className="whitespace-pre-wrap">{m.text}</p>
+                              <p className="mt-1 text-[11px] opacity-60">
+                                {m.createdAt ? new Date(m.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <form
+                      className="flex gap-2 border-t border-slate-100 p-3"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void sendAdminChat();
+                      }}
+                    >
+                      <input value={adminChatInput} onChange={(e) => setAdminChatInput(e.target.value)} placeholder="Message the office…" className={inputClass} />
+                      <Button type="submit" disabled={!adminChatInput.trim()} aria-label="Send message" icon={<Send className="h-4 w-4" />} />
+                    </form>
+                  </Card>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ───────── Job view ───────── */}
+        {selectedJob && (
+          <div className="mx-auto w-full max-w-3xl px-4 pb-32 pt-4 animate-in fade-in slide-in-from-bottom-4 duration-300 sm:px-6 md:pb-16 md:pt-8">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={closeSelectedJob}
+                disabled={!!clockInData && jobStage === 'work'}
+                title={clockInData && jobStage === 'work' ? 'Clock out to close this active job' : 'Back'}
+                icon={<ChevronLeft className="h-4 w-4" />}
+              >
+                Back
+              </Button>
+              <Badge tone={statusTone(selectedJob.status)} dot>
+                {selectedJob.status}
+              </Badge>
+            </div>
+
+            {/* No overflow clipping here: it would stop the sticky action buttons from pinning to the screen. */}
+            <Card padded={false}>
+              <div className="border-b border-slate-100 p-5 sm:p-6">
+                <p className="text-sm text-slate-500">
+                  {formatScheduleCardDate(selectedJob.date)} · {selectedJob.bookingId || `#${selectedJob.id}`}
+                </p>
+                <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-900">{selectedJob.contact?.name || 'Guest'}</h2>
+                  <p className="flex items-center gap-1.5 text-lg font-semibold tabular-nums text-slate-900">
+                    <Clock className="h-5 w-5 text-slate-400" /> {selectedJob.time}
+                  </p>
+                </div>
+                <p className="mt-1 flex items-start gap-1.5 text-sm text-slate-600">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                  {jobAddressText(selectedJob) || 'Address not available'}
+                </p>
+
+                {/* Progress through the job */}
+                <ol className="mt-5 grid grid-cols-4 gap-2" aria-label="Job progress">
+                  {JOB_STEPS.map((step, i) => {
+                    const done = i < jobStepIndex;
+                    const current = i === jobStepIndex;
+                    return (
+                      <li key={step.id} className="min-w-0">
+                        <div className={cx('h-1.5 rounded-full', done || current ? 'bg-primary' : 'bg-slate-200')} />
+                        <p className={cx('mt-1.5 truncate text-xs font-medium', current ? 'text-primary' : done ? 'text-slate-600' : 'text-slate-400')}>
+                          {done ? '✓ ' : ''}
+                          {step.label}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+
+              <div className="space-y-6 p-5 sm:p-6">
+                {jobStage === 'details' && (
+                  <div className="space-y-6">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <InfoItem label="Service" value={selectedJob.serviceType} icon={<Briefcase className="h-4 w-4" />} />
+                      <InfoItem
+                        label="Duration"
+                        value={
+                          selectedJobBreakdown && selectedJobEarningsPreview
+                            ? selectedJobEarningsPreview.staffCount > 1
+                              ? `${formatBookedHoursLabel(selectedJobBreakdown.totalHours)}h booked · ${formatBookedHoursLabel(selectedJobEarningsPreview.yourHours)}h yours`
+                              : `${formatBookedHoursLabel(selectedJobBreakdown.totalHours)}h booked`
+                            : 'N/A'
+                        }
+                        icon={<History className="h-4 w-4" />}
+                      />
+                      {selectedJobEarningsPreview ? (
+                        <InfoItem
+                          label="Your estimated pay"
+                          value={
+                            <span>
+                              £{Number(selectedJobEarningsPreview.pay || 0).toFixed(2)}{' '}
+                              <span className="font-normal text-slate-500">
+                                ({formatBookedHoursLabel(selectedJobEarningsPreview.yourHours)}h × £{Number(selectedJobEarningsPreview.rate).toFixed(2)})
+                              </span>
+                            </span>
+                          }
+                          icon={<Wallet className="h-4 w-4" />}
+                        />
+                      ) : null}
+                      <InfoItem label="Booking reference" value={selectedJob.bookingId || `#${selectedJob.id}`} icon={<ClipboardList className="h-4 w-4" />} />
+                      {Array.isArray(selectedJob.extras) && selectedJob.extras.length > 0 && (
+                        <InfoItem
+                          className="sm:col-span-2"
+                          label="Extras"
+                          value={selectedJob.extras
+                            .map((e) => {
+                              const extraName = extraServices.find((x) => String(x.id) === String(e.id))?.name || String(e.id);
+                              return `${getExtraDisplayLabel(extraName)} ×${e.quantity}`;
+                            })
+                            .join(', ')}
+                          icon={<Box className="h-4 w-4" />}
+                        />
+                      )}
+                      {(coworkersOnSelectedJob.length > 0 || (selectedJobEarningsPreview && selectedJobEarningsPreview.staffCount > 1)) && (
+                        <InfoItem
+                          className="sm:col-span-2"
+                          label="Team on this job"
+                          value={
+                            <span>
+                              {coworkersOnSelectedJob.length > 0
+                                ? coworkersOnSelectedJob.map((s) => s.name).join(', ')
+                                : `${selectedJobEarningsPreview!.staffCount - 1} other cleaner(s)`}
+                              <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                                Pay = booked hours ÷ {selectedJobEarningsPreview?.staffCount ?? 1} people × your rate.
+                              </span>
+                            </span>
+                          }
+                          icon={<Users className="h-4 w-4" />}
+                        />
+                      )}
+                    </div>
+
+                    {selectedJob.instructions && (
+                      <Callout tone="warning" icon={<AlertCircle className="h-4 w-4" />} title="Client instructions">
+                        “{selectedJob.instructions}”
+                      </Callout>
+                    )}
+
+                    {selectedJobBreakdown ? <DurationBreakdownBlock breakdown={selectedJobBreakdown} title="Time breakdown" /> : null}
+
+                    {selectedJob.workCompletion && (
+                      <div className="space-y-4 rounded-xl border border-slate-200 p-4">
+                        <p className="flex items-center gap-2 font-semibold text-slate-900">
+                          <ClipboardList className="h-4 w-4 text-primary" /> Work completion report
+                        </p>
+                        {(() => {
+                          const wc = selectedJob.workCompletion as WorkCompletionData;
+                          return (
+                            <>
+                              <div className="grid grid-cols-2 gap-3">
+                                <InfoItem
+                                  label="Clock in"
+                                  value={
+                                    <span>
+                                      {wc.clockInTime || '-'}
+                                      {wc.clockInAtIso ? <span className="block text-xs font-normal text-slate-500">{new Date(wc.clockInAtIso).toLocaleString()}</span> : null}
+                                    </span>
+                                  }
+                                />
+                                <InfoItem
+                                  label="Clock out"
+                                  value={
+                                    <span>
+                                      {wc.clockOutTime || '-'}
+                                      {wc.clockOutAtIso ? <span className="block text-xs font-normal text-slate-500">{new Date(wc.clockOutAtIso).toLocaleString()}</span> : null}
+                                    </span>
+                                  }
+                                />
+                              </div>
+                              {wc.notes ? (
+                                <Callout tone="neutral" title="Job notes">
+                                  <span className="whitespace-pre-wrap">{wc.notes}</span>
+                                </Callout>
+                              ) : null}
+                              {wc.earlyClockOutReason ? (
+                                <Callout tone="warning" title="Early clock-out">
+                                  <span className="whitespace-pre-wrap">{wc.earlyClockOutReason}</span>
+                                </Callout>
+                              ) : null}
+                              {wc.issues ? (
+                                <Callout tone="danger" title="Issues reported">
+                                  <span className="whitespace-pre-wrap">{wc.issues}</span>
+                                </Callout>
+                              ) : null}
+                              {wc.photos && wc.photos.length > 0 ? (
+                                <div className="grid grid-cols-3 gap-2">
+                                  {wc.photos.map((src, idx) => (
+                                    <a key={idx} href={src} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl ring-1 ring-slate-200">
+                                      <img src={src} alt={`Job photo ${idx + 1}`} className="h-24 w-full object-cover" />
+                                    </a>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {wc.signature ? <p className="text-xs text-slate-500">Signature: {wc.signature}</p> : null}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {(selectedJob.status === BookingStatus.PENDING || selectedJob.status === BookingStatus.CONFIRMED) && (
+                      <details className="group rounded-xl border border-slate-200 p-4">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-slate-700">
+                          Can't make this job?
+                          <ChevronRight className="h-4 w-4 text-slate-400 transition group-open:rotate-90" />
+                        </summary>
+                        <div className="mt-3 space-y-3">
+                          <p className="text-sm text-slate-500">You can ask the office to take you off a job up to 3 days before it starts. The office must approve it.</p>
+                          <textarea
+                            value={cancelRequestReason}
+                            onChange={(e) => setCancelRequestReason(e.target.value)}
+                            rows={2}
+                            className={inputClass}
+                            placeholder="Reason for the office (optional)"
+                          />
+                          <Button
+                            variant="danger"
+                            block
+                            onClick={handleRequestCancellation}
+                            disabled={isRequestingCancel || hoursUntilJob(selectedJob.date, selectedJob.time) < 72}
+                          >
+                            {isRequestingCancel ? 'Sending request…' : 'Ask to be taken off this job'}
+                          </Button>
+                          {hoursUntilJob(selectedJob.date, selectedJob.time) < 72 && (
+                            <p className="text-xs text-red-600">This job starts within 3 days, so please call the office instead.</p>
+                          )}
+                        </div>
+                      </details>
+                    )}
+
+                    {selectedJob.status === BookingStatus.PENDING || selectedJob.status === BookingStatus.CONFIRMED ? (
+                      <div className="sticky bottom-3 z-10 grid gap-2 rounded-2xl bg-white/90 p-1 backdrop-blur sm:grid-cols-[1fr_2fr] md:static md:bg-transparent md:p-0">
+                        <Button variant="warning" size="lg" onClick={handleRunningLate} icon={<AlarmClock className="h-5 w-5" />}>
+                          Running late
+                        </Button>
+                        <Button size="lg" onClick={() => void handleStartTravel()} icon={<Navigation className="h-5 w-5" />}>
+                          Start travel
+                        </Button>
+                      </div>
+                    ) : (
+                      <Callout tone="neutral">This booking is {String(selectedJob.status).toLowerCase()}, so travel and clock-in are switched off.</Callout>
+                    )}
+                  </div>
+                )}
+
+                {jobStage === 'travel' && (
+                  <div className="space-y-4">
+                    <div className="relative h-64 overflow-hidden rounded-xl ring-1 ring-slate-200 sm:h-72">
+                      <React.Suspense fallback={<div className="flex h-full items-center justify-center bg-slate-100 text-sm text-slate-500">Loading map…</div>}>
                         <StaffEnRouteMap booking={selectedJob} />
                       </React.Suspense>
                     </div>
-                    <div className="pointer-events-auto relative z-10 space-y-6 bg-gradient-to-b from-white/88 via-white/78 to-white/92 px-4 pb-8 pt-8 text-center backdrop-blur-md md:px-6 md:pt-10">
-                      {normalizeBookingDate(selectedJob.date) !== getTodayYYYYMMDD() && (
-                        <div className="rounded-2xl border border-red-200 bg-red-50/95 p-4 text-sm font-bold text-red-700 shadow-sm">
-                          You can only clock in on the scheduled date of this job.
-                        </div>
-                      )}
-                      <div className="w-24 h-24 bg-primary/15 ring-2 ring-primary/20 rounded-full flex items-center justify-center mx-auto animate-pulse shadow-lg shadow-primary/10">
-                        <Navigation className="w-10 h-10 text-primary" />
+                    {normalizeBookingDate(selectedJob.date) !== getTodayYYYYMMDD() && (
+                      <Callout tone="danger" icon={<AlertCircle className="h-4 w-4" />}>
+                        You can only clock in on the day of this job.
+                      </Callout>
+                    )}
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Navigation className="h-5 w-5" />
                       </div>
-                      <div>
-                        <h3 className="text-xl font-black text-slate-900 drop-shadow-sm">En Route to Client</h3>
-                        <p className="mt-1 text-[11px] font-bold uppercase tracking-widest text-slate-500">
-                          Map preview · use Open Maps for turn-by-turn
-                        </p>
-                        {travellingJobIsToday && (
-                          <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-700 border border-emerald-200">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Sharing live location with office & client
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-900">On your way</p>
+                        {travellingJobIsToday ? (
+                          <p className="flex items-center gap-1.5 text-sm text-emerald-700">
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" /> Sharing your live location with the client and office
                           </p>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        {selectedClientPhone ? (
-                          <a
-                            href={`tel:${selectedClientPhone}`}
-                            className="py-4 bg-white/90 rounded-2xl font-bold text-sm flex items-center justify-center hover:bg-white border border-slate-200/80 shadow-sm transition-colors"
-                          >
-                            Call client
-                          </a>
-                        ) : brandPhoneDial ? (
-                          <a
-                            href={`tel:${brandPhoneDial}`}
-                            title={`${brandName} office line (from business settings)`}
-                            className="py-4 bg-white/90 rounded-2xl font-bold text-sm flex items-center justify-center hover:bg-white border border-slate-200/80 shadow-sm transition-colors"
-                          >
-                            Call office
-                          </a>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              showFlyer(
-                                'No client phone on this booking. Add your business phone in Admin → Business settings to call the office.',
-                                'error',
-                              )
-                            }
-                            className="py-4 bg-white/80 rounded-2xl font-bold text-sm text-slate-600 flex items-center justify-center text-center px-2 border border-slate-200/60 hover:bg-slate-50"
-                          >
-                            Call office
-                          </button>
+                          <p className="text-sm text-slate-500">Use Open Maps for turn-by-turn directions.</p>
                         )}
-                        <a
-                          href={`https://maps.google.com/?q=${encodeURIComponent(
-                            [
-                              (selectedJob as any)?.address?.line1 ?? (selectedJob as any)?.addressLine1 ?? '',
-                              (selectedJob as any)?.address?.postcode ?? (selectedJob as any)?.addressPostcode ?? '',
-                            ]
-                              .filter(Boolean)
-                              .join(', '),
-                          )}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="py-4 bg-white/90 rounded-2xl font-bold text-sm flex items-center justify-center hover:bg-white border border-slate-200/80 shadow-sm transition-colors"
-                        >
-                          Open Maps
-                        </a>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleRunningLate}
-                        className="w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest border-2 border-amber-200 bg-amber-50/95 text-amber-900 hover:bg-amber-100 transition-colors shadow-sm"
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedClientPhone ? (
+                        <a href={`tel:${selectedClientPhone}`} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-inset ring-slate-200 hover:bg-slate-50">
+                          <Phone className="h-4 w-4" /> Call client
+                        </a>
+                      ) : brandPhoneDial ? (
+                        <a
+                          href={`tel:${brandPhoneDial}`}
+                          title={`${brandName} office line`}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-inset ring-slate-200 hover:bg-slate-50"
+                        >
+                          <Phone className="h-4 w-4" /> Call office
+                        </a>
+                      ) : (
+                        <Button
+                          variant="secondary"
+                          onClick={() => showFlyer('No client phone on this booking. Add your business phone in Admin → Business settings to call the office.', 'error')}
+                          icon={<Phone className="h-4 w-4" />}
+                        >
+                          Call office
+                        </Button>
+                      )}
+                      <a
+                        href={`https://maps.google.com/?q=${encodeURIComponent(
+                          [(selectedJob as any)?.address?.line1 ?? (selectedJob as any)?.addressLine1 ?? '', (selectedJob as any)?.address?.postcode ?? (selectedJob as any)?.addressPostcode ?? '']
+                            .filter(Boolean)
+                            .join(', '),
+                        )}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-inset ring-slate-200 hover:bg-slate-50"
                       >
-                        Running late - notify client & office
-                      </button>
-                      <button
-                        onClick={handleClockIn}
-                        disabled={normalizeBookingDate(selectedJob.date) !== getTodayYYYYMMDD()}
-                        className="w-full bg-green-600 text-white py-6 rounded-[2.5rem] font-black shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Arrived & Clock In
-                      </button>
+                        <MapIcon className="h-4 w-4" /> Open Maps
+                      </a>
+                    </div>
+                    <div className="sticky bottom-3 z-10 grid gap-2 rounded-2xl bg-white/90 p-1 backdrop-blur sm:grid-cols-[1fr_2fr] md:static md:bg-transparent md:p-0">
+                      <Button variant="warning" size="lg" onClick={handleRunningLate} icon={<AlarmClock className="h-5 w-5" />}>
+                        Running late
+                      </Button>
+                      <Button variant="success" size="lg" onClick={handleClockIn} disabled={normalizeBookingDate(selectedJob.date) !== getTodayYYYYMMDD()} icon={<CheckCircle2 className="h-5 w-5" />}>
+                        I've arrived · clock in
+                      </Button>
                     </div>
                   </div>
                 )}
 
                 {jobStage === 'work' && (
-                  <div className="space-y-8">
-                    <div className="p-6 bg-green-50 rounded-3xl border border-green-100 flex items-center justify-between">
+                  <div className="space-y-5">
+                    <div className="flex items-center justify-between gap-4 rounded-xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-200">
                       <div>
-                        <p className="text-green-800 font-bold">Clocked In</p>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-green-700/70">Since {clockInData?.time}</p>
+                        <p className="flex items-center gap-2 font-semibold text-emerald-800">
+                          <span className="relative flex h-2 w-2">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                          </span>
+                          Clocked in
+                        </p>
+                        <p className="text-sm text-emerald-700/80">Since {clockInData?.time}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-green-700/70">Elapsed</p>
-                        <span className="font-mono text-green-700 font-black text-lg">{elapsedClockLabel}</span>
-                      </div>
+                      <p className="font-mono text-2xl font-semibold tabular-nums text-emerald-700">{elapsedClockLabel}</p>
                     </div>
 
-                    <div className="space-y-4">
-                      <h4 className="font-black text-lg">Work Log</h4>
-
-                      <div>
-                        <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2 block">Job Notes</label>
-                        <textarea
-                          className="w-full p-4 bg-card rounded-2xl font-medium text-foreground border-2 border-input focus:border-primary focus:ring-2 focus:ring-primary/25 h-24"
-                          placeholder="Describe work done..."
-                          value={workDetails.notes}
-                          onChange={(e) => setWorkDetails({ ...workDetails, notes: e.target.value })}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2 block">Issues / Report</label>
-                        <textarea
-                          className="w-full p-4 bg-red-50 rounded-2xl font-medium text-slate-900 border-none focus:ring-2 ring-red-500/20 h-20 placeholder:text-red-300"
-                          placeholder="Any issues encountered?"
-                          value={workDetails.issues}
-                          onChange={(e) => setWorkDetails({ ...workDetails, issues: e.target.value })}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2 block">Photos</label>
-                        <input
-                          type="file"
-                          multiple
-                          accept="image/*"
-                          className="hidden"
-                          id="photo-upload"
-                          onChange={async (e) => {
-                            if (e.target.files && e.target.files.length > 0) {
-                              try {
-                                const newPhotos = await filesToDataUrls(e.target.files);
-                                setWorkDetails(prev => ({ ...prev, photos: [...(prev.photos || []), ...newPhotos] }));
-                                showFlyer(`${e.target.files.length} photo(s) successfully attached!`, 'success');
-                              } catch {
-                                showFlyer('Failed to attach selected photos.', 'error');
-                              }
+                    <Field label="Job notes" htmlFor="work-notes">
+                      <textarea
+                        id="work-notes"
+                        className={cx(inputClass, 'h-28')}
+                        placeholder="What did you do? Anything the client or office should know?"
+                        value={workDetails.notes}
+                        onChange={(e) => setWorkDetails({ ...workDetails, notes: e.target.value })}
+                      />
+                    </Field>
+                    <Field label="Issues to report" htmlFor="work-issues" hint="Breakages, access problems, missing supplies…">
+                      <textarea
+                        id="work-issues"
+                        className={cx(inputClass, 'h-20')}
+                        placeholder="Leave blank if everything went fine"
+                        value={workDetails.issues}
+                        onChange={(e) => setWorkDetails({ ...workDetails, issues: e.target.value })}
+                      />
+                    </Field>
+                    <div>
+                      <p className="mb-1.5 text-sm font-medium text-slate-700">Before and after photos</p>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        className="hidden"
+                        id="photo-upload"
+                        onChange={async (e) => {
+                          if (e.target.files && e.target.files.length > 0) {
+                            try {
+                              const newPhotos = await filesToDataUrls(e.target.files);
+                              setWorkDetails((prev) => ({ ...prev, photos: [...(prev.photos || []), ...newPhotos] }));
+                              showFlyer(`${e.target.files.length} photo(s) successfully attached!`, 'success');
+                            } catch {
+                              showFlyer('Failed to attach selected photos.', 'error');
                             }
-                          }}
-                        />
-                        <label htmlFor="photo-upload" className="w-full p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 font-bold flex items-center justify-center hover:bg-slate-100 transition-colors cursor-pointer">
-                          <Camera className="w-5 h-5 mr-2" />
-                          {workDetails.photos && workDetails.photos.length > 0 ? `${workDetails.photos.length} Photos Attached` : 'Upload Before/After Photos'}
-                        </label>
-                      </div>
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor="photo-upload"
+                        className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500 transition hover:border-primary/40 hover:bg-primary/5"
+                      >
+                        <Camera className="h-6 w-6 text-slate-400" />
+                        <span className="font-medium text-slate-700">
+                          {workDetails.photos && workDetails.photos.length > 0 ? `${workDetails.photos.length} photo${workDetails.photos.length === 1 ? '' : 's'} attached · add more` : 'Tap to add photos'}
+                        </span>
+                      </label>
+                      {workDetails.photos && workDetails.photos.length > 0 ? (
+                        <div className="mt-3 grid grid-cols-4 gap-2">
+                          {workDetails.photos.slice(0, 8).map((src, idx) => (
+                            <img key={idx} src={src} alt={`Attached photo ${idx + 1}`} className="h-16 w-full rounded-lg object-cover ring-1 ring-slate-200" />
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
 
-                    <button onClick={handleClockOut} className="w-full bg-slate-900 text-white py-6 rounded-[2.5rem] font-black shadow-xl">
-                      Complete Job & Clock Out
-                    </button>
+                    <div className="sticky bottom-3 z-10 rounded-2xl bg-white/90 p-1 backdrop-blur md:static md:bg-transparent md:p-0">
+                      <Button variant="dark" size="lg" block onClick={handleClockOut} icon={<CheckCircle2 className="h-5 w-5" />}>
+                        Finish job · clock out
+                      </Button>
+                    </div>
                   </div>
                 )}
 
                 {jobStage === 'summary' && (
-                  <div className="space-y-8 animate-in slide-in-from-right duration-300">
+                  <div className="space-y-5 animate-in fade-in duration-300">
                     <div className="text-center">
-                      <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <CheckCircle2 className="w-10 h-10" />
+                      <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                        <CheckCircle2 className="h-8 w-8" />
                       </div>
-                      <h3 className="text-2xl font-black">Job Completed!</h3>
-                      <p className="text-slate-500 font-bold">Time to sign off.</p>
+                      <h3 className="text-xl font-semibold text-slate-900">Great work!</h3>
+                      <p className="text-sm text-slate-500">Ask the client to sign, then send your report.</p>
                     </div>
 
                     {earlyClockOutReason ? (
-                      <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-left">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-800 mb-1">Early finish (before booked time)</p>
-                        <p className="text-sm font-bold text-amber-950 whitespace-pre-wrap">{earlyClockOutReason}</p>
-                        <p className="text-[10px] font-bold text-amber-700/80 mt-2">This note will be sent with your report to admin.</p>
-                      </div>
+                      <Callout tone="warning" title="Finished before the booked time">
+                        <span className="whitespace-pre-wrap">{earlyClockOutReason}</span>
+                        <span className="mt-1 block text-xs opacity-80">This note is sent with your report.</span>
+                      </Callout>
                     ) : null}
 
-                    <div className="bg-slate-50 p-6 rounded-3xl space-y-4">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-400 font-bold">Clock In</span>
-                        <span className="font-black">{clockInData?.time}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-400 font-bold">Clock Out</span>
-                        <span className="font-black">{clockOutTimeLabel ?? '—'}</span>
-                      </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <InfoItem label="Clocked in" value={clockInData?.time || '—'} icon={<Clock className="h-4 w-4" />} />
+                      <InfoItem label="Clocked out" value={clockOutTimeLabel ?? '—'} icon={<Clock className="h-4 w-4" />} />
                     </div>
 
                     <div>
-                      <label className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2 block">Customer Signature</label>
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <p className="text-sm font-medium text-slate-700">Client signature</p>
+                        {workDetails.signature && (
+                          <button type="button" onClick={clearSignature} className="text-sm font-medium text-red-600 hover:underline">
+                            Clear
+                          </button>
+                        )}
+                      </div>
                       <canvas
                         ref={(el) => {
                           (sigCanvasRef as React.MutableRefObject<HTMLCanvasElement | null>).current = el;
                           if (el) initSignaturePad(el);
                         }}
-                        className="h-32 w-full bg-white border-2 border-slate-200 rounded-2xl cursor-crosshair touch-none"
+                        className="h-36 w-full cursor-crosshair touch-none rounded-xl bg-white ring-1 ring-inset ring-slate-300"
                         onMouseDown={onSigStart}
                         onMouseMove={onSigMove}
                         onMouseUp={onSigEnd}
@@ -2994,110 +2906,105 @@ const StaffPortal: React.FC<{
                         onTouchStart={onSigStart}
                         onTouchMove={onSigMove}
                         onTouchEnd={onSigEnd}
+                        aria-label="Signature pad"
                       />
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs font-bold text-slate-400">
-                          {workDetails.signature ? 'Signature captured' : 'Sign above with finger or mouse'}
-                        </span>
-                        {workDetails.signature && (
-                          <button onClick={clearSignature} className="text-xs font-bold text-red-500 uppercase tracking-wide hover:underline">
-                            Clear
-                          </button>
-                        )}
-                      </div>
+                      <p className="mt-1.5 text-xs text-slate-500">{workDetails.signature ? '✓ Signature captured' : 'Sign above with a finger or the mouse'}</p>
                     </div>
 
-                    <button onClick={handleFinalSubmit} className="w-full bg-primary text-primary-foreground py-6 rounded-[2.5rem] font-black shadow-xl shadow-primary/35">
-                      Submit Final Report
-                    </button>
+                    <div className="sticky bottom-3 z-10 rounded-2xl bg-white/90 p-1 backdrop-blur md:static md:bg-transparent md:p-0">
+                      <Button size="lg" block onClick={handleFinalSubmit} icon={<Send className="h-5 w-5" />}>
+                        Submit report
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
-            </div>
+            </Card>
           </div>
         )}
       </main>
 
-      {/* Mobile Bottom Navigation (Hidden on Desktop) */}
+      {/* Early clock-out reason */}
       {earlyClockOutModalOpen && selectedJob && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/55 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="early-clockout-title"
-        >
-          <div className="w-full max-w-md rounded-[1.75rem] border border-amber-200 bg-white p-6 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.35)]">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="shrink-0 rounded-2xl bg-amber-100 p-2.5 text-amber-700">
-                <AlertCircle className="w-6 h-6" />
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="early-clockout-title">
+          <div className="w-full max-w-md rounded-t-2xl bg-white p-6 shadow-2xl sm:rounded-2xl animate-in slide-in-from-bottom-4 duration-200">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                <AlertCircle className="h-5 w-5" />
               </div>
               <div>
-                <h2 id="early-clockout-title" className="text-lg font-black text-slate-900 leading-tight">
-                  Finishing before booked time ends?
+                <h2 id="early-clockout-title" className="text-lg font-semibold text-slate-900">
+                  Finishing early?
                 </h2>
-                <p className="mt-2 text-sm font-bold text-slate-600 leading-snug">
-                  You are clocking out before the scheduled end of this booking. Please tell us why so admin can review it with your report.
-                </p>
+                <p className="mt-1 text-sm text-slate-600">You are clocking out before the booked time ends. Tell us why so the office can review it with your report.</p>
               </div>
             </div>
-            <label htmlFor="early-clockout-reason" className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2">
-              Reason required
-            </label>
-            <textarea
-              id="early-clockout-reason"
-              rows={4}
-              value={earlyClockOutReasonInput}
-              onChange={(e) => setEarlyClockOutReasonInput(e.target.value)}
-              placeholder="e.g. Client asked to stop early, property smaller than expected, access issue…"
-              className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/60 outline-none resize-y min-h-[6rem]"
-            />
+            <Field label="Reason" htmlFor="early-clockout-reason">
+              <textarea
+                id="early-clockout-reason"
+                rows={4}
+                value={earlyClockOutReasonInput}
+                onChange={(e) => setEarlyClockOutReasonInput(e.target.value)}
+                placeholder="e.g. Client asked to stop early, smaller property than expected, access issue…"
+                className={cx(inputClass, 'min-h-[6rem] resize-y')}
+              />
+            </Field>
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button
-                type="button"
+              <Button
+                variant="secondary"
                 onClick={() => {
                   setEarlyClockOutModalOpen(false);
                   setEarlyClockOutReasonInput('');
                 }}
-                className="w-full sm:w-auto rounded-2xl border border-slate-200 bg-white px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50"
               >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmEarlyClockOut}
-                className="w-full sm:w-auto rounded-2xl bg-slate-900 px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg hover:bg-slate-800"
-              >
-                Continue & clock out
-              </button>
+                Keep working
+              </Button>
+              <Button variant="dark" onClick={confirmEarlyClockOut}>
+                Clock out
+              </Button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Mobile "More" sheet */}
       {isMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-end">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px] animate-in fade-in duration-200" onClick={() => setIsMenuOpen(false)} />
-          <div className="relative bg-white rounded-t-[1.75rem] shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.12)] animate-in slide-in-from-bottom-4 duration-300" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}>
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-9 h-1 rounded-full bg-slate-200" />
+        <div className="fixed inset-0 z-50 flex flex-col justify-end md:hidden">
+          <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-[2px] animate-in fade-in duration-200" onClick={() => setIsMenuOpen(false)} />
+          <div className="relative rounded-t-3xl bg-white shadow-2xl animate-in slide-in-from-bottom-4 duration-300" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}>
+            <div className="flex justify-center pb-1 pt-3">
+              <div className="h-1 w-9 rounded-full bg-slate-200" />
             </div>
-            <div className="px-5 pb-4">
-              <div className="flex items-center justify-between mb-3 px-1">
-                <h3 className="text-base font-bold text-slate-900">More</h3>
-                <button type="button" onClick={() => setIsMenuOpen(false)} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
-                  <X className="w-4 h-4" />
+            <div className="px-4 pb-4">
+              <div className="mb-2 flex items-center gap-3 rounded-2xl bg-slate-50 p-3">
+                <Avatar src={currentStaff?.imageUrl} name={displayName} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold text-slate-900">{displayName}</p>
+                  <p className="text-xs text-slate-500">{currentStaff?.role || 'Staff member'}</p>
+                </div>
+                <button type="button" onClick={() => setIsMenuOpen(false)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-200" aria-label="Close menu">
+                  <X className="h-4 w-4" />
                 </button>
               </div>
               <div className="space-y-1">
-                <MoreSheetItem active={activeTab === 'profile'} onClick={() => { setActiveTab('profile'); setIsMenuOpen(false); }} label="My Profile" icon={<User className="w-5 h-5" />} />
-                <MoreSheetItem active={activeTab === 'reviews'} onClick={() => { setActiveTab('reviews'); setIsMenuOpen(false); }} label="My Reviews" icon={<Star className="w-5 h-5" />} />
-                <MoreSheetItem active={activeTab === 'referrals'} onClick={() => { setActiveTab('referrals'); setIsMenuOpen(false); }} label="Referrals" icon={<Gift className="w-5 h-5" />} />
-                <MoreSheetItem active={activeTab === 'late'} onClick={() => { setActiveTab('late'); setIsMenuOpen(false); }} label="Running Late" icon={<AlarmClock className="w-5 h-5" />} />
+                <MoreSheetItem active={activeTab === 'profile'} onClick={() => { setActiveTab('profile'); setIsMenuOpen(false); }} label="My profile" icon={<User className="h-5 w-5" />} />
+                <MoreSheetItem active={activeTab === 'reviews'} onClick={() => { setActiveTab('reviews'); setIsMenuOpen(false); }} label="My reviews" icon={<Star className="h-5 w-5" />} />
+                <MoreSheetItem active={activeTab === 'referrals'} onClick={() => { setActiveTab('referrals'); setIsMenuOpen(false); }} label="Referrals" icon={<Gift className="h-5 w-5" />} />
+                <MoreSheetItem active={activeTab === 'late'} onClick={() => { setActiveTab('late'); setIsMenuOpen(false); }} label="Running late" icon={<AlarmClock className="h-5 w-5" />} />
               </div>
-              <div className="mt-3 pt-3 border-t border-slate-100">
-                <button type="button" onClick={() => { onLogout(); setIsMenuOpen(false); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-2xl text-red-500 hover:bg-red-50 active:bg-red-100 transition-all duration-200">
-                  <div className="p-2 rounded-xl bg-red-50 text-red-500"><LogOut className="w-5 h-5" /></div>
-                  <span className="text-sm font-semibold">Sign Out</span>
+              <div className="mt-2 border-t border-slate-100 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onLogout();
+                    setIsMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-red-600 transition hover:bg-red-50"
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50">
+                    <LogOut className="h-5 w-5" />
+                  </span>
+                  <span className="text-sm font-semibold">Sign out</span>
                 </button>
               </div>
             </div>
@@ -3105,22 +3012,24 @@ const StaffPortal: React.FC<{
         </div>
       )}
 
+      {/* Mobile bottom navigation */}
       {!selectedJob && (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/60 z-40" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 4px)' }}>
-          <div className="flex justify-around items-stretch pt-1.5 pb-1 px-1">
-            <BottomNavBtn active={activeTab === 'schedule'} onClick={() => { setActiveTab('schedule'); setIsMenuOpen(false); }} label="Schedule" icon={<Calendar className="w-[22px] h-[22px]" />} />
-            <BottomNavBtn active={activeTab === 'availability'} onClick={() => { setActiveTab('availability'); setIsMenuOpen(false); }} label="Rota" icon={<CheckSquare className="w-[22px] h-[22px]" />} />
-            <BottomNavBtn active={activeTab === 'messages'} onClick={() => { openInbox('alerts'); setIsMenuOpen(false); }} label="Inbox" icon={<MessageSquare className="w-[22px] h-[22px]" />} badge={staffAlerts.length} />
-            <BottomNavBtn active={activeTab === 'invoice'} onClick={() => { setActiveTab('invoice'); setIsMenuOpen(false); }} label="Earnings" icon={<Wallet className="w-[22px] h-[22px]" />} />
-            <BottomNavBtn active={isMoreTab} onClick={() => setIsMenuOpen((v) => !v)} label="More" icon={<Menu className="w-[22px] h-[22px]" />} />
+        <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200/80 bg-white/95 backdrop-blur-xl md:hidden" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 4px)' }} aria-label="Staff menu">
+          <div className="flex items-stretch justify-around px-1 pb-1 pt-1.5">
+            <BottomNavBtn active={activeTab === 'schedule'} onClick={() => { setActiveTab('schedule'); setIsMenuOpen(false); }} label="Schedule" icon={<Calendar className="h-[22px] w-[22px]" />} />
+            <BottomNavBtn active={activeTab === 'availability'} onClick={() => { setActiveTab('availability'); setIsMenuOpen(false); }} label="Rota" icon={<CheckSquare className="h-[22px] w-[22px]" />} />
+            <BottomNavBtn active={activeTab === 'messages'} onClick={() => { openInbox('alerts'); setIsMenuOpen(false); }} label="Inbox" icon={<MessageSquare className="h-[22px] w-[22px]" />} badge={staffAlerts.length} />
+            <BottomNavBtn active={activeTab === 'invoice'} onClick={() => { setActiveTab('invoice'); setIsMenuOpen(false); }} label="Earnings" icon={<Wallet className="h-[22px] w-[22px]" />} />
+            <BottomNavBtn active={isMoreTab} onClick={() => setIsMenuOpen((v) => !v)} label="More" icon={<Menu className="h-[22px] w-[22px]" />} />
           </div>
         </nav>
       )}
 
+      {/* Running late from a job */}
       {lateModalJobId != null && (
-        <div className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center sm:p-6">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setLateModalJobId(null)} />
-          <div className="relative w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto bg-white rounded-t-[2rem] sm:rounded-[2rem] p-5 md:p-8 shadow-2xl animate-in slide-in-from-bottom-8">
+        <div className="fixed inset-0 z-[300] flex items-end justify-center sm:items-center sm:p-6">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setLateModalJobId(null)} />
+          <div className="relative max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl animate-in slide-in-from-bottom-8 sm:max-w-2xl sm:rounded-2xl md:p-8">
             <RunningLatePanel
               jobs={jobs}
               staffName={displayName}
@@ -3132,78 +3041,48 @@ const StaffPortal: React.FC<{
           </div>
         </div>
       )}
-
     </div>
   );
 };
 
-const SideNavBtn: React.FC<{ active: boolean, onClick: () => void, label: string, icon: React.ReactNode, activeClass?: string, badge?: number }> = ({ active, onClick, label, icon, activeClass, badge }) => (
+const SideNavBtn: React.FC<{ active: boolean; onClick: () => void; label: string; icon: React.ReactNode; badge?: number }> = ({ active, onClick, label, icon, badge }) => (
   <button
+    type="button"
     onClick={onClick}
-    className={`w-full p-4 rounded-2xl flex items-center space-x-4 transition-all duration-300 group ${active ? (activeClass || 'bg-gradient-to-r from-primary to-indigo-700 shadow-xl shadow-primary/35 text-primary-foreground -translate-y-0.5') : 'hover:bg-muted'}`}
+    aria-current={active ? 'page' : undefined}
+    className={cx(
+      'group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition',
+      active ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+    )}
   >
-    <div className={`relative p-2 rounded-xl transition-all duration-300 ${active ? 'bg-white/20 text-white shadow-sm' : 'bg-slate-100 text-slate-400 group-hover:bg-white group-hover:text-primary group-hover:shadow-sm'}`}>
-      {icon}
-      {!!badge && badge > 0 && (
-        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center ring-2 ring-white">
-          {badge > 9 ? '9+' : badge}
-        </span>
-      )}
-    </div>
-    <span className={`font-black text-sm tracking-wide ${active ? 'text-white' : 'text-slate-600'}`}>{label}</span>
+    {active ? <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-primary" aria-hidden /> : null}
+    <span className={cx('shrink-0', active ? 'text-primary' : 'text-slate-400 group-hover:text-slate-600')}>{icon}</span>
+    <span className="flex-1 text-left">{label}</span>
+    {!!badge && badge > 0 && (
+      <span className="min-w-[1.25rem] rounded-full bg-red-500 px-1.5 text-center text-xs font-semibold text-white">{badge > 9 ? '9+' : badge}</span>
+    )}
   </button>
 );
 
 const BottomNavBtn: React.FC<{ active: boolean; onClick: () => void; label: string; icon: React.ReactNode; badge?: number }> = ({ active, onClick, label, icon, badge }) => (
-  <button onClick={onClick} className="relative flex flex-col items-center justify-center py-1.5 px-2 min-w-[3.5rem]">
-    {active && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[3px] rounded-full bg-primary" />}
-    <div className={`relative mb-0.5 transition-colors duration-200 ${active ? 'text-primary' : 'text-slate-400'}`}>
+  <button type="button" onClick={onClick} aria-current={active ? 'page' : undefined} className="relative flex min-w-[3.75rem] flex-col items-center justify-center gap-0.5 px-2 py-1">
+    <span className={cx('relative flex h-8 w-14 items-center justify-center rounded-full transition', active ? 'bg-primary/10 text-primary' : 'text-slate-400')}>
       {icon}
       {!!badge && badge > 0 && (
-        <span className="absolute -top-1 -right-2.5 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white">
+        <span className="absolute -top-0.5 right-2 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white ring-2 ring-white">
           {badge > 9 ? '9+' : badge}
         </span>
       )}
-    </div>
-    <span className={`text-[10px] font-semibold leading-tight transition-colors duration-200 ${active ? 'text-primary' : 'text-slate-400'}`}>{label}</span>
+    </span>
+    <span className={cx('text-[11px] font-medium leading-tight', active ? 'text-primary' : 'text-slate-500')}>{label}</span>
   </button>
 );
 
 const MoreSheetItem: React.FC<{ active: boolean; onClick: () => void; label: string; icon: React.ReactNode }> = ({ active, onClick, label, icon }) => (
-  <button onClick={onClick} className={`w-full flex items-center gap-3 px-3 py-3.5 rounded-2xl transition-all duration-200 ${active ? 'bg-primary/5 text-primary' : 'text-slate-700 hover:bg-slate-50 active:bg-slate-100'}`}>
-    <div className={`p-2 rounded-xl ${active ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-500'}`}>{icon}</div>
-    <span className="text-sm font-semibold flex-1 text-left">{label}</span>
-    <ChevronRight className={`w-4 h-4 ${active ? 'text-primary/40' : 'text-slate-300'}`} />
-  </button>
-);
-
-const InboxPill: React.FC<{
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  icon: React.ReactNode;
-  count?: number;
-  activeClass?: string;
-}> = ({ active, onClick, label, icon, count, activeClass }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-200 ${active
-      ? activeClass || 'bg-slate-900 text-white shadow-lg shadow-slate-900/30'
-      : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
-      }`}
-    aria-pressed={active}
-  >
-    {icon}
-    <span>{label}</span>
-    {!!count && count > 0 && (
-      <span
-        className={`min-w-[22px] h-[22px] px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
-          }`}
-      >
-        {count > 99 ? '99+' : count}
-      </span>
-    )}
+  <button type="button" onClick={onClick} className={cx('flex w-full items-center gap-3 rounded-2xl px-3 py-3 transition', active ? 'bg-primary/5 text-primary' : 'text-slate-700 hover:bg-slate-50')}>
+    <span className={cx('flex h-9 w-9 items-center justify-center rounded-xl', active ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-500')}>{icon}</span>
+    <span className="flex-1 text-left text-sm font-medium">{label}</span>
+    <ChevronRight className={cx('h-4 w-4', active ? 'text-primary/50' : 'text-slate-300')} />
   </button>
 );
 
@@ -3224,7 +3103,7 @@ function formatMobileDateRowTitle(raw: string): string {
   if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return raw;
   const [y, m, day] = parts;
   const dt = new Date(y, m - 1, day);
-  return dt.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short' });
+  return dt.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' });
 }
 
 function getMobileWeekSectionLabel(dateIso: string, todayIso: string): string {
@@ -3258,7 +3137,7 @@ function getMobileWeekSectionLabel(dateIso: string, todayIso: string): string {
 const JobCard: React.FC<{
   job: Booking;
   onClick: () => void;
-  /** Prominent start-time header + single full-card click target (good for several jobs per day). */
+  /** Kept for compatibility: cards are always ordered by start time now. */
   timeOrdered?: boolean;
   /** Show admin notes block (used on My Rota). */
   rotaNotes?: boolean;
@@ -3266,156 +3145,93 @@ const JobCard: React.FC<{
   staffDirectory: Staff[];
   serviceCatalog: ServiceConfig[];
   extraServices: Extra[];
-}> = ({ job, onClick, timeOrdered, rotaNotes, currentStaffId, staffDirectory, serviceCatalog, extraServices }) => {
-  const addressLine1 =
-    (job as any)?.address?.line1 ??
-    (job as any)?.addressLine1 ??
-    (job as any)?.address_line_1 ??
-    '';
-  const addressPostcode =
-    (job as any)?.address?.postcode ??
-    (job as any)?.addressPostcode ??
-    (job as any)?.address_postcode ??
-    '';
+}> = ({ job, onClick, rotaNotes, currentStaffId, staffDirectory, serviceCatalog, extraServices }) => {
+  const addressLine1 = (job as any)?.address?.line1 ?? (job as any)?.addressLine1 ?? (job as any)?.address_line_1 ?? '';
+  const addressPostcode = (job as any)?.address?.postcode ?? (job as any)?.addressPostcode ?? (job as any)?.address_postcode ?? '';
   const addressLabel = [addressLine1, addressPostcode].filter(Boolean).join(', ') || 'Address not available';
-  const svc = serviceCatalog.find(
-    (s) => String(s.id) === String(job.serviceType) || s.name === job.serviceType
-  );
+  const svc = serviceCatalog.find((s) => String(s.id) === String(job.serviceType) || s.name === job.serviceType);
   const durationHours = safeGetBookingDurationHours(job, svc ?? null, extraServices);
 
   const assignedIds = getBookingStaffIds(job);
   const staffOnJob = Math.max(1, assignedIds.length);
-  const peerIds =
-    currentStaffId != null ? assignedIds.filter((id) => Number(id) !== Number(currentStaffId)) : assignedIds;
-  const peerNames = peerIds
-    .map((id) => staffDirectory.find((s) => Number(s.id) === Number(id))?.name)
-    .filter((n): n is string => Boolean(n));
-  const showTeamRow = staffOnJob > 1;
+  const peerIds = currentStaffId != null ? assignedIds.filter((id) => Number(id) !== Number(currentStaffId)) : assignedIds;
+  const peerNames = peerIds.map((id) => staffDirectory.find((s) => Number(s.id) === Number(id))?.name).filter((n): n is string => Boolean(n));
 
   const isCompleted = job.status === BookingStatus.COMPLETED;
   const isCancelled = job.status === BookingStatus.CANCELLED;
-  const stripTone = isCompleted ? 'bg-emerald-500' : isCancelled ? 'bg-red-700' : 'bg-cyan-200';
+  const endLabel = (() => {
+    const [h, m] = String(job.time || '').split(':').map(Number);
+    if (!Number.isFinite(h)) return '';
+    const total = Math.round((h * 60 + (m || 0) + durationHours * 60) % (24 * 60));
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  })();
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group relative w-full overflow-hidden rounded-[2.5rem] text-left shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 animate-in slide-in-from-right-4 hover:shadow-[0_20px_40px_rgb(30,64,175,0.08)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${timeOrdered ? 'bg-emerald-50 md:bg-white p-0' : 'bg-emerald-50 md:bg-white p-6'
-        }`}
+      className={cx(
+        'group flex w-full items-stretch overflow-hidden rounded-2xl border bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:shadow-md focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/20 active:scale-[0.995]',
+        isCancelled ? 'border-slate-200/80 opacity-70' : 'border-slate-200/80',
+      )}
     >
-      <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-primary to-indigo-700 scale-x-0 transition-transform duration-500 origin-left group-hover:scale-x-100" />
-      {timeOrdered ? (
-        <div className={`flex flex-wrap items-center justify-between gap-2 px-5 py-4 ${isCompleted || isCancelled ? 'text-white' : 'text-slate-900'} ${stripTone}`}>
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className="text-2xl font-black tabular-nums tracking-tight">{job.time || '—'}</span>
-          </div>
-          {isCompleted ? (
-            <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest ring-1 ring-white/40">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Completed
-            </span>
-          ) : (
-            <span className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest ring-1 ${isCancelled ? 'bg-white/15 ring-white/25' : 'bg-slate-900/5 ring-slate-900/15 text-slate-700'}`}>
-              {job.status}
-            </span>
-          )}
-        </div>
-      ) : null}
-
-      <div className={timeOrdered ? 'p-6' : ''}>
-        <div className="mb-4 flex items-start justify-between">
-          <div className="bg-primary/12 text-primary rounded-xl px-4 py-1.5 text-[10px] font-black uppercase tracking-widest">
-            {job.serviceType}
-          </div>
-          {!timeOrdered ? <span className="font-mono text-[10px] font-bold text-slate-300">#{job.id}</span> : null}
-        </div>
-        <div className="mb-2 text-2xl font-black uppercase tracking-tight text-slate-800 transition-colors group-hover:text-primary">
-          {job.contact?.name || 'Guest'}
-        </div>
-        {timeOrdered ? (
-          <div className="mb-3 space-y-1 text-[11px] font-black uppercase tracking-widest text-slate-500">
-            <div>Duration: {formatBookedHoursLabel(durationHours)}h booked</div>
-            <div>Booking #{job.bookingId}</div>
-          </div>
-        ) : null}
-        <div className="mb-4 flex items-center text-sm font-medium text-slate-500">
-          <MapPin className="mr-2 h-4 w-4 shrink-0 text-slate-400" />
-          <span className="leading-snug">
-            {addressLabel}
-          </span>
-        </div>
-
-        <div className="mb-6 space-y-2 text-xs font-bold text-slate-600">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span>{formatScheduleCardDate(job.date)}</span>
-          </div>
-          {!timeOrdered ? (
-            <div className="flex items-center gap-2">
-              <History className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-              <span>{formatBookedHoursLabel(durationHours)}h booked</span>
-            </div>
-          ) : null}
-          {showTeamRow ? (
-            <div className="flex items-start gap-2 text-primary">
-              <Users className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span className="leading-snug">
-                {peerNames.length > 0
-                  ? `With ${peerNames.join(', ')}`
-                  : currentStaffId != null
-                    ? `${peerIds.length} other staff on job`
-                    : `${staffOnJob} staff assigned`}
-              </span>
-            </div>
-          ) : null}
-        </div>
-
-        {rotaNotes && job.adminNotes ? (
-          <div className="mb-6 flex items-start space-x-3 rounded-2xl bg-[#fff1ee] p-4 text-[#802a00]">
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-[#802a00]" />
-            <div className="text-sm font-medium">
-              <strong className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[#611e00]">
-                Admin / Feedback Notes
-              </strong>
-              {job.adminNotes}
-            </div>
-          </div>
-        ) : null}
-
-        <div
-          className={`flex items-center justify-between border-t border-slate-50/50 pt-6 ${timeOrdered ? 'border-slate-100' : ''}`}
-        >
-          {timeOrdered ? (
-            <span className="text-xs font-black uppercase tracking-widest text-slate-400">Tap for full details</span>
-          ) : (
-            <div className="flex items-center space-x-2 font-black text-primary">
-              <Clock className="h-4 w-4" />
-              <span className="text-sm uppercase tracking-wider">Start {job.time}</span>
-            </div>
-          )}
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/12 shadow-sm transition-all group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground">
-            <ChevronRight className="h-6 w-6" />
-          </div>
-        </div>
-        {job.status === BookingStatus.COMPLETED && job.rating != null && job.rating >= 1 && job.rating <= 5 && (
-          <div className="mt-4 flex items-center gap-1.5 text-amber-600">
-            <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-400" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Client rated {job.rating}/5</span>
-          </div>
+      <div
+        className={cx(
+          'flex w-20 shrink-0 flex-col items-center justify-center gap-0.5 border-r px-2 py-4 sm:w-24',
+          isCompleted ? 'border-emerald-100 bg-emerald-50 text-emerald-700' : isCancelled ? 'border-slate-100 bg-slate-50 text-slate-400' : 'border-primary/10 bg-primary/5 text-primary',
         )}
+      >
+        <span className="text-lg font-semibold tabular-nums leading-none">{job.time || '--:--'}</span>
+        {endLabel ? <span className="text-xs tabular-nums opacity-70">to {endLabel}</span> : null}
+        <span className="mt-1 text-xs font-medium opacity-80">{formatBookedHoursLabel(durationHours)}h</span>
+      </div>
+
+      <div className="min-w-0 flex-1 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <p className={cx('truncate text-base font-semibold text-slate-900 group-hover:text-primary', isCancelled && 'line-through')}>{job.contact?.name || 'Guest'}</p>
+          <Badge tone={statusTone(job.status)} className="shrink-0">
+            {job.status}
+          </Badge>
+        </div>
+        <p className="mt-0.5 truncate text-sm text-slate-500">{job.serviceType}</p>
+        <p className="mt-2 flex items-start gap-1.5 text-sm text-slate-600">
+          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+          <span className="line-clamp-2">{addressLabel}</span>
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+          <span className="inline-flex items-center gap-1">
+            <Calendar className="h-3.5 w-3.5" />
+            {formatScheduleCardDate(job.date)}
+          </span>
+          {staffOnJob > 1 ? (
+            <span className="inline-flex items-center gap-1 text-primary">
+              <Users className="h-3.5 w-3.5" />
+              {peerNames.length > 0 ? `With ${peerNames.join(', ')}` : currentStaffId != null ? `${peerIds.length} other staff` : `${staffOnJob} staff`}
+            </span>
+          ) : null}
+          {isCompleted && job.rating != null && job.rating >= 1 && job.rating <= 5 ? (
+            <span className="inline-flex items-center gap-1 text-amber-600">
+              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+              Rated {job.rating}/5
+            </span>
+          ) : null}
+        </div>
+        {rotaNotes && job.adminNotes ? (
+          <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-inset ring-amber-200">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              <span className="font-medium">Note from the office: </span>
+              {job.adminNotes}
+            </span>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="hidden items-center pr-4 text-slate-300 transition group-hover:text-primary sm:flex">
+        <ChevronRight className="h-5 w-5" />
       </div>
     </button>
   );
 };
-
-const DetailRow: React.FC<{ label: string, value: string, icon: React.ReactNode }> = ({ label, value, icon }) => (
-  <div className="space-y-2">
-    <div className="flex items-center space-x-2 text-slate-400">
-      {icon}
-      <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
-    </div>
-    <div className="text-lg font-black text-slate-900 uppercase tracking-tight">{value}</div>
-  </div>
-);
 
 export default StaffPortal;
