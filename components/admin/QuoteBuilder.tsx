@@ -7,7 +7,8 @@ import { hourlyRateFor, londonRateOf, lookupPricingRegion, MATERIALS_PENCE, type
 import { getExtraDisplayLabel, getServiceTrigger, isDeepOrEOTService, resolveDeepEotCallOutChargeGbp } from '../../src/utils/bookingHelpers';
 
 interface Props {
-  lead: QuoteLead;
+  /** The request this quote answers; null when the office starts a quote from scratch. */
+  lead: QuoteLead | null;
   /** Existing quote to edit; omit to create a new one. */
   quote?: QuoteOffer | null;
   companyName: string;
@@ -101,7 +102,29 @@ function Stepper({ value, onChange, min = 0, step = 1, suffix }: { value: number
   );
 }
 
-const QuoteBuilder: React.FC<Props> = ({ lead, quote, companyName, services, extras, onClose, onSaved, onError }) => {
+/** Stand-in for a brand new client (quote started from the page header). */
+const BLANK_LEAD: QuoteLead = {
+  id: 0,
+  firstName: '',
+  email: '',
+  phone: null,
+  postcode: null,
+  serviceType: 'Pending',
+  bedrooms: null,
+  bathrooms: null,
+  priceEstimate: null,
+  status: 'new',
+  brevoSynced: false,
+  adminNotes: null,
+  statusUpdatedAt: null,
+  createdAt: null,
+  matchedBooking: null,
+  bookingsAfterQuote: 0,
+  bookingsBeforeQuote: 0,
+};
+
+const QuoteBuilder: React.FC<Props> = ({ lead: leadProp, quote, companyName, services, extras, onClose, onSaved, onError }) => {
+  const lead = leadProp ?? BLANK_LEAD;
   const activeServices = useMemo(() => services.filter((s) => s.active !== false), [services]);
   const saved: QuoteDetails | null = quote?.details ?? null;
   const leadService = useMemo(() => matchService(activeServices, quote?.serviceType || lead.serviceType), [activeServices, quote, lead.serviceType]);
@@ -168,7 +191,9 @@ const QuoteBuilder: React.FC<Props> = ({ lead, quote, companyName, services, ext
       const own = (saved ? quote.items.filter((i) => !i.detail) : quote.items).map((i) => ({ description: i.description, quantity: i.quantity, unitPrice: i.unitPrice }));
       return own;
     }
-    return leadService ? [] : [{ description: lead.serviceType !== 'Pending' ? lead.serviceType : 'Cleaning service', quantity: 1, unitPrice: Number(lead.priceEstimate) > 0 ? Number(lead.priceEstimate) : 0 }];
+    // A request for a service we don't list gets one line to price; a new client starts empty.
+    if (leadService || !leadProp || lead.serviceType === 'Pending') return [];
+    return [{ description: lead.serviceType, quantity: 1, unitPrice: Number(lead.priceEstimate) > 0 ? Number(lead.priceEstimate) : 0 }];
   });
 
   const [extrasInput, setExtrasInput] = useState(() => ({
@@ -262,7 +287,8 @@ const QuoteBuilder: React.FC<Props> = ({ lead, quote, companyName, services, ext
   }, [service, model, hours, rate, region, hasLondonRate, rateOverride, callOut, extras, extraQty, materials]);
 
   const items = useMemo(
-    () => [...builtLines, ...customLines.filter((l) => l.description.trim() && Number(l.quantity) > 0)],
+    // Lines still at £0 are unfinished and stay off the quote.
+    () => [...builtLines, ...customLines.filter((l) => l.description.trim() && Number(l.quantity) > 0 && Number(l.unitPrice) > 0)],
     [builtLines, customLines],
   );
 
@@ -356,7 +382,9 @@ const QuoteBuilder: React.FC<Props> = ({ lead, quote, companyName, services, ext
         if (send) await apiAdmin.sendQuote(quote.id);
         onSaved(send ? `Quote ${quote.quoteNumber} emailed to ${email}.` : `Quote ${quote.quoteNumber} saved.`);
       } else {
-        const res = await apiAdmin.createLeadQuote(lead.id, { ...payload(), send });
+        const res = leadProp
+          ? await apiAdmin.createLeadQuote(leadProp.id, { ...payload(), send })
+          : await apiAdmin.createStandaloneQuote({ ...payload(), send });
         onSaved(send ? `Quote ${res.quote.quoteNumber} emailed to ${email}.` : `Quote ${res.quote.quoteNumber} saved as a draft.`);
       }
       onClose();
@@ -393,7 +421,7 @@ const QuoteBuilder: React.FC<Props> = ({ lead, quote, companyName, services, ext
         <div className="min-w-0">
           <p className="text-[11px] font-black uppercase tracking-widest text-blue-600">{quote ? `Edit quote ${quote.quoteNumber}` : 'New quote'}</p>
           <h2 className="truncate text-lg font-black text-slate-900">
-            For {customer.clientName || lead.email} · <span className="tabular-nums">{money(totals.total)}</span>
+            For {customer.clientName || customer.clientEmail || 'a new client'} · <span className="tabular-nums">{money(totals.total)}</span>
           </h2>
         </div>
         <button type="button" onClick={onClose} disabled={!!busy} className="rounded-xl p-2 hover:bg-slate-100" aria-label="Close quote builder">

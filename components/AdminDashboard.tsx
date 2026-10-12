@@ -53,6 +53,7 @@ import {
   Package, // Re-added
   CalendarDays, // Re-added
   ShieldCheck, // NEW
+  FileBarChart,
   MessageSquare,
   Smartphone, // NEW ICON for SMS
   AlertTriangle,
@@ -70,6 +71,7 @@ import { apiAdmin, apiUrl } from '../services/api';
 import { subscribeNnSync } from '../services/realtime';
 import { NotificationBell } from './NotificationBell';
 import QuoteRequestsPanel from './admin/QuoteRequestsPanel';
+import ReportsPanel from './admin/ReportsPanel';
 import RotaSchedulePanel from './admin/RotaSchedulePanel';
 import JobAssignmentPanel from './admin/JobAssignmentPanel';
 import { useTheme } from './ThemeProvider';
@@ -121,7 +123,7 @@ interface Props {
   currentUser: UserAccount | null;
 }
 
-type AdminTab = 'overview' | 'bookings' | 'quotes' | 'assignment' | 'rota' | 'liveMap' | 'staff' | 'staffInvoices' | 'customerInvoices' | 'services' | 'marketing' | 'communication' | 'support' | 'settings' | 'reviews' | 'expenses' | 'performance';
+type AdminTab = 'overview' | 'reports' | 'bookings' | 'quotes' | 'assignment' | 'rota' | 'liveMap' | 'staff' | 'staffInvoices' | 'customerInvoices' | 'services' | 'marketing' | 'communication' | 'support' | 'settings' | 'reviews' | 'expenses' | 'performance';
 
 type SettingsSectionId = 'seo' | 'ai' | 'pricing' | 'website' | 'business' | 'theme' | 'templates' | 'reminders' | 'qrcode';
 type BusinessProfileSubId = 'company' | 'social' | 'payments';
@@ -168,6 +170,7 @@ const EMPTY_PROMO_FORM: PromoFormState = {
 };
 const ADMIN_PERMISSIONABLE_TABS: AdminTab[] = [
   'overview',
+  'reports',
   'bookings',
   'quotes',
   'assignment',
@@ -189,6 +192,7 @@ const ADMIN_PERMISSIONABLE_TABS: AdminTab[] = [
 /** Human-readable names for menus (also used when granting menu access to other admins). */
 const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
   overview: 'Dashboard',
+  reports: 'Reports',
   bookings: 'Bookings',
   quotes: 'Quote Requests',
   assignment: 'Job Assignment',
@@ -209,7 +213,7 @@ const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
 
 /** Sidebar sections. Groups can be folded away; the one holding the open page always stays open. */
 const ADMIN_MENU_GROUPS: Array<{ id: string; label: string; tabs: AdminTab[] }> = [
-  { id: 'home', label: '', tabs: ['overview'] },
+  { id: 'home', label: '', tabs: ['overview', 'reports'] },
   { id: 'jobs', label: 'Jobs & bookings', tabs: ['bookings', 'quotes', 'assignment', 'rota', 'liveMap'] },
   { id: 'team', label: 'Team', tabs: ['staff', 'staffInvoices', 'performance'] },
   { id: 'finance', label: 'Finance', tabs: ['customerInvoices', 'expenses'] },
@@ -1564,6 +1568,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
       { id: 'reviews', label: 'Reviews', icon: <Star className="w-5 h-5" /> },
       { id: 'expenses', label: 'Expenses', icon: <Receipt className="w-5 h-5" /> },
       { id: 'performance', label: 'Performance', icon: <BarChart3 className="w-5 h-5" /> },
+      { id: 'reports', label: 'Reports', icon: <FileBarChart className="w-5 h-5" /> },
     ];
 
   const quickAccessMenuItems: Array<{
@@ -1618,6 +1623,8 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
               ? 'Expenses'
               : activeTab === 'performance'
                 ? 'Performance'
+                : activeTab === 'reports'
+                  ? 'Reports'
                 : activeTab === 'liveMap'
                   ? 'Live Map'
                   : activeTab;
@@ -2931,6 +2938,8 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
             onOpenAssignment={() => setActiveTab('assignment')}
           />
         )}
+
+        {activeTab === 'reports' && <ReportsPanel onNotify={(message, type = 'success') => showFlyer(message, type)} />}
 
         {activeTab === 'quotes' && (
           <QuoteRequestsPanel

@@ -133,6 +133,8 @@ const QuoteRequestsPanel: React.FC<Props> = ({ leads, loading, companyName, serv
   const [filter, setFilter] = useState<FilterId>('all');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  /** Builder opened straight from the header or a row (lead null = brand new client). */
+  const [quickQuote, setQuickQuote] = useState<{ lead: QuoteLead | null } | null>(null);
 
   const selected = useMemo(() => leads.find((l) => l.id === selectedId) ?? null, [leads, selectedId]);
 
@@ -229,7 +231,14 @@ const QuoteRequestsPanel: React.FC<Props> = ({ leads, loading, companyName, serv
             Free quotes requested on the homepage. Reply fast: new requests over {OVERDUE_HOURS}h old are flagged.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setQuickQuote({ lead: null })}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-black bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4" /> New quote
+          </button>
           <button
             type="button"
             onClick={onRefresh}
@@ -326,11 +335,18 @@ const QuoteRequestsPanel: React.FC<Props> = ({ leads, loading, companyName, serv
             const meta = STATUS_META[l.status] ?? STATUS_META.new;
             const overdue = isOverdue(l);
             return (
-              <button
+              <div
                 key={l.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => setSelectedId(l.id)}
-                className="w-full text-left px-4 sm:px-5 py-4 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center gap-3"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedId(l.id);
+                  }
+                }}
+                className="w-full cursor-pointer text-left px-4 sm:px-5 py-4 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 <div className="flex items-center gap-3 min-w-0 sm:w-64 shrink-0">
                   <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${meta.dot}`} aria-hidden />
@@ -372,12 +388,50 @@ const QuoteRequestsPanel: React.FC<Props> = ({ leads, loading, companyName, serv
                     {overdue && <AlertTriangle className="inline w-3 h-3 mr-0.5 -mt-0.5" />}
                     {timeAgo(l.createdAt)}
                   </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setQuickQuote({ lead: l });
+                    }}
+                    className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[11px] font-black text-white hover:bg-blue-700"
+                    aria-label={`New quote for ${displayName(l)}`}
+                  >
+                    <FileText className="w-3.5 h-3.5" /> Quote
+                  </button>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
       )}
+
+      {/* Always within reach on phones and tablets, even deep in a long list. */}
+      {!quickQuote && !selected ? (
+        <button
+          type="button"
+          onClick={() => setQuickQuote({ lead: null })}
+          className="lg:hidden fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] z-[150] inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-3.5 text-sm font-black text-white shadow-xl shadow-blue-600/30 hover:bg-blue-700"
+          aria-label="New quote"
+        >
+          <Plus className="w-5 h-5" /> New quote
+        </button>
+      ) : null}
+
+      {quickQuote ? (
+        <QuoteBuilder
+          lead={quickQuote.lead}
+          companyName={companyName}
+          services={services}
+          extras={extras}
+          onClose={() => setQuickQuote(null)}
+          onSaved={(message) => {
+            onNotify(message);
+            onRefresh();
+          }}
+          onError={(m) => onNotify(m, 'error')}
+        />
+      ) : null}
 
       {selected && (
         <QuoteRequestFlyout
@@ -575,9 +629,18 @@ const QuoteRequestFlyout: React.FC<{
             <h2 className="text-xl font-black text-slate-900 truncate">{displayName(lead)}</h2>
             <p className="text-2xl font-black text-slate-900 tabular-nums mt-1">{estimateText(lead)}</p>
           </div>
-          <button type="button" onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100" aria-label="Close quote request">
-            <X className="w-5 h-5 text-slate-400" />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setBuilder('new')}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4" /> New quote
+            </button>
+            <button type="button" onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100" aria-label="Close quote request">
+              <X className="w-5 h-5 text-slate-400" />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 space-y-6">

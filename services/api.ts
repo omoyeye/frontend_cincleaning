@@ -1,6 +1,9 @@
 import {
     Booking,
     StaffPerformance,
+    BusinessReport,
+    BusinessReportSummary,
+    ReportSettings,
     QuoteOffer,
     QuoteOfferInput,
     QuoteOfferStatus,
@@ -1625,6 +1628,55 @@ export const apiAdmin = {
         await handleAdminJson(res, 'Failed to update quote request');
     },
 
+    getReports: async (): Promise<BusinessReportSummary[]> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/reports`, { headers: { ...authHeader('admin') } });
+        return handleAdminJson(res, 'Failed to load reports');
+    },
+
+    getReport: async (id: number): Promise<BusinessReport> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/reports/${id}`, { headers: { ...authHeader('admin') } });
+        return handleAdminJson(res, 'Failed to load report');
+    },
+
+    /** Builds a report now; a Monday to Sunday range replaces that week's saved report. */
+    generateReport: async (body: { start?: string; end?: string; ai?: boolean }): Promise<BusinessReport> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/reports/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader('admin') },
+            body: JSON.stringify(body),
+        });
+        return handleAdminJson(res, 'Failed to build the report');
+    },
+
+    rewriteReportSummary: async (id: number): Promise<BusinessReport> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/reports/${id}/ai`, { method: 'POST', headers: { ...authHeader('admin') } });
+        return handleAdminJson(res, 'Failed to write the summary');
+    },
+
+    emailReport: async (id: number): Promise<{ sentTo: string[] }> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/reports/${id}/email`, { method: 'POST', headers: { ...authHeader('admin') } });
+        return handleAdminJson(res, 'Failed to email the report');
+    },
+
+    deleteReport: async (id: number): Promise<void> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/reports/${id}`, { method: 'DELETE', headers: { ...authHeader('admin') } });
+        await handleAdminJson(res, 'Failed to delete the report');
+    },
+
+    getReportSettings: async (): Promise<ReportSettings> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/reports/settings`, { headers: { ...authHeader('admin') } });
+        return handleAdminJson(res, 'Failed to load report settings');
+    },
+
+    saveReportSettings: async (body: Pick<ReportSettings, 'aiEnabled' | 'emailEnabled' | 'recipients'>): Promise<ReportSettings> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/reports/settings`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', ...authHeader('admin') },
+            body: JSON.stringify(body),
+        });
+        return handleAdminJson(res, 'Failed to save report settings');
+    },
+
     getLeadQuotes: async (leadId: number): Promise<QuoteOffer[]> => {
         const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/quote-leads/${leadId}/quotes`, {
             headers: { ...authHeader('admin') },
@@ -1635,6 +1687,16 @@ export const apiAdmin = {
     /** Saves a quote for the request; send: true emails it to the client straight away. */
     createLeadQuote: async (leadId: number, body: QuoteOfferInput & { send?: boolean }): Promise<{ quote: QuoteOffer; emailed: boolean }> => {
         const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/quote-leads/${leadId}/quotes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader('admin') },
+            body: JSON.stringify(body),
+        });
+        return handleAdminJson(res, 'Failed to create quote');
+    },
+
+    /** Quote for a client who has no request yet; the server records them as a request too. */
+    createStandaloneQuote: async (body: QuoteOfferInput & { send?: boolean }): Promise<{ quote: QuoteOffer; emailed: boolean }> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/quotes`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...authHeader('admin') },
             body: JSON.stringify(body),

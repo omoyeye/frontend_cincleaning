@@ -407,6 +407,112 @@ export interface QuoteLead {
 
 export type QuoteOfferStatus = 'draft' | 'sent' | 'accepted' | 'declined';
 
+/* ───────── Business reports (Admin > Reports) ───────── */
+
+export interface ReportKpi {
+  key: string;
+  label: string;
+  unit: 'money' | 'count' | 'percent' | 'rating';
+  higherIsBetter: boolean;
+  value: number | null;
+  previous: number | null;
+  average4: number | null;
+}
+
+export interface ReportFigures {
+  money: {
+    moneyReceived: number;
+    invoicesPaidTotal: number;
+    invoicesPaidCount: number;
+    depositsPaidTotal: number;
+    depositsPaidCount: number;
+    completedValue: number;
+    staffPay: number;
+    expensesTotal: number;
+    expensesByCategory: Record<string, number>;
+    profit: number;
+    averageJobValue: number;
+  };
+  bookings: {
+    completed: number;
+    scheduled: number;
+    cancelled: number;
+    shortNoticeCancellations: number;
+    newBookingsMade: number;
+    newBookingsValue: number;
+    newClients: number;
+    returningClients: number;
+    byService: { service: string; jobs: number; value: number }[];
+    byArea: { london: { jobs: number; value: number }; outsideLondon: { jobs: number; value: number } };
+  };
+  sales: {
+    quoteRequests: number;
+    unfinishedQuoteRequests: number;
+    quotesSent: number;
+    quotesSentValue: number;
+    quotesAccepted: number;
+    converted: number;
+    lost: number;
+    conversionRate: number | null;
+  };
+  quality: {
+    averageRating: number | null;
+    reviews: number;
+    compliments: number;
+    complaints: number;
+    onTimePercent: number | null;
+    timedJobs: number;
+    lateNotices: number;
+    supervisorScore: number | null;
+    assessments: number;
+  };
+  team: { name: string; jobs: number; hours: number; pay: number; averageRating: number | null; onTimePercent: number | null }[];
+}
+
+export interface BusinessReportData {
+  version: number;
+  period: { start: string; end: string; days: number; label: string };
+  kpis: ReportKpi[];
+  current: ReportFigures;
+  previous: ReportFigures;
+  nextWeek: { start: string; end: string; bookings: number; expectedValue: number; unassigned: number };
+  attention: { unpaidInvoices: number; unpaidInvoicesTotal: number; quoteRequestsWaitingOver24h: number };
+  notes: string[];
+}
+
+export interface BusinessReport {
+  id: number;
+  kind: 'weekly' | 'custom';
+  periodStart: string;
+  periodEnd: string;
+  data: BusinessReportData;
+  ai: { summary: string; watchOut: string[]; actions: string[] } | null;
+  aiModel: string | null;
+  emailedAt: string | null;
+  createdBy: string | null;
+  generatedAt: string | null;
+}
+
+export interface BusinessReportSummary {
+  id: number;
+  kind: 'weekly' | 'custom';
+  periodStart: string;
+  periodEnd: string;
+  label: string;
+  generatedAt: string | null;
+  emailedAt: string | null;
+  hasAi: boolean;
+  headline: { moneyReceived: number | null; completedJobs: number | null; profit: number | null };
+}
+
+export interface ReportSettings {
+  aiEnabled: boolean;
+  emailEnabled: boolean;
+  recipients: string;
+  defaultRecipients?: string;
+  aiAvailable?: boolean;
+}
+
 export interface QuoteOfferItem {
   description: string;
   /** Small line under the description, e.g. "3 hours x £20.00 per hour". Built lines always have one. */
