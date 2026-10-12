@@ -3,9 +3,11 @@ import {
   Clock, MapPin, ChevronRight, ChevronLeft, CheckCircle2, Camera, MessageSquare, History, Navigation, Star,
   Signature, ShieldCheck, Phone, X, AlertCircle, Bell, User, ClipboardList, Send, LogOut,
   ImageIcon, Box, Calendar, FileText, Search, RotateCcw, Filter, Trash2, Settings, Lock,
-  Briefcase, CheckSquare, Menu, Gift, Users, Wallet, Map as MapIcon, AlarmClock
+  Briefcase, CheckSquare, Menu, Gift, Users, Wallet, Map as MapIcon, AlarmClock, TrendingUp
 } from 'lucide-react';
 import RunningLatePanel from './staff/RunningLatePanel';
+import PerformancePanel from './staff/PerformancePanel';
+import AccountDataControls from './AccountDataControls';
 import { Avatar, Badge, Button, Callout, Card, cx, EmptyState, Field, InfoItem, inputClass, SectionHeader, Segmented, Spinner, StatTile, statusTone } from './staff/StaffUi';
 import { StaffNotification, Booking, BookingStatus, Extra, Referral, ServiceConfig, Staff, WorkCompletionData, UserAccount } from '../types';
 import { apiStaff } from '../services/api';
@@ -160,7 +162,7 @@ function formatElapsedClock(iso: string, nowMs: number): string {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 }
 
-type PortalTab = 'schedule' | 'availability' | 'messages' | 'late' | 'invoice' | 'referrals' | 'profile' | 'reviews';
+type PortalTab = 'schedule' | 'availability' | 'messages' | 'late' | 'invoice' | 'referrals' | 'profile' | 'reviews' | 'performance';
 type InboxView = 'alerts' | 'chats' | 'admin';
 
 const TAB_ACCENT: Record<PortalTab, {
@@ -217,6 +219,12 @@ const TAB_ACCENT: Record<PortalTab, {
     menuActive: 'bg-gradient-to-br from-amber-500 to-yellow-400 text-white shadow-lg shadow-amber-300/50',
     bottomActive: 'bg-gradient-to-br from-amber-200 to-yellow-200 text-amber-700 scale-105',
   },
+  performance: {
+    titleGradient: 'from-teal-600 to-emerald-500',
+    sideActive: 'bg-gradient-to-r from-teal-600 to-emerald-500 shadow-xl shadow-teal-300/50 text-white -translate-y-0.5',
+    menuActive: 'bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-lg shadow-teal-300/50',
+    bottomActive: 'bg-gradient-to-br from-teal-200 to-emerald-200 text-teal-700 scale-105',
+  },
 };
 
 const StaffPortal: React.FC<{
@@ -251,7 +259,7 @@ const StaffPortal: React.FC<{
   const [showAllOpenChats, setShowAllOpenChats] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const activeTheme = TAB_ACCENT[activeTab];
-  const isMoreTab = activeTab === 'profile' || activeTab === 'reviews' || activeTab === 'referrals' || activeTab === 'late';
+  const isMoreTab = activeTab === 'profile' || activeTab === 'reviews' || activeTab === 'referrals' || activeTab === 'late' || activeTab === 'performance';
   const [staffAlerts, setStaffAlerts] = useState<StaffNotification[]>(notifications || []);
 
   const openInbox = (view: InboxView = 'alerts') => {
@@ -1239,6 +1247,7 @@ const StaffPortal: React.FC<{
     referrals: { title: 'Referrals', subtitle: 'Share your code and earn a bonus.' },
     profile: { title: 'My profile', subtitle: 'Your details, bank account and password.' },
     reviews: { title: 'My reviews', subtitle: 'What clients said about your work.' },
+    performance: { title: 'My performance', subtitle: 'Ratings, punctuality, assessments and earnings.' },
   };
   const pageMeta = PAGE_META[activeTab];
   /** "5 Oct" from YYYY-MM-DD (falls back to the raw value). */
@@ -1494,6 +1503,7 @@ const StaffPortal: React.FC<{
           <div className="space-y-1">
             <p className="px-3 pb-1 text-xs font-medium text-slate-400">Me</p>
             <SideNavBtn active={activeTab === 'invoice'} onClick={() => setActiveTab('invoice')} label="Earnings" icon={<Wallet className="h-[18px] w-[18px]" />} />
+            <SideNavBtn active={activeTab === 'performance'} onClick={() => setActiveTab('performance')} label="My performance" icon={<TrendingUp className="h-[18px] w-[18px]" />} />
             <SideNavBtn active={activeTab === 'reviews'} onClick={() => setActiveTab('reviews')} label="My reviews" icon={<Star className="h-[18px] w-[18px]" />} />
             <SideNavBtn active={activeTab === 'referrals'} onClick={() => setActiveTab('referrals')} label="Referrals" icon={<Gift className="h-[18px] w-[18px]" />} />
             <SideNavBtn active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} label="Profile" icon={<User className="h-[18px] w-[18px]" />} />
@@ -2167,6 +2177,10 @@ const StaffPortal: React.FC<{
                           </form>
                         </Card>
 
+                        <Card>
+                          <AccountDataControls api={apiStaff} onDeleted={onLogout} />
+                        </Card>
+
                         <Button variant="danger" block size="lg" onClick={onLogout} icon={<LogOut className="h-4 w-4" />} className="md:hidden">
                           Sign out
                         </Button>
@@ -2300,6 +2314,7 @@ const StaffPortal: React.FC<{
 
                 {/* ───────── Reviews ───────── */}
                 {activeTab === 'reviews' && <ReviewsPanel role="staff" api={apiStaff as any} />}
+                {activeTab === 'performance' && <PerformancePanel />}
 
                 {/* ───────── Running late ───────── */}
                 {activeTab === 'late' && (
@@ -2988,6 +3003,7 @@ const StaffPortal: React.FC<{
               </div>
               <div className="space-y-1">
                 <MoreSheetItem active={activeTab === 'profile'} onClick={() => { setActiveTab('profile'); setIsMenuOpen(false); }} label="My profile" icon={<User className="h-5 w-5" />} />
+                <MoreSheetItem active={activeTab === 'performance'} onClick={() => { setActiveTab('performance'); setIsMenuOpen(false); }} label="My performance" icon={<TrendingUp className="h-5 w-5" />} />
                 <MoreSheetItem active={activeTab === 'reviews'} onClick={() => { setActiveTab('reviews'); setIsMenuOpen(false); }} label="My reviews" icon={<Star className="h-5 w-5" />} />
                 <MoreSheetItem active={activeTab === 'referrals'} onClick={() => { setActiveTab('referrals'); setIsMenuOpen(false); }} label="Referrals" icon={<Gift className="h-5 w-5" />} />
                 <MoreSheetItem active={activeTab === 'late'} onClick={() => { setActiveTab('late'); setIsMenuOpen(false); }} label="Running late" icon={<AlarmClock className="h-5 w-5" />} />

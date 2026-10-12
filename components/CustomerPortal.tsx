@@ -60,6 +60,7 @@ import InvoiceView from './InvoiceView';
 import { apiClient, customerAccountFromLoginUser } from '../services/api';
 import { NotificationBell } from './NotificationBell';
 import { useFlyer } from './Flyer';
+import AccountDataControls from './AccountDataControls';
 import { compareBookingDateTime, downloadBookingIcs, getTodayYYYYMMDD } from '../src/utils/bookingHelpers';
 import { getPrepChecklistForService } from '../src/prepChecklists';
 import { useBusinessBrand } from '../src/hooks/useBusinessBrand';
@@ -338,6 +339,20 @@ const CustomerPortal: React.FC<Props> = ({
       /* ignore */
     }
   }, []);
+
+  /** Offers and news consent lives on the account, so the app shows the same choice. */
+  const saveMarketingOptIn = async (next: boolean) => {
+    if (!user) return;
+    const prev = Boolean(user.marketingOptIn);
+    setUser({ ...user, marketingOptIn: next });
+    try {
+      await apiClient.updateProfile(user.id, { marketingOptIn: next });
+      showFlyer(next ? 'You will hear about offers and news.' : 'Marketing messages turned off.', 'success');
+    } catch (err) {
+      setUser({ ...user, marketingOptIn: prev });
+      showFlyer(err instanceof Error ? err.message : 'Could not save your choice.', 'error');
+    }
+  };
 
   const persistClientPrefs = (next: ClientPrefs) => {
     setClientPrefs(next);
@@ -1672,7 +1687,7 @@ const CustomerPortal: React.FC<Props> = ({
                     <div className="p-8 rounded-[2rem] bg-gradient-to-br from-white to-emerald-50/60 border border-emerald-100 space-y-6">
                       <div>
                         <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">Notification preferences</h4>
-                        <p className="text-xs text-slate-500 font-medium mt-1">Stored on this device for when in-app alerts roll out. Marketing emails remain separate.</p>
+                        <p className="text-xs text-slate-500 font-medium mt-1">Booking updates are always sent so you never miss a change. Offers are optional and shared with the app.</p>
                       </div>
                       <label className="flex items-center justify-between gap-4 cursor-pointer group">
                         <span className="text-sm font-bold text-slate-700">Booking updates &amp; schedule changes</span>
@@ -1684,15 +1699,21 @@ const CustomerPortal: React.FC<Props> = ({
                         />
                       </label>
                       <label className="flex items-center justify-between gap-4 cursor-pointer group">
-                        <span className="text-sm font-bold text-slate-700">Promotions &amp; tips</span>
+                        <span className="text-sm font-bold text-slate-700">Promotions, offers &amp; news</span>
                         <input
                           type="checkbox"
                           className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary"
-                          checked={clientPrefs.notifyPromo}
-                          onChange={(e) => persistClientPrefs({ ...clientPrefs, notifyPromo: e.target.checked })}
+                          checked={Boolean(user.marketingOptIn)}
+                          onChange={(e) => void saveMarketingOptIn(e.target.checked)}
                         />
                       </label>
                     </div>
+
+                    <AccountDataControls
+                      api={apiClient}
+                      onDeleted={() => onLogout?.()}
+                      className="rounded-[2rem] border border-slate-200/80 bg-white p-6 sm:p-8 shadow-sm"
+                    />
                   </div>
                 )}
 

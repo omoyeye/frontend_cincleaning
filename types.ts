@@ -318,6 +318,64 @@ export interface StaffAssessment {
   booking: { id: number; bookingId: string | null; date: string; clientName: string } | null;
 }
 
+/** GET /api/staff/me/performance (same numbers in the website staff portal and the app). */
+export interface StaffPerformanceJob {
+  id: number;
+  ref: string | null;
+  date: string;
+  time: string;
+  service: string;
+  client: string;
+  status: string;
+  hours: number;
+  pay: number;
+  minutesLate: number | null;
+  onTime: boolean | null;
+  rating: number | null;
+  feedback: string | null;
+  lateNotices: number;
+}
+
+export interface StaffPerformance {
+  staff: { id: number; name: string; role: string; status: string; hourlyRate: number; joinedAt: string | null };
+  summary: {
+    completed: number;
+    upcoming: number;
+    cancelled: number;
+    hoursWorked: number;
+    totalEarned: number;
+    todayEarned: number;
+    todayScheduled: number;
+    weekEarned: number;
+    monthEarned: number;
+    avgClientRating: number | null;
+    reviewCount: number;
+    compliments: number;
+    complaints: number;
+    punctualityPercent: number | null;
+    timedJobs: number;
+    lateNotices: number;
+    completionRate: number | null;
+    supervisorScore: number | null;
+    assessmentCount: number;
+    supervisorBreakdown: { punctuality: number | null; quality: number | null; professionalism: number | null };
+  };
+  months: { month: string; label: string; jobs: number; earned: number; hours: number; avgRating: number | null }[];
+  reviews: { id: number; ref: string | null; date: string; client: string; service: string; rating: number | null; feedback: string | null }[];
+  assessments: {
+    id: number;
+    bookingId: number | null;
+    assessorName: string;
+    rating: number;
+    punctuality: number | null;
+    quality: number | null;
+    professionalism: number | null;
+    remark: string;
+    createdAt: string | null;
+  }[];
+  recentJobs: StaffPerformanceJob[];
+}
+
 export type QuoteLeadStatus = 'new' | 'contacted' | 'converted' | 'lost';
 
 /** A free-quote request from the homepage quote widget. */
@@ -342,6 +400,77 @@ export interface QuoteLead {
   bookingsAfterQuote: number;
   /** Earlier bookings with the same email: an existing customer asking again. */
   bookingsBeforeQuote: number;
+  /** Quotes the office built for this request (newest first). */
+  quoteCount?: number;
+  latestQuote?: { quoteNumber: string | null; status: QuoteOfferStatus; total: number; sentAt: string | null } | null;
+}
+
+export type QuoteOfferStatus = 'draft' | 'sent' | 'accepted' | 'declined';
+
+export interface QuoteOfferItem {
+  description: string;
+  /** Small line under the description, e.g. "3 hours x £20.00 per hour". Built lines always have one. */
+  detail?: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal?: number;
+}
+
+/** How a quote's price was built (same data a booking and its invoice use). */
+export interface QuoteDetails {
+  serviceId?: string | null;
+  pricingModel?: 'hourly' | 'itemized' | 'custom';
+  region?: 'london' | 'standard' | null;
+  hourlyRate?: number | null;
+  hours?: number | null;
+  frequency?: string | null;
+  cleaningMaterials?: 'none' | 'hoover_only' | 'hoover_and_materials' | null;
+  callOutCharge?: number | null;
+  property?: Partial<Record<'propertyType' | 'bedrooms' | 'bathrooms' | 'toilets' | 'livingRooms' | 'kitchens' | 'receptionRooms' | 'utilityRooms' | 'size', string | number | null>>;
+  extras?: { id: string; name: string; price: number; quantity: number }[];
+}
+
+/** What the admin fills in on the quote builder. */
+export interface QuoteOfferInput {
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  clientAddress: string;
+  postcode: string;
+  propertySummary: string;
+  serviceType: string;
+  items: QuoteOfferItem[];
+  details?: QuoteDetails | null;
+  discount: number;
+  vatRate: number;
+  validUntil: string;
+  /** Shown to the client above the prices. */
+  message: string;
+  /** Instructions shown under the prices. */
+  notes: string;
+}
+
+export interface QuoteOffer extends Omit<QuoteOfferInput, 'clientPhone' | 'clientAddress' | 'postcode' | 'propertySummary' | 'serviceType' | 'message' | 'notes' | 'validUntil' | 'clientName'> {
+  id: number;
+  leadId: number | null;
+  quoteNumber: string;
+  clientName: string | null;
+  clientPhone: string | null;
+  clientAddress: string | null;
+  postcode: string | null;
+  propertySummary: string | null;
+  serviceType: string | null;
+  message: string | null;
+  notes: string | null;
+  validUntil: string | null;
+  subtotal: number;
+  vatAmount: number;
+  total: number;
+  status: QuoteOfferStatus;
+  sentAt: string | null;
+  sentCount: number;
+  createdBy: string | null;
+  createdAt: string | null;
 }
 
 export interface RotaAssignment {
@@ -361,6 +490,8 @@ export interface UserAccount {
   id: string | number;
   name: string;
   email: string;
+  /** Promotions by email/SMS; stored on the account so the app shows the same choice. */
+  marketingOptIn?: boolean;
   role?: string; // 'admin' | 'customer' | 'staff'
   isSuperadmin?: boolean;
   /** Optional admin-only menu scope; empty/undefined means full access. */

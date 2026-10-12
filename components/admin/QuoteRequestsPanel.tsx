@@ -17,13 +17,30 @@ import {
   AlertTriangle,
   Inbox,
   UserCheck,
+  FileText,
+  Send,
+  Pencil,
+  Printer,
+  Plus,
 } from 'lucide-react';
-import type { QuoteLead, QuoteLeadStatus } from '../../types';
+import type { Extra, QuoteLead, QuoteLeadStatus, QuoteOffer, QuoteOfferStatus, ServiceConfig } from '../../types';
+import { apiAdmin } from '../../services/api';
+import QuoteBuilder from './QuoteBuilder';
+
+const QUOTE_STATUS: Record<QuoteOfferStatus, { label: string; pill: string }> = {
+  draft: { label: 'Draft', pill: 'bg-slate-100 text-slate-600 border-slate-200' },
+  sent: { label: 'Sent', pill: 'bg-blue-100 text-blue-700 border-blue-200' },
+  accepted: { label: 'Accepted', pill: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  declined: { label: 'Declined', pill: 'bg-red-100 text-red-600 border-red-200' },
+};
 
 interface Props {
   leads: QuoteLead[];
   loading: boolean;
   companyName: string;
+  /** Services and add-ons from the database, used to price quotes like invoices. */
+  services: ServiceConfig[];
+  extras: Extra[];
   onRefresh: () => void;
   onUpdate: (id: number, body: { status?: QuoteLeadStatus; adminNotes?: string }) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
@@ -112,7 +129,7 @@ function csvCell(v: unknown): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-const QuoteRequestsPanel: React.FC<Props> = ({ leads, loading, companyName, onRefresh, onUpdate, onDelete, onNotify }) => {
+const QuoteRequestsPanel: React.FC<Props> = ({ leads, loading, companyName, services, extras, onRefresh, onUpdate, onDelete, onNotify }) => {
   const [filter, setFilter] = useState<FilterId>('all');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -344,6 +361,11 @@ const QuoteRequestsPanel: React.FC<Props> = ({ leads, loading, companyName, onRe
                       <UserCheck className="w-3 h-3" /> Existing customer
                     </span>
                   )}
+                  {l.latestQuote ? (
+                    <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-black ${QUOTE_STATUS[l.latestQuote.status]?.pill ?? QUOTE_STATUS.draft.pill}`}>
+                      <FileText className="w-3 h-3" /> Quote {QUOTE_STATUS[l.latestQuote.status]?.label.toLowerCase() ?? l.latestQuote.status} · £{Number(l.latestQuote.total).toFixed(2)}
+                    </span>
+                  ) : null}
                   <span className="font-black text-slate-900 tabular-nums text-sm w-24 text-right">{estimateText(l)}</span>
                   <span className={`rounded-lg border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${meta.pill}`}>{meta.label}</span>
                   <span className={`text-xs w-24 text-right ${overdue ? 'text-red-600 font-black' : 'text-slate-400 font-medium'}`}>
@@ -361,7 +383,11 @@ const QuoteRequestsPanel: React.FC<Props> = ({ leads, loading, companyName, onRe
         <QuoteRequestFlyout
           lead={selected}
           companyName={companyName}
+          services={services}
+          extras={extras}
           onClose={() => setSelectedId(null)}
+          onNotify={onNotify}
+          onRefresh={onRefresh}
           onSetStatus={(s) => setStatus(selected, s)}
           onContacted={() => onContacted(selected)}
           onSaveNotes={async (notes) => {
@@ -407,24 +433,127 @@ const StatTile: React.FC<{ label: string; value: React.ReactNode; hint: string; 
 const QuoteRequestFlyout: React.FC<{
   lead: QuoteLead;
   companyName: string;
+  services: ServiceConfig[];
+  extras: Extra[];
   onClose: () => void;
+  onNotify: (message: string, type?: 'success' | 'error') => void;
+  onRefresh: () => void;
   onSetStatus: (s: QuoteLeadStatus) => Promise<void>;
   onContacted: () => void;
   onSaveNotes: (notes: string) => Promise<void>;
   onDelete: () => Promise<void>;
-}> = ({ lead, companyName, onClose, onSetStatus, onContacted, onSaveNotes, onDelete }) => {
+}> = ({ lead, companyName, services, extras, onClose, onNotify, onRefresh, onSetStatus, onContacted, onSaveNotes, onDelete }) => {
   const [notes, setNotes] = useState(lead.adminNotes ?? '');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [quotes, setQuotes] = useState<QuoteOffer[]>([]);
+  const [quotesLoading, setQuotesLoading] = useState(true);
+  /** 'new' opens a blank builder; a quote opens it for editing. */
+  const [builder, setBuilder] = useState<'new' | QuoteOffer | null>(null);
+  const [sendingId, setSendingId] = useState<number | null>(null);
+
+  const loadQuotes = async () => {
+    try {
+      setQuotes(await apiAdmin.getLeadQuotes(lead.id));
+    } catch {
+      setQuotes([]);
+    } finally {
+      setQuotesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setQuotesLoading(true);
+    void loadQuotes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead.id, lead.latestQuote?.status, lead.latestQuote?.total]);
+
+  const afterQuoteChange = (message: string) => {
+    onNotify(message);
+    void loadQuotes();
+    onRefresh();
+  };
+
+  const resend = async (q: QuoteOffer) => {
+    if (!window.confirm(`Email quote ${q.quoteNumber} (£${Number(q.total).toFixed(2)}) to ${q.clientEmail}?`)) return;
+    setSendingId(q.id);
+    try {
+      await apiAdmin.sendQuote(q.id);
+      afterQuoteChange(`Quote ${q.quoteNumber} emailed to ${q.clientEmail}.`);
+    } catch (e) {
+      onNotify(e instanceof Error ? e.message : 'Could not send the quote.', 'error');
+    } finally {
+      setSendingId(null);
+    }
+  };
+
+  const setQuoteStatus = async (q: QuoteOffer, status: QuoteOfferStatus) => {
+    try {
+      await apiAdmin.updateQuote(q.id, { status });
+      afterQuoteChange(
+        status === 'accepted'
+          ? `Quote ${q.quoteNumber} accepted. The request is now marked converted.`
+          : `Quote ${q.quoteNumber} marked ${QUOTE_STATUS[status].label.toLowerCase()}.`,
+      );
+    } catch (e) {
+      onNotify(e instanceof Error ? e.message : 'Could not update the quote.', 'error');
+    }
+  };
+
+  const removeQuote = async (q: QuoteOffer) => {
+    if (!window.confirm(`Delete quote ${q.quoteNumber}? This cannot be undone.`)) return;
+    try {
+      await apiAdmin.deleteQuote(q.id);
+      afterQuoteChange(`Quote ${q.quoteNumber} deleted.`);
+    } catch (e) {
+      onNotify(e instanceof Error ? e.message : 'Could not delete the quote.', 'error');
+    }
+  };
+
+  /** Print or save as PDF: the same branded document the client receives. */
+  const printSaved = async (q: QuoteOffer) => {
+    const w = window.open('', '_blank', 'width=820,height=1000');
+    if (!w) {
+      onNotify('Allow pop-ups to print the quote.', 'error');
+      return;
+    }
+    try {
+      const { subject, html } = await apiAdmin.previewQuote({
+        clientName: q.clientName || '',
+        clientEmail: q.clientEmail,
+        clientPhone: q.clientPhone || '',
+        clientAddress: q.clientAddress || '',
+        postcode: q.postcode || '',
+        propertySummary: q.propertySummary || '',
+        serviceType: q.serviceType || '',
+        items: q.items,
+        details: q.details ?? null,
+        discount: Number(q.discount) || 0,
+        vatRate: Number(q.vatRate) || 0,
+        validUntil: q.validUntil || '',
+        message: q.message || '',
+        notes: q.notes || '',
+        quoteNumber: q.quoteNumber,
+      });
+      w.document.open();
+      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${subject.replace(/</g, '&lt;')}</title><style>@media print{@page{margin:12mm}}</style></head><body>${html}</body></html>`);
+      w.document.close();
+      w.focus();
+      setTimeout(() => w.print(), 400);
+    } catch (e) {
+      w.close();
+      onNotify(e instanceof Error ? e.message : 'Could not build the quote.', 'error');
+    }
+  };
 
   useEffect(() => {
     setNotes(lead.adminNotes ?? '');
   }, [lead.id, lead.adminNotes]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !builder && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, builder]);
 
   const wa = whatsappNumber(lead.phone);
   const notesChanged = notes.trim() !== (lead.adminNotes ?? '').trim();
@@ -437,7 +566,7 @@ const QuoteRequestFlyout: React.FC<{
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={`Quote request from ${displayName(lead)}`}>
+    <div className="fixed inset-0 z-[300] flex justify-end" role="dialog" aria-modal="true" aria-label={`Quote request from ${displayName(lead)}`}>
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-xl bg-slate-50 h-full overflow-y-auto shadow-2xl animate-in slide-in-from-right">
         <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-6 py-5 flex items-start justify-between gap-4">
@@ -496,6 +625,71 @@ const QuoteRequestFlyout: React.FC<{
             </div>
             {lead.status === 'new' && (
               <p className="text-[11px] text-slate-400 font-medium">Using any of these buttons moves the request to Contacted.</p>
+            )}
+          </section>
+
+          <section className="bg-white rounded-2xl border border-slate-100 p-5 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Quotes</h3>
+              <button
+                type="button"
+                onClick={() => setBuilder('new')}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4" /> {quotes.length ? 'New quote' : 'Create quote'}
+              </button>
+            </div>
+            {quotesLoading ? (
+              <p className="text-sm text-slate-400 font-medium">Loading quotes...</p>
+            ) : quotes.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                Build a branded quote with the customer's details, your prices and any instructions, then email it in one click.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {quotes.map((q) => (
+                  <li key={q.id} className="rounded-xl border border-slate-200 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-black text-slate-900 text-sm">
+                          {q.quoteNumber} · <span className="tabular-nums">£{Number(q.total).toFixed(2)}</span>
+                        </p>
+                        <p className="text-[11px] font-medium text-slate-500">
+                          {q.sentAt ? `Emailed ${formatDateTime(q.sentAt)}${q.sentCount > 1 ? ` (${q.sentCount} times)` : ''}` : `Drafted ${formatDateTime(q.createdAt)}`}
+                          {q.validUntil ? ` · valid until ${q.validUntil}` : ''}
+                        </p>
+                      </div>
+                      <span className={`rounded-lg border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${QUOTE_STATUS[q.status]?.pill ?? QUOTE_STATUS.draft.pill}`}>
+                        {QUOTE_STATUS[q.status]?.label ?? q.status}
+                      </span>
+                    </div>
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      <button type="button" onClick={() => void resend(q)} disabled={sendingId === q.id} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[11px] font-black text-white hover:bg-blue-700 disabled:opacity-50">
+                        <Send className="w-3.5 h-3.5" /> {sendingId === q.id ? 'Sending...' : q.sentAt ? 'Resend' : 'Send'}
+                      </button>
+                      <button type="button" onClick={() => setBuilder(q)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-black text-slate-700 hover:bg-slate-50">
+                        <Pencil className="w-3.5 h-3.5" /> Edit
+                      </button>
+                      <button type="button" onClick={() => void printSaved(q)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-black text-slate-700 hover:bg-slate-50">
+                        <Printer className="w-3.5 h-3.5" /> Print / PDF
+                      </button>
+                      {q.status !== 'accepted' ? (
+                        <button type="button" onClick={() => void setQuoteStatus(q, 'accepted')} className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-black text-emerald-700 hover:bg-emerald-100">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Accepted
+                        </button>
+                      ) : null}
+                      {q.status !== 'declined' && q.status !== 'accepted' ? (
+                        <button type="button" onClick={() => void setQuoteStatus(q, 'declined')} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-black text-slate-500 hover:bg-slate-50">
+                          Declined
+                        </button>
+                      ) : null}
+                      <button type="button" onClick={() => void removeQuote(q)} className="ml-auto inline-flex items-center rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Delete quote ${q.quoteNumber}`}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
 
@@ -568,6 +762,19 @@ const QuoteRequestFlyout: React.FC<{
           </button>
         </div>
       </div>
+
+      {builder ? (
+        <QuoteBuilder
+          lead={lead}
+          quote={builder === 'new' ? null : builder}
+          companyName={companyName}
+          services={services}
+          extras={extras}
+          onClose={() => setBuilder(null)}
+          onSaved={afterQuoteChange}
+          onError={(m) => onNotify(m, 'error')}
+        />
+      ) : null}
     </div>
   );
 };

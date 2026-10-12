@@ -1,5 +1,9 @@
 import {
     Booking,
+    StaffPerformance,
+    QuoteOffer,
+    QuoteOfferInput,
+    QuoteOfferStatus,
     ServiceConfig,
     ServiceBookingFlow,
     ServiceTrigger,
@@ -590,6 +594,42 @@ function createRealmApi(realm: AuthRealm) {
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
                 throw new Error((err as { error?: string }).error || 'Failed to record arrival');
+            }
+            return res.json();
+        },
+
+        /** UK GDPR: emails the user a copy of their data within 30 days (same request as the app). */
+        requestDataExport: async (): Promise<void> => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/account/data-export`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...H() },
+                body: '{}',
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error((err as { error?: string }).error || 'Could not send your request');
+            }
+        },
+
+        /** UK GDPR: asks for the account and personal data to be erased within 30 days (same request as the app). */
+        requestAccountDeletion: async (): Promise<void> => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/account/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...H() },
+                body: '{}',
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error((err as { error?: string }).error || 'Could not send your request');
+            }
+        },
+
+        /** The signed-in cleaner's own performance (worked out on the server; the app uses the same endpoint). */
+        getMyPerformance: async (): Promise<StaffPerformance> => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/staff/me/performance`, { headers: { ...H() } });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error((err as { error?: string }).error || 'Failed to load performance');
             }
             return res.json();
         },
@@ -1338,6 +1378,7 @@ function createRealmApi(realm: AuthRealm) {
                 postcode?: string | null;
                 password?: string;
                 currentPassword?: string;
+                marketingOptIn?: boolean;
             },
         ): Promise<unknown> => {
             const res = await fetchWithNetworkHint(realm, `${API_URL}/users/${id}`, {
@@ -1582,6 +1623,58 @@ export const apiAdmin = {
             body: JSON.stringify(body),
         });
         await handleAdminJson(res, 'Failed to update quote request');
+    },
+
+    getLeadQuotes: async (leadId: number): Promise<QuoteOffer[]> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/quote-leads/${leadId}/quotes`, {
+            headers: { ...authHeader('admin') },
+        });
+        return handleAdminJson(res, 'Failed to load quotes');
+    },
+
+    /** Saves a quote for the request; send: true emails it to the client straight away. */
+    createLeadQuote: async (leadId: number, body: QuoteOfferInput & { send?: boolean }): Promise<{ quote: QuoteOffer; emailed: boolean }> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/quote-leads/${leadId}/quotes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader('admin') },
+            body: JSON.stringify(body),
+        });
+        return handleAdminJson(res, 'Failed to create quote');
+    },
+
+    updateQuote: async (id: number, body: Partial<QuoteOfferInput> & { status?: QuoteOfferStatus }): Promise<QuoteOffer> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/quotes/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', ...authHeader('admin') },
+            body: JSON.stringify(body),
+        });
+        return handleAdminJson(res, 'Failed to update quote');
+    },
+
+    sendQuote: async (id: number): Promise<QuoteOffer> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/quotes/${id}/send`, {
+            method: 'POST',
+            headers: { ...authHeader('admin') },
+        });
+        return handleAdminJson(res, 'Failed to send quote');
+    },
+
+    /** The branded email exactly as the client will see it. */
+    previewQuote: async (body: QuoteOfferInput & { quoteNumber?: string }): Promise<{ subject: string; html: string }> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/quotes/preview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader('admin') },
+            body: JSON.stringify(body),
+        });
+        return handleAdminJson(res, 'Failed to build preview');
+    },
+
+    deleteQuote: async (id: number): Promise<void> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/quotes/${id}`, {
+            method: 'DELETE',
+            headers: { ...authHeader('admin') },
+        });
+        await handleAdminJson(res, 'Failed to delete quote');
     },
 
     deleteQuoteLead: async (id: number): Promise<void> => {

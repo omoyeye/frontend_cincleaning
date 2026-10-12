@@ -2937,6 +2937,8 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
             leads={quoteLeadsList}
             loading={quoteLeadsLoading}
             companyName={businessSettings.companyName || 'CiN Cleaning'}
+            services={services}
+            extras={extraServices}
             onRefresh={() => void fetchQuoteLeads()}
             onUpdate={updateQuoteLead}
             onDelete={deleteQuoteLead}
