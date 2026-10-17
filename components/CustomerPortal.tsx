@@ -61,6 +61,7 @@ import { apiClient, customerAccountFromLoginUser } from '../services/api';
 import { NotificationBell } from './NotificationBell';
 import { useFlyer } from './Flyer';
 import AccountDataControls from './AccountDataControls';
+import { bookingPaymentState } from '../src/utils/bookingPayment';
 import { compareBookingDateTime, downloadBookingIcs, getTodayYYYYMMDD } from '../src/utils/bookingHelpers';
 import { getPrepChecklistForService } from '../src/prepChecklists';
 import { useBusinessBrand } from '../src/hooks/useBusinessBrand';
@@ -123,7 +124,18 @@ const CustomerPortal: React.FC<Props> = ({
 }) => {
   const { showFlyer } = useFlyer();
   const brandName = useBusinessBrand();
-  const { bankDetails, cancellationPolicy } = useBusinessSettings();
+  const { bankDetails, cancellationPolicy, depositPolicy } = useBusinessSettings();
+  const portalDepositPercent = Number.isFinite(Number(depositPolicy?.requiredPercent))
+    ? Math.min(100, Math.max(0, Number(depositPolicy?.requiredPercent)))
+    : 40;
+  /** Deposit before the clean, or the balance once the clean is done. */
+  const payNowFor = (b: Booking) => {
+    const pay = bookingPaymentState(b, portalDepositPercent);
+    const open =
+      (pay.stage === 'unpaid' && (b.status === BookingStatus.PENDING || b.status === BookingStatus.CONFIRMED)) ||
+      (pay.stage === 'deposit_paid' && b.status !== BookingStatus.CANCELLED);
+    return { pay, show: Boolean(b.stripePaymentLink) && open && pay.payNowAmount > 0 };
+  };
   const [isLogin, setIsLogin] = useState(true);
   const [activeSection, setActiveSection] = useState<PortalSection>('history');
   const [isMobilePortalMenuOpen, setIsMobilePortalMenuOpen] = useState(false);
@@ -1296,7 +1308,7 @@ const CustomerPortal: React.FC<Props> = ({
                                     }`}>{b.status}</span>
                                 </div>
 
-                                {b.stripePaymentLink && !b.invoicePaid && (b.status === BookingStatus.PENDING || b.status === BookingStatus.CONFIRMED) && (
+                                {payNowFor(b).show && (
                                   <a
                                     href={b.stripePaymentLink}
                                     target="_blank"
@@ -1304,7 +1316,7 @@ const CustomerPortal: React.FC<Props> = ({
                                     onClick={(e) => e.stopPropagation()}
                                     className="px-3 sm:px-5 py-2.5 sm:py-3.5 bg-emerald-600 text-white border border-emerald-700 rounded-xl sm:rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-sm active:scale-95 inline-flex items-center"
                                   >
-                                    <CreditCard className="w-3.5 h-3.5 mr-1.5 sm:mr-2 shrink-0" /> Pay Now
+                                    <CreditCard className="w-3.5 h-3.5 mr-1.5 sm:mr-2 shrink-0" /> {payNowFor(b).pay.payNowLabel}
                                   </a>
                                 )}
 
@@ -2279,7 +2291,7 @@ const CustomerPortal: React.FC<Props> = ({
                                   </button>
                                 </div>
 
-                                {selectedBookingForDetail.stripePaymentLink && !selectedBookingForDetail.invoicePaid && (
+                                {payNowFor(selectedBookingForDetail).show && (
                                   <a
                                     href={selectedBookingForDetail.stripePaymentLink}
                                     target="_blank"
@@ -2292,8 +2304,12 @@ const CustomerPortal: React.FC<Props> = ({
                                           <CreditCard className="w-6 h-6" />
                                         </div>
                                         <div>
-                                          <span className="block font-black text-emerald-900 text-sm uppercase tracking-tight">Pay Deposit Now</span>
-                                          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Secure card payment via Stripe</span>
+                                          <span className="block font-black text-emerald-900 text-sm uppercase tracking-tight">{payNowFor(selectedBookingForDetail).pay.payNowLabel}</span>
+                                          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
+                                            {payNowFor(selectedBookingForDetail).pay.stage === 'unpaid'
+                                              ? 'Deposit or pay in full · secure card payment via Stripe'
+                                              : 'Balance after your clean · secure card payment via Stripe'}
+                                          </span>
                                         </div>
                                       </div>
                                       <ExternalLink className="w-5 h-5 text-emerald-400 group-hover:text-emerald-600 transition-colors" />
@@ -2301,15 +2317,27 @@ const CustomerPortal: React.FC<Props> = ({
                                   </a>
                                 )}
 
-                                {selectedBookingForDetail.invoicePaid && (
+                                {bookingPaymentState(selectedBookingForDetail, portalDepositPercent).stage !== 'unpaid' && (
                                   <div className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-[2rem] border border-green-200">
                                     <div className="flex items-center space-x-4">
                                       <div className="w-12 h-12 bg-green-600 text-white rounded-2xl flex items-center justify-center shadow-md shadow-green-200">
                                         <CheckCircle2 className="w-6 h-6" />
                                       </div>
                                       <div>
-                                        <span className="block font-black text-green-900 text-sm uppercase tracking-tight">Deposit Paid</span>
-                                        <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Payment confirmed — thank you!</span>
+                                        {(() => {
+                                          const pay = bookingPaymentState(selectedBookingForDetail, portalDepositPercent);
+                                          return pay.stage === 'paid' ? (
+                                            <>
+                                              <span className="block font-black text-green-900 text-sm uppercase tracking-tight">Paid in full</span>
+                                              <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest">£{pay.total.toFixed(2)} received, thank you!</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <span className="block font-black text-green-900 text-sm uppercase tracking-tight">Deposit paid: £{pay.amountPaid.toFixed(2)}</span>
+                                              <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Balance of £{pay.balanceDue.toFixed(2)} due after your clean</span>
+                                            </>
+                                          );
+                                        })()}
                                       </div>
                                     </div>
                                   </div>

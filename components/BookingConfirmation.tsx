@@ -28,6 +28,7 @@ import BrandLogoMark from './BrandLogoMark';
 import { useBusinessBrand } from '../src/hooks/useBusinessBrand';
 import { useBusinessSettings } from '../src/context/BusinessSettingsContext';
 import { InvoiceBankConsentFooter, type InvoiceDepositConsent } from './InvoiceView';
+import { bookingPaymentState } from '../src/utils/bookingPayment';
 import { printInvoiceElement } from '../src/utils/invoicePrint';
 
 interface Props {
@@ -85,6 +86,7 @@ const BookingConfirmation: React.FC<Props> = ({
         ? Math.min(100, Math.max(0, Number(depositPolicy?.requiredPercent)))
         : 40;
     const depositAmount = Number((totalAmount * depositPercent) / 100);
+    const pay = bookingPaymentState(booking, depositPercent, totalAmount);
     const defaultDepositMessage =
         `To reserve your preferred slot and lock in your cleaner team, we require a ${depositPercent}% deposit before attendance. This confirms your booking in our live rota and guarantees staff dispatch on the day.`;
     const depositMessage =
@@ -256,12 +258,27 @@ const BookingConfirmation: React.FC<Props> = ({
 
                     <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 shadow-inner mt-4 text-left space-y-4">
                         <h4 className="text-blue-900 font-black text-lg mb-2 tracking-tight">Payment Details</h4>
-                        <p className="text-blue-800 text-sm font-semibold leading-relaxed">{depositMessage}</p>
-                        <p className="text-blue-900 text-sm font-black">
-                            Deposit required now: £{depositAmount.toFixed(2)} ({depositPercent}% of £{totalAmount.toFixed(2)})
-                        </p>
+                        {pay.stage === 'deposit_paid' ? (
+                            <p className="text-blue-900 text-sm font-black">
+                                Paid so far £{pay.amountPaid.toFixed(2)} · Balance due after your clean £{pay.balanceDue.toFixed(2)}
+                            </p>
+                        ) : pay.choice === 'full' && pay.stage === 'unpaid' ? (
+                            <p className="text-blue-900 text-sm font-black">
+                                You chose to pay in full: £{totalAmount.toFixed(2)}. Nothing more to pay after your clean.
+                            </p>
+                        ) : pay.stage === 'unpaid' ? (
+                            <>
+                                <p className="text-blue-800 text-sm font-semibold leading-relaxed">{depositMessage}</p>
+                                <p className="text-blue-900 text-sm font-black">
+                                    Deposit required now: £{depositAmount.toFixed(2)} ({depositPercent}% of £{totalAmount.toFixed(2)})
+                                </p>
+                                <p className="text-blue-800 text-xs font-semibold">
+                                    Balance of £{(totalAmount - depositAmount).toFixed(2)} due after your clean. You can pay in full on the payment page instead.
+                                </p>
+                            </>
+                        ) : null}
 
-                        {booking.stripePaymentLink && !booking.invoicePaid ? (
+                        {booking.stripePaymentLink && pay.stage !== 'paid' ? (
                             <a
                                 href={booking.stripePaymentLink}
                                 target="_blank"
@@ -269,18 +286,18 @@ const BookingConfirmation: React.FC<Props> = ({
                                 className="flex items-center justify-center gap-3 w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-emerald-200 hover:bg-emerald-700 hover:shadow-xl active:scale-[0.98] transition-all no-print"
                             >
                                 <CreditCard className="w-5 h-5" />
-                                Pay Deposit Now
+                                {pay.payNowLabel || 'Pay now'}
                                 <ExternalLink className="w-4 h-4 opacity-70" />
                             </a>
-                        ) : booking.invoicePaid ? (
+                        ) : pay.stage === 'paid' ? (
                             <div className="flex items-center gap-3 p-4 bg-green-100 rounded-2xl border border-green-200">
                                 <CheckCircle2 className="w-6 h-6 text-green-600 shrink-0" />
                                 <div>
-                                    <p className="text-sm font-black text-green-900">Deposit Paid</p>
-                                    <p className="text-xs font-medium text-green-700">Payment confirmed — thank you!</p>
+                                    <p className="text-sm font-black text-green-900">Paid in full</p>
+                                    <p className="text-xs font-medium text-green-700">Payment confirmed, thank you!</p>
                                 </div>
                             </div>
-                        ) : (
+                        ) : pay.stage === 'deposit_paid' ? null : (
                             <p className="text-blue-700 text-sm font-medium">
                                 A secure payment link will be sent to your email once your booking is confirmed by our team.
                             </p>

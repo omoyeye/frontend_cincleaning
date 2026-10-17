@@ -506,6 +506,8 @@ function createRealmApi(realm: AuthRealm) {
             bookingId?: string | null;
             message: string;
             depositTermsAcceptedAt?: string;
+            /** Card payment page for the deposit or full payment the client chose. */
+            stripePaymentLink?: string;
             conflictWarning?: { conflictCount: number; conflictingBookingIds: string[]; message: string };
         }> => {
             const res = await fetchWithNetworkHint(realm, `${API_URL}/bookings`, {
@@ -1482,6 +1484,22 @@ async function handleAdminJson<T>(res: Response, fallbackMsg: string): Promise<T
 
 export const apiAdmin = {
     ...adminRealmApi,
+    /** Client paid the rest by cash or bank transfer. */
+    markBookingPaidInFull: async (id: string | number): Promise<{ ok: true }> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/bookings/${encodeURIComponent(String(id))}/mark-paid-in-full`, {
+            method: 'POST',
+            headers: { ...authHeader('admin') },
+        });
+        return handleAdminJson<{ ok: true }>(res, 'Could not mark the booking as paid');
+    },
+    /** Email, SMS and push asking the client to pay the balance now. */
+    sendBalanceRequest: async (id: string | number): Promise<{ ok: true }> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/bookings/${encodeURIComponent(String(id))}/send-balance-request`, {
+            method: 'POST',
+            headers: { ...authHeader('admin') },
+        });
+        return handleAdminJson<{ ok: true }>(res, 'Could not send the balance request');
+    },
     getBrevoSettings: async (): Promise<BrevoSettingsPublic> => {
         const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/brevo-settings`, {
             headers: { ...authHeader('admin') },

@@ -162,6 +162,15 @@ export interface Booking {
   chatClosedAt?: string | null;
   /** Set by admin when the client invoice is paid (shown on invoice view). */
   invoicePaid?: boolean;
+  /** Client's choice at booking: pay the deposit now, or pay in full. */
+  paymentChoice?: 'deposit' | 'full';
+  /** Server-calculated: paid so far, what is left, and where the booking is in paying. */
+  amountPaid?: number;
+  balanceDue?: number;
+  paymentStage?: 'unpaid' | 'deposit_paid' | 'paid';
+  depositAmount?: number;
+  paidInFullAt?: string | null;
+  balanceRequestSentAt?: string | null;
   /** Automatic reminder dispatch (server); ISO timestamps when sent. */
   reminder48SentAt?: string | null;
   reminder24SentAt?: string | null;

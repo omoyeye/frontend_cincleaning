@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import BookingPaymentCell from './admin/BookingPaymentCell';
 import {
   Users,
   Calendar,
@@ -2578,7 +2579,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                         <th className="px-6 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Service</th>
                         <th className="px-6 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Price</th>
                         <th className="px-6 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Status</th>
-                        <th className="px-6 py-5 text-center text-[10px] font-black uppercase text-slate-400 tracking-widest w-[100px]">Paid</th>
+                        <th className="px-4 py-5 text-center text-[10px] font-black uppercase text-slate-400 tracking-widest w-[180px]">Payment</th>
                         <th className="px-6 py-5 text-right text-[10px] font-black uppercase text-slate-400 tracking-widest">Actions</th>
                       </tr>
                     </thead>
@@ -2645,23 +2646,10 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                               </span>
                             </div>
                           </td>
-                          <td className="px-6 py-5 text-center">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(b.invoicePaid)}
-                              onChange={async (e) => {
-                                const checked = e.target.checked;
-                                try {
-                                  await apiAdmin.updateBooking(b.id, { invoicePaid: checked });
-                                  setBookings((prev) => prev.map((row) => (row.id === b.id ? { ...row, invoicePaid: checked } : row)));
-                                  showFlyer(checked ? 'Invoice marked as paid.' : 'Invoice marked as payment pending.', 'success');
-                                } catch (err) {
-                                  showFlyer(err instanceof Error ? err.message : 'Could not update payment status', 'error');
-                                }
-                              }}
-                              className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                              title="Customer invoice paid"
-                              aria-label={`Mark invoice paid for ${b.id}`}
+                          <td className="px-4 py-5 text-center">
+                            <BookingPaymentCell
+                              booking={b}
+                              onChanged={(patch) => setBookings((prev) => prev.map((row) => (row.id === b.id ? { ...row, ...patch } : row)))}
                             />
                           </td>
                           <td className="px-6 py-5 text-right">

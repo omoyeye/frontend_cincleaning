@@ -23,6 +23,8 @@ import {
   Loader2
 } from 'lucide-react';
 import InvoiceView from './InvoiceView';
+import PaymentChoicePicker from './PaymentChoicePicker';
+import { useBusinessSettings } from '../src/context/BusinessSettingsContext';
 import BookingConfirmation from './BookingConfirmation';
 import { Booking, BookingStatus, PropertyDetails, UserAccount, ServiceConfig, Extra, WizardStepKey } from '../types';
 import { apiClient } from '../services/api';
@@ -178,6 +180,12 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
   const [cleaningMaterials, setCleaningMaterials] = useState<'none' | 'hoover_only' | 'hoover_and_materials'>('none');
   const [smsOptIn, setSmsOptIn] = useState(false);
   const [depositTermsAccepted, setDepositTermsAccepted] = useState(false);
+  /** Pay the deposit now (default) or pay in full; the server sets the card payment to match. */
+  const [paymentChoice, setPaymentChoice] = useState<'deposit' | 'full'>('deposit');
+  const { depositPolicy } = useBusinessSettings();
+  const wizardDepositPercent = Number.isFinite(Number(depositPolicy?.requiredPercent))
+    ? Math.min(100, Math.max(0, Number(depositPolicy?.requiredPercent)))
+    : 40;
   const [tipPercent, setTipPercent] = useState(0);
   const [customTip, setCustomTip] = useState<string>('');
   const [commercialDetails, setCommercialDetails] = useState<string>('');
@@ -335,6 +343,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                 : null,
             );
             setDepositTermsAccepted(Boolean(parsed.depositTermsAccepted));
+            if (parsed.paymentChoice === 'full') setPaymentChoice('full');
             setNotifyIfMoreTimeNeeded(Boolean(parsed.notifyIfMoreTimeNeeded));
             if (parsed.postcodeVerified) setPostcodeVerified(true);
           } catch (e) {
@@ -368,6 +377,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
         discountCode,
         appliedDiscount,
         depositTermsAccepted,
+        paymentChoice,
         notifyIfMoreTimeNeeded,
         postcodeVerified,
       }));
@@ -394,6 +404,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
     discountCode,
     appliedDiscount,
     depositTermsAccepted,
+    paymentChoice,
     notifyIfMoreTimeNeeded,
     postcodeVerified,
   ]);
@@ -863,6 +874,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
         tipAmount: Number(pricing.tipAmount.toFixed(2)),
         customerId: currentUser?.id,
         depositTermsAccepted: true,
+        paymentChoice,
       };
 
       const res = await apiClient.createBooking(bookingData);
@@ -1792,6 +1804,18 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                     </div>
                   </div>
                 </div>
+
+                {(() => {
+                  const trig = getServiceTrigger(selectedService);
+                  return selectedService && Number(totalPrice) > 0 && trig !== 'commercial' && trig !== 'jet_washing' ? (
+                    <PaymentChoicePicker
+                      total={Number(totalPrice)}
+                      depositPercent={wizardDepositPercent}
+                      value={paymentChoice}
+                      onChange={setPaymentChoice}
+                    />
+                  ) : null;
+                })()}
 
                 {invoiceStepSkipped && selectedService ? (
                   <div className="space-y-3 rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-lg ring-1 ring-slate-100/80">
