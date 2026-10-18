@@ -150,19 +150,19 @@ const PricingPageSettingsPanel: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 text-slate-500 font-bold text-sm">Loading pricing settings…</div>
+      <div className="bg-white rounded-2xl border border-slate-100 p-8 text-slate-500 font-bold text-sm">Loading pricing settings…</div>
     );
   }
 
   return (
-    <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100/50 p-8 space-y-10">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 space-y-10">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 border-b border-slate-100 pb-6">
         <div>
           <h4 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Calculator className="w-6 h-6 text-teal-600" />
             Public pricing page
           </h4>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2 max-w-xl">
+          <p className="text-sm font-medium text-slate-500 mt-2 max-w-xl">
             Controls the marketing &quot;Pricing&quot; route: plan cards, copy, and the quote calculator math.
           </p>
         </div>
@@ -170,7 +170,7 @@ const PricingPageSettingsPanel: React.FC = () => {
           <button
             type="button"
             onClick={resetDefaults}
-            className="px-4 py-2 rounded-xl border-2 border-slate-200 text-slate-600 font-black text-xs uppercase tracking-widest hover:bg-slate-50"
+            className="px-4 py-2 rounded-xl border-2 border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50"
           >
             Reset defaults
           </button>
@@ -185,10 +185,10 @@ const PricingPageSettingsPanel: React.FC = () => {
       </div>
 
       <section className="space-y-4">
-        <h5 className="text-[11px] font-black uppercase tracking-widest text-slate-400">Page header</h5>
+        <h5 className="text-xs font-bold text-slate-700">Page header</h5>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label className="block space-y-1">
-            <span className="text-[10px] font-black uppercase text-slate-400">Eyebrow</span>
+            <span className="text-xs font-bold text-slate-700">Eyebrow</span>
             <input
               className="w-full p-3 rounded-xl border border-slate-200 font-bold text-sm"
               value={config.eyebrow}
@@ -196,7 +196,7 @@ const PricingPageSettingsPanel: React.FC = () => {
             />
           </label>
           <label className="block space-y-1">
-            <span className="text-[10px] font-black uppercase text-slate-400">Title</span>
+            <span className="text-xs font-bold text-slate-700">Title</span>
             <input
               className="w-full p-3 rounded-xl border border-slate-200 font-bold text-sm"
               value={config.title}
@@ -205,7 +205,7 @@ const PricingPageSettingsPanel: React.FC = () => {
           </label>
         </div>
         <label className="block space-y-1">
-          <span className="text-[10px] font-black uppercase text-slate-400">Subtitle (plain text)</span>
+          <span className="text-xs font-bold text-slate-700">Subtitle (plain text)</span>
           <textarea
             className="w-full p-3 rounded-xl border border-slate-200 font-medium text-sm min-h-[80px]"
             value={config.subtitle}
@@ -214,7 +214,7 @@ const PricingPageSettingsPanel: React.FC = () => {
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="block space-y-1">
-            <span className="text-[10px] font-black uppercase text-slate-400">Popular badge label</span>
+            <span className="text-xs font-bold text-slate-700">Popular badge label</span>
             <input
               className="w-full p-3 rounded-xl border border-slate-200 font-bold text-sm"
               value={config.popularBadgeLabel}
@@ -222,7 +222,7 @@ const PricingPageSettingsPanel: React.FC = () => {
             />
           </label>
           <label className="block space-y-1">
-            <span className="text-[10px] font-black uppercase text-slate-400">Plan button label</span>
+            <span className="text-xs font-bold text-slate-700">Plan button label</span>
             <input
               className="w-full p-3 rounded-xl border border-slate-200 font-bold text-sm"
               value={config.selectPlanButtonLabel}
@@ -234,11 +234,11 @@ const PricingPageSettingsPanel: React.FC = () => {
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h5 className="text-[11px] font-black uppercase tracking-widest text-slate-400">Membership / plan cards</h5>
+          <h5 className="text-xs font-bold text-slate-700">Membership / plan cards</h5>
           <button
             type="button"
             onClick={addPlan}
-            className="flex items-center gap-1 text-xs font-black uppercase tracking-widest text-teal-700 hover:text-teal-900"
+            className="flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-900"
           >
             <Plus className="w-4 h-4" /> Add plan
           </button>
@@ -247,7 +247,7 @@ const PricingPageSettingsPanel: React.FC = () => {
           {config.plans.map((plan, i) => (
             <div key={plan.id} className="p-4 rounded-2xl border border-slate-100 bg-slate-50/80 space-y-3">
               <div className="flex flex-wrap items-center gap-2 justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase">Plan {i + 1}</span>
+                <span className="text-xs font-bold text-slate-700">Plan {i + 1}</span>
                 <div className="flex items-center gap-1">
                   <button type="button" className="p-2 rounded-lg bg-white border border-slate-200" onClick={() => movePlan(i, -1)} aria-label="Move up">
                     <ChevronUp className="w-4 h-4" />
@@ -262,7 +262,7 @@ const PricingPageSettingsPanel: React.FC = () => {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <label className="space-y-1">
-                  <span className="text-[9px] font-black uppercase text-slate-400">Label</span>
+                  <span className="text-xs font-bold text-slate-700">Label</span>
                   <input
                     className="w-full p-2 rounded-lg border border-slate-200 text-sm font-bold"
                     value={plan.label}
@@ -270,7 +270,7 @@ const PricingPageSettingsPanel: React.FC = () => {
                   />
                 </label>
                 <label className="space-y-1">
-                  <span className="text-[9px] font-black uppercase text-slate-400">Price (£)</span>
+                  <span className="text-xs font-bold text-slate-700">Price (£)</span>
                   <input
                     type="number"
                     min={0}
@@ -291,7 +291,7 @@ const PricingPageSettingsPanel: React.FC = () => {
                 </label>
               </div>
               <label className="space-y-1 block">
-                <span className="text-[9px] font-black uppercase text-slate-400">Description</span>
+                <span className="text-xs font-bold text-slate-700">Description</span>
                 <textarea
                   className="w-full p-2 rounded-lg border border-slate-200 text-sm"
                   rows={2}
@@ -305,10 +305,10 @@ const PricingPageSettingsPanel: React.FC = () => {
       </section>
 
       <section className="space-y-4">
-        <h5 className="text-[11px] font-black uppercase tracking-widest text-slate-400">Quote calculator</h5>
+        <h5 className="text-xs font-bold text-slate-700">Quote calculator</h5>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label className="space-y-1">
-            <span className="text-[10px] font-black uppercase text-slate-400">Panel title</span>
+            <span className="text-xs font-bold text-slate-700">Panel title</span>
             <input
               className="w-full p-3 rounded-xl border border-slate-200 font-bold text-sm"
               value={calc.title}
@@ -316,7 +316,7 @@ const PricingPageSettingsPanel: React.FC = () => {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[10px] font-black uppercase text-slate-400">Frequency section label</span>
+            <span className="text-xs font-bold text-slate-700">Frequency section label</span>
             <input
               className="w-full p-3 rounded-xl border border-slate-200 font-bold text-sm"
               value={calc.frequencySectionLabel}
@@ -329,7 +329,7 @@ const PricingPageSettingsPanel: React.FC = () => {
 
         <div className="space-y-2">
           <div className="flex justify-between items-center">
-            <span className="text-[10px] font-black uppercase text-slate-400">Frequencies (factor multiplies into estimate)</span>
+            <span className="text-xs font-bold text-slate-700">Frequencies (factor multiplies into estimate)</span>
             <button type="button" onClick={addFrequency} className="text-xs font-black text-teal-700 flex items-center gap-1">
               <Plus className="w-3 h-3" /> Add
             </button>
@@ -337,7 +337,7 @@ const PricingPageSettingsPanel: React.FC = () => {
           {calc.frequencies.map((f, i) => (
             <div key={f.id} className="flex flex-wrap gap-2 items-end p-3 rounded-xl bg-teal-50/50 border border-teal-100">
               <label className="flex-1 min-w-[100px] space-y-1">
-                <span className="text-[9px] font-black uppercase text-slate-400">Id (stable)</span>
+                <span className="text-xs font-bold text-slate-700">Id (stable)</span>
                 <input
                   className="w-full p-2 rounded-lg border border-slate-200 text-xs font-mono"
                   value={f.id}
@@ -345,7 +345,7 @@ const PricingPageSettingsPanel: React.FC = () => {
                 />
               </label>
               <label className="flex-1 min-w-[120px] space-y-1">
-                <span className="text-[9px] font-black uppercase text-slate-400">Label</span>
+                <span className="text-xs font-bold text-slate-700">Label</span>
                 <input
                   className="w-full p-2 rounded-lg border border-slate-200 text-sm font-bold"
                   value={f.label}
@@ -353,7 +353,7 @@ const PricingPageSettingsPanel: React.FC = () => {
                 />
               </label>
               <label className="w-24 space-y-1">
-                <span className="text-[9px] font-black uppercase text-slate-400">Factor</span>
+                <span className="text-xs font-bold text-slate-700">Factor</span>
                 <input
                   type="number"
                   step={0.01}
@@ -378,7 +378,7 @@ const PricingPageSettingsPanel: React.FC = () => {
             ] as const
           ).map(([key, lab]) => (
             <label key={key} className="space-y-1 col-span-2 md:col-span-1">
-              <span className="text-[9px] font-black uppercase text-slate-400">{lab}</span>
+              <span className="text-xs font-bold text-slate-700">{lab}</span>
               <input
                 className="w-full p-2 rounded-lg border border-slate-200 text-xs font-bold"
                 value={String((calc as any)[key])}
@@ -400,7 +400,7 @@ const PricingPageSettingsPanel: React.FC = () => {
             ] as const
           ).map(([key, lab]) => (
             <label key={key} className="space-y-1">
-              <span className="text-[9px] font-black uppercase text-slate-400">{lab}</span>
+              <span className="text-xs font-bold text-slate-700">{lab}</span>
               <input
                 type="number"
                 step={key.includes('Step') ? 0.5 : 1}
@@ -423,7 +423,7 @@ const PricingPageSettingsPanel: React.FC = () => {
             ] as const
           ).map(([key, lab]) => (
             <label key={key} className="space-y-1">
-              <span className="text-[9px] font-black uppercase text-slate-400">{lab}</span>
+              <span className="text-xs font-bold text-slate-700">{lab}</span>
               <input
                 type="number"
                 step={0.5}
@@ -438,7 +438,7 @@ const PricingPageSettingsPanel: React.FC = () => {
         </div>
 
         <label className="block space-y-1">
-          <span className="text-[10px] font-black uppercase text-slate-400">Calculation</span>
+          <span className="text-xs font-bold text-slate-700">Calculation</span>
           <select
             className="w-full p-3 rounded-xl border border-slate-200 font-bold text-sm bg-white"
             value={calc.formula}
@@ -458,7 +458,7 @@ const PricingPageSettingsPanel: React.FC = () => {
         </label>
         {calc.formula === 'baseHourlyRate_times_factor' && (
           <label className="block space-y-1 max-w-xs">
-            <span className="text-[10px] font-black uppercase text-slate-400">Base hourly rate (£)</span>
+            <span className="text-xs font-bold text-slate-700">Base hourly rate (£)</span>
             <input
               type="number"
               min={0}
@@ -477,7 +477,7 @@ const PricingPageSettingsPanel: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-[9px] font-black uppercase text-slate-400">Estimate label</span>
+            <span className="text-xs font-bold text-slate-700">Estimate label</span>
             <input
               className="w-full p-2 rounded-lg border border-slate-200 text-sm"
               value={calc.estimateLabel}
@@ -487,7 +487,7 @@ const PricingPageSettingsPanel: React.FC = () => {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[9px] font-black uppercase text-slate-400">Decimal places</span>
+            <span className="text-xs font-bold text-slate-700">Decimal places</span>
             <input
               type="number"
               min={0}
@@ -503,7 +503,7 @@ const PricingPageSettingsPanel: React.FC = () => {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[9px] font-black uppercase text-slate-400">Line 1 prefix (before £)</span>
+            <span className="text-xs font-bold text-slate-700">Line 1 prefix (before £)</span>
             <input
               className="w-full p-2 rounded-lg border border-slate-200 text-sm"
               value={calc.estimatePrefix}
@@ -513,7 +513,7 @@ const PricingPageSettingsPanel: React.FC = () => {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[9px] font-black uppercase text-slate-400">Line 2 suffix</span>
+            <span className="text-xs font-bold text-slate-700">Line 2 suffix</span>
             <input
               className="w-full p-2 rounded-lg border border-slate-200 text-sm"
               value={calc.estimateSuffix}
@@ -523,7 +523,7 @@ const PricingPageSettingsPanel: React.FC = () => {
             />
           </label>
           <label className="space-y-1 sm:col-span-2">
-            <span className="text-[9px] font-black uppercase text-slate-400">Book button</span>
+            <span className="text-xs font-bold text-slate-700">Book button</span>
             <input
               className="w-full p-2 rounded-lg border border-slate-200 text-sm font-bold"
               value={calc.bookButtonLabel}
@@ -535,7 +535,7 @@ const PricingPageSettingsPanel: React.FC = () => {
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-900 text-white">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">How the number is calculated</p>
+          <p className="text-xs font-bold text-slate-700">How the number is calculated</p>
           <p className="text-sm font-medium text-slate-200 mt-2">{formulaHelp}</p>
           <p className="text-lg font-black mt-3">
             Sample (first frequency, default sliders): {calc.estimatePrefix}

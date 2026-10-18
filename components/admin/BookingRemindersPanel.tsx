@@ -135,7 +135,7 @@ const BookingRemindersPanel: React.FC = () => {
           {loadError}
           <button
             type="button"
-            className="ml-3 text-xs font-black uppercase tracking-widest text-rose-700 underline"
+            className="ml-3 text-xs font-bold text-rose-700 underline"
             onClick={() => void load()}
           >
             Retry
@@ -164,7 +164,7 @@ const BookingRemindersPanel: React.FC = () => {
             type="button"
             onClick={() => void load()}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-black uppercase tracking-widest hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -173,7 +173,7 @@ const BookingRemindersPanel: React.FC = () => {
             type="button"
             onClick={() => void runNow()}
             disabled={running}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest hover:bg-blue-700 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 disabled:opacity-50"
           >
             <Play className="w-4 h-4" />
             {running ? 'Running…' : 'Run check now'}
@@ -181,8 +181,8 @@ const BookingRemindersPanel: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-[2rem] border border-slate-100/50 shadow-sm p-6 sm:p-8 space-y-5">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Toggles</p>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-5">
+        <p className="text-xs font-bold text-slate-700">Toggles</p>
         <label className="flex items-center gap-3 cursor-pointer">
           <input
             type="checkbox"
@@ -244,7 +244,7 @@ const BookingRemindersPanel: React.FC = () => {
         </button>
       </div>
 
-      <div className="bg-white rounded-[2rem] border border-slate-100/50 shadow-sm p-6 sm:p-8 space-y-4">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-4">
         <h5 className="text-lg font-black text-slate-900">Reset automatic sends for a booking</h5>
         <p className="text-xs text-slate-500 font-medium">
           Clears “already sent” timestamps and removes log rows for that reference so the next scheduled run can send again
@@ -267,15 +267,15 @@ const BookingRemindersPanel: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-[2rem] border border-slate-100/50 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
           <h5 className="text-lg font-black text-slate-900">Reminder log</h5>
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{log.length} rows</span>
+          <span className="text-xs font-bold text-slate-700">{log.length} rows</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-widest text-slate-500">
+              <tr className="bg-slate-50 text-left text-xs font-bold text-slate-700">
                 <th className="p-3">When</th>
                 <th className="p-3">Booking</th>
                 <th className="p-3">Window</th>

@@ -156,14 +156,14 @@ const AiAssistantSettingsPanel: React.FC = () => {
   const kbWarn = kbLen > KNOWLEDGE_BASE_MAX_CHARS;
 
   return (
-    <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100/50 p-8 space-y-8">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h4 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-violet-600" />
             AI concierge (public widget)
           </h4>
-          <p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-widest max-w-2xl">
+          <p className="text-sm font-medium text-slate-500 mt-2 max-w-2xl">
             Configure the floating chat on the marketing site. Your Anthropic (Claude) API key goes in the server&apos;s <code className="text-xs bg-slate-100 px-1 rounded">.env</code> file as <code className="text-xs bg-slate-100 px-1 rounded">ANTHROPIC_API_KEY</code>. Optionally override it below, add reference text, your website URL, and
             instructions so replies match your business.
           </p>
@@ -183,7 +183,7 @@ const AiAssistantSettingsPanel: React.FC = () => {
       </div>
 
       <div className="space-y-2">
-        <label className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-slate-400">
+        <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
           <KeyRound className="w-4 h-4" />
           Claude API key (optional — overrides server key)
         </label>
@@ -207,7 +207,7 @@ const AiAssistantSettingsPanel: React.FC = () => {
       </div>
 
       <div className="space-y-2">
-        <label className="text-[11px] font-black uppercase tracking-widest text-slate-400">Website URL (for context)</label>
+        <label className="text-xs font-bold text-slate-700">Website URL (for context)</label>
         <input
           className="w-full p-3 rounded-xl border border-slate-200 text-sm"
           placeholder="https://www.yourdomain.com"
@@ -218,7 +218,7 @@ const AiAssistantSettingsPanel: React.FC = () => {
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <label className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+          <label className="text-xs font-bold text-slate-700">
             Reference material (paste from PDFs, booking policies, FAQs, service lists)
           </label>
           <button
@@ -253,14 +253,14 @@ const AiAssistantSettingsPanel: React.FC = () => {
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+          <label className="text-xs font-bold text-slate-700 flex items-center gap-2">
             <Bot className="w-4 h-4" />
             System prompt (how the AI should behave)
           </label>
           <button
             type="button"
             onClick={handleResetPrompt}
-            className="text-xs font-black uppercase tracking-widest text-slate-500 hover:text-slate-800"
+            className="text-xs font-bold text-slate-700 hover:text-slate-800"
           >
             Restore default prompt
           </button>
@@ -291,7 +291,7 @@ const AiAssistantSettingsPanel: React.FC = () => {
           <div className="rounded-2xl border-2 border-violet-200 bg-violet-50/30 overflow-hidden">
             <div className="bg-gradient-to-r from-violet-600 to-indigo-700 px-5 py-3 text-white flex items-center gap-3">
               <Sparkles className="w-4 h-4" />
-              <span className="text-sm font-black uppercase tracking-wider">Live preview</span>
+              <span className="text-sm font-bold">Live preview</span>
               {testLog.length > 0 && (
                 <button
                   type="button"

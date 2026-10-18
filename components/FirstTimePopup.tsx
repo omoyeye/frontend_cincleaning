@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
 import { apiUrl } from '../services/api';
+import BrandLogoMark from './BrandLogoMark';
 const DISMISS_KEY = 'cin_first_time_popup_dismissed';
 const SHOW_AFTER_MS = 20000;
 
@@ -81,7 +82,7 @@ export default function FirstTimePopup({ onBookNow }: FirstTimePopupProps) {
 
                 {status === 'done' ? (
                     <div className="py-4 text-center">
-                        <div className="mb-3 text-4xl">🎉</div>
+                        <BrandLogoMark className="mx-auto mb-4 h-20 w-auto max-w-[260px] object-contain" />
                         <h3 className="text-xl font-bold">You're all set!</h3>
                         <p className="mt-2 text-sm text-muted-foreground">
                             Use code <strong className="font-mono text-primary">FIRST10</strong> at checkout for 10% off your
@@ -100,9 +101,7 @@ export default function FirstTimePopup({ onBookNow }: FirstTimePopupProps) {
                 ) : (
                     <>
                         <div className="mb-6 text-center">
-                            <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-3xl">
-                                ✨
-                            </div>
+                            <BrandLogoMark className="mx-auto mb-4 h-20 w-auto max-w-[260px] object-contain" />
                             <h3 className="text-xl font-bold">10% off your first clean</h3>
                             <p className="mt-2 text-sm text-muted-foreground">
                                 Enter your email to receive your discount code.

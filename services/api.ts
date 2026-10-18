@@ -232,6 +232,11 @@ function authHeader(realm: AuthRealm): Record<string, string> {
     return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
+/** Bearer header for admin calls made with plain fetch (the session cookie is sent too). */
+export function adminAuthHeaders(): Record<string, string> {
+    return authHeader('admin');
+}
+
 function parseJsonErrorBody(text: string): Record<string, unknown> {
     const t = text.trim();
     if (!t.startsWith('{') && !t.startsWith('[')) return {};

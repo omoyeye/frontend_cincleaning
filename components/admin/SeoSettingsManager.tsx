@@ -91,7 +91,7 @@ function GooglePreview({ title, description, url }: { title: string; description
   const displayUrl = url || 'https://example.com';
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 mt-3">
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">
+      <p className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
         <Eye className="w-3 h-3" /> Google search preview
       </p>
       <div className="space-y-0.5">
@@ -251,14 +251,14 @@ Return ONLY the JSON object, no markdown, no explanation.`,
   }
 
   return (
-    <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100/50 p-8 space-y-10">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 space-y-10">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h4 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Search className="w-5 h-5 text-emerald-600" />
             SEO &amp; analytics
           </h4>
-          <p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-widest max-w-xl">
+          <p className="text-sm font-medium text-slate-500 mt-2 max-w-xl">
             Meta tags, Open Graph, Google Tag Manager, GA4, verification, and per-page titles. Build sets{' '}
             <code className="text-slate-600">sitemap.xml</code> and <code className="text-slate-600">robots.txt</code> from your site URL (also generated at build via{' '}
             <code className="text-slate-600">VITE_SITE_URL</code>).
@@ -289,7 +289,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <label className="block space-y-2">
-          <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Canonical site URL</span>
+          <span className="text-xs font-bold text-slate-700">Canonical site URL</span>
           <input
             className="w-full p-3 rounded-xl border border-slate-200"
             placeholder="https://www.yourdomain.com"
@@ -299,7 +299,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
           <span className="text-xs text-slate-500">No trailing slash. Used for canonical links, OG URLs, and downloadable sitemap.</span>
         </label>
         <label className="block space-y-2">
-          <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Organization name (schema &amp; fallback titles)</span>
+          <span className="text-xs font-bold text-slate-700">Organization name (schema &amp; fallback titles)</span>
           <input
             className="w-full p-3 rounded-xl border border-slate-200"
             value={draft.organizationName}
@@ -307,7 +307,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
           />
         </label>
         <label className="block space-y-2">
-          <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Google Tag Manager container ID</span>
+          <span className="text-xs font-bold text-slate-700">Google Tag Manager container ID</span>
           <input
             className="w-full p-3 rounded-xl border border-slate-200 font-mono text-sm"
             placeholder="GTM-XXXXXXX"
@@ -316,7 +316,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
           />
         </label>
         <label className="block space-y-2">
-          <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Google Analytics 4 measurement ID (optional)</span>
+          <span className="text-xs font-bold text-slate-700">Google Analytics 4 measurement ID (optional)</span>
           <input
             className="w-full p-3 rounded-xl border border-slate-200 font-mono text-sm"
             placeholder="G-XXXXXXXXXX"
@@ -326,7 +326,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
           <span className="text-xs text-slate-500">Can be omitted if you load GA4 only through GTM.</span>
         </label>
         <label className="block space-y-2 md:col-span-2">
-          <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Google Search Console verification (meta content)</span>
+          <span className="text-xs font-bold text-slate-700">Google Search Console verification (meta content)</span>
           <input
             className="w-full p-3 rounded-xl border border-slate-200 font-mono text-sm"
             placeholder="Paste verification token content only"
@@ -335,7 +335,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
           />
         </label>
         <label className="block space-y-2 md:col-span-2">
-          <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Default Open Graph / Twitter image URL</span>
+          <span className="text-xs font-bold text-slate-700">Default Open Graph / Twitter image URL</span>
           <input
             className="w-full p-3 rounded-xl border border-slate-200 text-sm"
             placeholder="https://…/og-image.jpg"
@@ -344,7 +344,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
           />
         </label>
         <label className="block space-y-2">
-          <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Twitter / X @handle</span>
+          <span className="text-xs font-bold text-slate-700">Twitter / X @handle</span>
           <input
             className="w-full p-3 rounded-xl border border-slate-200"
             placeholder="YourBrand"
@@ -355,7 +355,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
       </div>
 
       <label className="block space-y-2">
-        <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Custom meta tags (one per line: name|content)</span>
+        <span className="text-xs font-bold text-slate-700">Custom meta tags (one per line: name|content)</span>
         <textarea
           className="w-full p-3 rounded-xl border border-slate-200 font-mono text-xs min-h-[88px]"
           placeholder={'alternate|en-GB\nother-meta|value'}
@@ -366,7 +366,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <label className="block space-y-2">
-          <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Head scripts</span>
+          <span className="text-xs font-bold text-slate-700">Head scripts</span>
           <textarea
             className="w-full p-3 rounded-xl border border-slate-200 font-mono text-xs min-h-[120px]"
             placeholder="Paste <script>...</script> or other head tags"
@@ -376,7 +376,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
           <span className="text-[10px] text-slate-500 block">Injected inside &lt;head&gt;</span>
         </label>
         <label className="block space-y-2">
-          <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Body Start scripts</span>
+          <span className="text-xs font-bold text-slate-700">Body Start scripts</span>
           <textarea
             className="w-full p-3 rounded-xl border border-slate-200 font-mono text-xs min-h-[120px]"
             placeholder="Paste <script>...</script> here"
@@ -386,7 +386,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
           <span className="text-[10px] text-slate-500 block">Injected after &lt;body&gt; tag</span>
         </label>
         <label className="block space-y-2">
-          <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Body End scripts</span>
+          <span className="text-xs font-bold text-slate-700">Body End scripts</span>
           <textarea
             className="w-full p-3 rounded-xl border border-slate-200 font-mono text-xs min-h-[120px]"
             placeholder="Paste <script>...</script> here"
@@ -398,7 +398,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
       </div>
 
       <div className="space-y-3">
-        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Per-page meta (CRUD)</p>
+        <p className="text-xs font-bold text-slate-700">Per-page meta (CRUD)</p>
         <div className="divide-y divide-slate-100 border border-slate-100 rounded-2xl overflow-hidden">
           {PAGE_ORDER.map((id) => {
             const pm = draft.pages[id] || emptyMeta;
@@ -420,7 +420,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
                 {open && (
                   <div className="px-4 pb-4 pt-0 space-y-3 bg-white border-t border-slate-100">
                     <label className="block space-y-1">
-                      <span className="text-[10px] font-black uppercase text-slate-400">Title</span>
+                      <span className="text-xs font-bold text-slate-700">Title</span>
                       <input
                         className={`w-full p-2 rounded-lg border text-sm ${pm.title.length > TITLE_IDEAL ? 'border-red-300 bg-red-50/50' : 'border-slate-200'}`}
                         value={pm.title}
@@ -429,7 +429,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
                       <CharBar value={pm.title.length} ideal={TITLE_IDEAL} label="chars" />
                     </label>
                     <label className="block space-y-1">
-                      <span className="text-[10px] font-black uppercase text-slate-400">Meta description</span>
+                      <span className="text-xs font-bold text-slate-700">Meta description</span>
                       <textarea
                         className={`w-full p-2 rounded-lg border text-sm min-h-[72px] ${pm.description.length > DESC_IDEAL ? 'border-red-300 bg-red-50/50' : 'border-slate-200'}`}
                         value={pm.description}
@@ -438,7 +438,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
                       <CharBar value={pm.description.length} ideal={DESC_IDEAL} label="chars" />
                     </label>
                     <label className="block space-y-1">
-                      <span className="text-[10px] font-black uppercase text-slate-400">Keywords</span>
+                      <span className="text-xs font-bold text-slate-700">Keywords</span>
                       <input
                         className="w-full p-2 rounded-lg border border-slate-200 text-sm"
                         value={pm.keywords}
@@ -446,7 +446,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
                       />
                     </label>
                     <label className="block space-y-1">
-                      <span className="text-[10px] font-black uppercase text-slate-400">OG image override (optional)</span>
+                      <span className="text-xs font-bold text-slate-700">OG image override (optional)</span>
                       <input
                         className="w-full p-2 rounded-lg border border-slate-200 text-sm"
                         placeholder="Leave blank to use default image above"
@@ -474,7 +474,7 @@ Return ONLY the JSON object, no markdown, no explanation.`,
                       <button
                         type="button"
                         onClick={() => handleResetPage(id)}
-                        className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-slate-800"
+                        className="inline-flex items-center gap-2 text-xs font-bold text-slate-700 hover:text-slate-800"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
                         Reset defaults

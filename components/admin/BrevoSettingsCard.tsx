@@ -126,7 +126,7 @@ export default function BrevoSettingsCard({ onStatus }: Props) {
         : { label: 'Not connected', dot: 'bg-amber-500', text: 'text-amber-600' };
 
     return (
-        <div className="bg-white p-5 sm:p-8 rounded-[2.5rem] border border-slate-100/50 shadow-sm">
+        <div className="bg-white p-5 sm:p-8 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -134,10 +134,10 @@ export default function BrevoSettingsCard({ onStatus }: Props) {
                     </div>
                     <div>
                         <h4 className="text-xl font-black text-slate-900 leading-tight">Brevo credentials</h4>
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">Transactional email &amp; SMS sender</p>
+                        <p className="text-xs font-bold text-slate-700 mt-1">Transactional email &amp; SMS sender</p>
                     </div>
                 </div>
-                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-slate-50 ${status.text}`}>
+                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-50 ${status.text}`}>
                     <span className={`w-2 h-2 rounded-full ${status.dot}`} />
                     {status.label}
                 </div>
@@ -206,7 +206,7 @@ export default function BrevoSettingsCard({ onStatus }: Props) {
                     </div>
 
                     <details className="rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3 text-sm">
-                        <summary className="cursor-pointer font-black text-slate-700 uppercase tracking-widest text-[11px] flex items-center gap-2">
+                        <summary className="cursor-pointer font-bold text-slate-700 text-xs flex items-center gap-2">
                             <Server className="w-4 h-4" /> Advanced: SMTP relay (optional)
                         </summary>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -272,7 +272,7 @@ export default function BrevoSettingsCard({ onStatus }: Props) {
                             type="button"
                             onClick={handleSave}
                             disabled={saving}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-black uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                         >
                             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                             {saving ? 'Saving…' : 'Save credentials'}
@@ -291,7 +291,7 @@ export default function BrevoSettingsCard({ onStatus }: Props) {
                                 onClick={handleTest}
                                 disabled={testing || !settings.hasApiKey}
                                 title={settings.hasApiKey ? 'Send a test email' : 'Save an API key first'}
-                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-black uppercase tracking-widest hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                                 {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                                 Test
@@ -303,7 +303,7 @@ export default function BrevoSettingsCard({ onStatus }: Props) {
                                 type="button"
                                 onClick={handleDisconnect}
                                 disabled={clearing}
-                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-red-600 hover:bg-red-50 disabled:opacity-60 transition-colors ml-auto"
+                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-60 transition-colors ml-auto"
                             >
                                 {clearing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                                 Disconnect
@@ -326,7 +326,7 @@ interface FieldProps {
 function Field({ label, hint, icon, children }: FieldProps) {
     return (
         <label className="block">
-            <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1.5 mb-1.5">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 mb-1.5">
                 {icon}
                 {label}
             </span>

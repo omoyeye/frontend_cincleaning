@@ -89,19 +89,12 @@ import ActivityLogFlyout from './admin/ActivityLogFlyout';
 import ChatOversightFlyout from './admin/ChatOversightFlyout';
 import EmailTemplateFlyout from './admin/EmailTemplateFlyout';
 import SmsTemplateFlyout from './admin/SmsTemplateFlyout'; // ADDED SMS FLYOUT
-import BrevoSettingsCard from './admin/BrevoSettingsCard';
-import WebsiteContentManager from './admin/WebsiteContentManager';
-import GalleryManager from './admin/GalleryManager';
-import BlogManager from './admin/BlogManager';
-import SeoSettingsManager from './admin/SeoSettingsManager';
-import AiAssistantSettingsPanel from './admin/AiAssistantSettingsPanel';
-import PricingPageSettingsPanel from './admin/PricingPageSettingsPanel';
-import BookingRemindersPanel from './admin/BookingRemindersPanel';
+import MarketingHub, { type MarketingSectionId } from './admin/marketing/MarketingHub';
+import SettingsHub, { type SettingsSectionId } from './admin/settings/SettingsHub';
 import ReviewsPanel from './admin/ReviewsPanel';
 import AdminStaffChat from './admin/AdminStaffChat';
 import CustomerInvoicesPanel from './admin/CustomerInvoicesPanel';
 import ExpenseTracker from './admin/ExpenseTracker';
-import QrCodePanel from './admin/QrCodePanel';
 import StaffProfileFlyout from './admin/StaffProfileFlyout';
 import ClientHistoryFlyout from './admin/ClientHistoryFlyout';
 import LiveMapPanel from './admin/LiveMapPanel';
@@ -126,49 +119,8 @@ interface Props {
 
 type AdminTab = 'overview' | 'reports' | 'bookings' | 'quotes' | 'assignment' | 'rota' | 'liveMap' | 'staff' | 'staffInvoices' | 'customerInvoices' | 'services' | 'marketing' | 'communication' | 'support' | 'settings' | 'reviews' | 'expenses' | 'performance';
 
-type SettingsSectionId = 'seo' | 'ai' | 'pricing' | 'website' | 'business' | 'theme' | 'templates' | 'reminders' | 'qrcode';
-type BusinessProfileSubId = 'company' | 'social' | 'payments';
-type MarketingSectionId = 'overview' | 'referrals' | 'loyalty' | 'promos' | 'website' | 'gallery' | 'blog';
 type ServicesSectionId = 'catalog' | 'addons';
 
-interface PromotionRow {
-  id: number;
-  title: string;
-  description: string | null;
-  bannerText: string | null;
-  discountCode: string | null;
-  discountPercent: number | null;
-  startDate: string;
-  endDate: string;
-  active: boolean;
-  showOnHomepage: boolean;
-  showOnBooking: boolean;
-}
-
-interface PromoFormState {
-  title: string;
-  description: string;
-  bannerText: string;
-  discountCode: string;
-  /** Kept as a string so the number input can be cleared; coerced on save. */
-  discountPercent: string;
-  startDate: string;
-  endDate: string;
-  showOnHomepage: boolean;
-  showOnBooking: boolean;
-}
-
-const EMPTY_PROMO_FORM: PromoFormState = {
-  title: '',
-  description: '',
-  bannerText: '',
-  discountCode: '',
-  discountPercent: '',
-  startDate: '',
-  endDate: '',
-  showOnHomepage: true,
-  showOnBooking: true,
-};
 const ADMIN_PERMISSIONABLE_TABS: AdminTab[] = [
   'overview',
   'reports',
@@ -219,28 +171,6 @@ const ADMIN_MENU_GROUPS: Array<{ id: string; label: string; tabs: AdminTab[] }> 
   { id: 'team', label: 'Team', tabs: ['staff', 'staffInvoices', 'performance'] },
   { id: 'finance', label: 'Finance', tabs: ['customerInvoices', 'expenses'] },
   { id: 'growth', label: 'Growth', tabs: ['services', 'marketing', 'reviews'] },
-];
-
-const SETTINGS_NAV: { id: SettingsSectionId; label: string }[] = [
-  { id: 'seo', label: 'SEO & search' },
-  { id: 'ai', label: 'AI concierge' },
-  { id: 'pricing', label: 'Pricing page' },
-  { id: 'website', label: 'Website adverts' },
-  { id: 'business', label: 'Business profile' },
-  { id: 'theme', label: 'Theme & colors' },
-  { id: 'templates', label: 'Email & SMS' },
-  { id: 'reminders', label: 'Booking reminders' },
-  { id: 'qrcode', label: 'QR codes' },
-];
-
-const MARKETING_NAV: { id: MarketingSectionId; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'referrals', label: 'Referrals' },
-  { id: 'loyalty', label: 'Loyalty' },
-  { id: 'promos', label: 'Promo codes' },
-  { id: 'website', label: 'Website content' },
-  { id: 'gallery', label: 'Gallery' },
-  { id: 'blog', label: 'Blog' },
 ];
 
 const SERVICES_NAV: { id: ServicesSectionId; label: string }[] = [
@@ -502,12 +432,8 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
   const [isCreatingExtra, setIsCreatingExtra] = useState(false);
   const [newExtra, setNewExtra] = useState({ name: '', price: '', type: 'fixed', duration: '30' });
 
-  // Discount Creation State
-  const [isCreatingDiscount, setIsCreatingDiscount] = useState(false);
-  const [newDiscount, setNewDiscount] = useState({ code: '', type: 'fixed', value: '', usageLimit: '' });
   const [isStaffFormSubmitting, setIsStaffFormSubmitting] = useState(false);
   const [isExtraFormSubmitting, setIsExtraFormSubmitting] = useState(false);
-  const [isDiscountFormSubmitting, setIsDiscountFormSubmitting] = useState(false);
 
   // Modals / Selected Items
   const [reminderModalBooking, setReminderModalBooking] = useState<Booking | null>(null);
@@ -535,14 +461,6 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
   // Rota Tab UI State
 
   // Marketing Tab UI State
-  const [referralFilter, setReferralFilter] = useState('All Select');
-  const [promotionsList, setPromotionsList] = useState<PromotionRow[]>([]);
-  const [promosLoading, setPromosLoading] = useState(false);
-  const [showPromoForm, setShowPromoForm] = useState(false);
-  const [editingPromo, setEditingPromo] = useState<PromotionRow | null>(null);
-  const [promoForm, setPromoForm] = useState<PromoFormState>(EMPTY_PROMO_FORM);
-  const [promoSaving, setPromoSaving] = useState(false);
-  const [promoError, setPromoError] = useState('');
   const [quoteLeadsList, setQuoteLeadsList] = useState<QuoteLead[]>([]);
   const [quoteLeadsLoading, setQuoteLeadsLoading] = useState(false);
 
@@ -550,8 +468,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
   const [selectedChatBooking, setSelectedChatBooking] = useState<Booking | null>(null);
   const [chatSummaries, setChatSummaries] = useState<ChatSummary[]>([]);
 
-  const [settingsSection, setSettingsSection] = useState<SettingsSectionId>('seo');
-  const [businessProfileSub, setBusinessProfileSub] = useState<BusinessProfileSubId>('company');
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionId>('company');
   const [isSavingBusinessProfile, setIsSavingBusinessProfile] = useState(false);
   const didHydrateBusinessSettingsRef = useRef(false);
   const isEditingAdminScopesRef = useRef(false);
@@ -569,22 +486,6 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
       .catch(() => {})
       .finally(() => setDashStatsLoading(false));
   }, [activeTab]);
-
-  const fetchPromotions = useCallback(async () => {
-    setPromosLoading(true);
-    try {
-      const res = await fetch(apiUrl('/admin/promotions'), { credentials: 'include' });
-      if (res.ok) setPromotionsList(await res.json());
-    } catch {
-      /* ignore */
-    } finally {
-      setPromosLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'marketing' && marketingSection === 'promos') void fetchPromotions();
-  }, [activeTab, marketingSection, fetchPromotions]);
 
   const fetchQuoteLeads = useCallback(async () => {
     setQuoteLeadsLoading(true);
@@ -631,72 +532,6 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
   }, []);
 
   const newQuoteCount = useMemo(() => quoteLeadsList.filter((l) => l.status === 'new').length, [quoteLeadsList]);
-
-  const savePromotion = useCallback(async () => {
-    if (!promoForm.title.trim()) return setPromoError('A title is required.');
-    if (!promoForm.startDate || !promoForm.endDate) return setPromoError('Start and end dates are required.');
-    if (promoForm.endDate < promoForm.startDate) return setPromoError('The end date must be on or after the start date.');
-
-    setPromoSaving(true);
-    setPromoError('');
-    try {
-      const payload = {
-        ...promoForm,
-        discountPercent: promoForm.discountPercent === '' ? null : Number(promoForm.discountPercent),
-      };
-      const res = await fetch(
-        editingPromo ? apiUrl(`/admin/promotions/${editingPromo.id}`) : apiUrl('/admin/promotions'),
-        {
-          method: editingPromo ? 'PATCH' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(payload),
-        },
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || 'Could not save the promotion.');
-      }
-      setShowPromoForm(false);
-      setEditingPromo(null);
-      setPromoForm(EMPTY_PROMO_FORM);
-      await fetchPromotions();
-    } catch (e: any) {
-      setPromoError(e?.message || 'Could not save the promotion.');
-    } finally {
-      setPromoSaving(false);
-    }
-  }, [promoForm, editingPromo, fetchPromotions]);
-
-  const togglePromotionActive = useCallback(
-    async (promo: PromotionRow) => {
-      try {
-        await fetch(apiUrl(`/admin/promotions/${promo.id}`), {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ active: !promo.active }),
-        });
-        await fetchPromotions();
-      } catch {
-        /* ignore */
-      }
-    },
-    [fetchPromotions],
-  );
-
-  const deletePromotion = useCallback(
-    async (id: number) => {
-      if (!window.confirm('Delete this promotion?')) return;
-      try {
-        await fetch(apiUrl(`/admin/promotions/${id}`), { method: 'DELETE', credentials: 'include' });
-        await fetchPromotions();
-      } catch {
-        /* ignore */
-      }
-    },
-    [fetchPromotions],
-  );
 
   // Fetch Data
   useEffect(() => {
@@ -886,7 +721,11 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
       const depositMsgRaw = String(businessSettings.depositPolicy?.message || '').trim();
       const consentRaw = String(businessSettings.cancellationPolicy?.consentMessage || '').trim();
       const merged: Record<string, unknown> = {
-        ...businessSettings,
+        companyName: String(businessSettings.companyName || '').trim(),
+        email: String(businessSettings.email || '').trim(),
+        phone: String(businessSettings.phone || '').trim(),
+        website: String(businessSettings.website || '').trim(),
+        socialLinks: businessSettings.socialLinks,
         address: clamp(String(businessSettings.address || '')),
         bankDetails: cleanedBankDetails,
         depositPolicy: {
@@ -909,9 +748,11 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
       await apiAdmin.updateBusinessSettings(payload);
       setBusinessSettings((prev) => ({ ...prev, ...payload }));
       window.dispatchEvent(new CustomEvent('nn_business_settings_updated', { detail: payload }));
-      showFlyer('Business settings updated.', 'success');
+      showFlyer('Business settings saved.', 'success');
+      return true;
     } catch (e) {
       showFlyer(e instanceof Error ? e.message : 'Could not save business settings.', 'error');
+      return false;
     } finally {
       setIsSavingBusinessProfile(false);
     }
@@ -932,29 +773,6 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
     ).length;
     return { unassignedTomorrow, stalePending, pendingToday };
   }, [bookings]);
-
-  const referralStats = useMemo(() => {
-    const list = referrals || [];
-    const totalReward = list.reduce((s, r) => s + Number(r.rewardAmount || 0), 0);
-    let pending = 0;
-    let completed = 0;
-    let paid = 0;
-    list.forEach((r) => {
-      if (r.status === 'Pending') pending++;
-      else if (r.status === 'Completed') completed++;
-      else if (r.status === 'Paid Out') paid++;
-    });
-    const settled = completed + paid;
-    const conversion = list.length ? Math.round((settled / list.length) * 100) : 0;
-    return { total: list.length, totalReward, pending, completed, paid, conversion };
-  }, [referrals]);
-
-  const discountStats = useMemo(() => {
-    const list = discounts || [];
-    const redemptions = list.reduce((s, d) => s + (d.usedCount || 0), 0);
-    const active = list.filter(d => d.isActive).length;
-    return { count: list.length, redemptions, active };
-  }, [discounts]);
 
   const staffScheduleConflicts = useMemo(
     () => findStaffScheduleConflicts(bookings, services, extraServices),
@@ -1374,52 +1192,6 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
       showFlyer(e instanceof Error ? e.message : 'Failed to update referral reward.', 'error');
     } finally {
       setIsSavingReferralReward(false);
-    }
-  };
-
-  const handleCreateDiscount = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isDiscountFormSubmitting) return;
-    const code = newDiscount.code.trim();
-    const valueNum = parseFloat(newDiscount.value);
-    if (!code) {
-      showFlyer('Please enter a promo code.', 'error');
-      return;
-    }
-    if (!Number.isFinite(valueNum) || valueNum <= 0) {
-      showFlyer('Please enter a discount value greater than zero.', 'error');
-      return;
-    }
-    if (newDiscount.type === 'percentage' && valueNum > 100) {
-      showFlyer('Percentage discounts cannot exceed 100%.', 'error');
-      return;
-    }
-    let usageLimit: number | null = null;
-    if (newDiscount.usageLimit.trim()) {
-      const n = parseInt(newDiscount.usageLimit, 10);
-      if (!Number.isFinite(n) || n < 1) {
-        showFlyer('Usage limit must be a whole number of 1 or more.', 'error');
-        return;
-      }
-      usageLimit = n;
-    }
-    setIsDiscountFormSubmitting(true);
-    try {
-      await apiAdmin.createDiscount({
-        ...newDiscount,
-        code,
-        value: valueNum,
-        usageLimit
-      });
-      const d = await apiAdmin.getDiscounts();
-      setDiscounts(d);
-      setIsCreatingDiscount(false);
-      setNewDiscount({ code: '', type: 'fixed', value: '', usageLimit: '' });
-      showFlyer("Discount created!", 'success');
-    } catch (err: unknown) {
-      showFlyer(err instanceof Error ? err.message : 'Failed to create discount.', 'error');
-    } finally {
-      setIsDiscountFormSubmitting(false);
     }
   };
 
@@ -2392,540 +2164,29 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
         )}
 
         {activeTab === 'marketing' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            <div className="pb-4 border-b border-slate-100">
-              <h3 className="text-3xl font-black text-slate-900 tracking-tight">Marketing &amp; Referrals</h3>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                Jump to a section - no long scrolling
-              </p>
-            </div>
-
-            <div className="flex flex-col lg:flex-row gap-8 items-start">
-              <AdminInnerSubNav
-                ariaLabel="Marketing sections"
-                items={MARKETING_NAV}
-                active={marketingSection}
-                onChange={setMarketingSection}
-              />
-
-              <div className="flex-1 min-w-0 space-y-8 w-full">
-                {marketingSection === 'overview' && (
-                  <div className="space-y-8">
-                    <div className="flex justify-between items-center flex-wrap gap-4">
-                      <h4 className="text-xl font-black text-slate-900">Overview &amp; stats</h4>
-                      <button
-                        onClick={() => setIsCreatingDiscount(true)}
-                        className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center shadow-lg shadow-blue-200"
-                      >
-                        <Plus className="w-5 h-5 mr-2" /> Create Promo
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="bg-white p-6 rounded-[1.5rem] border border-slate-100 shadow-sm">
-                        <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Referrals logged</div>
-                        <div className="text-3xl font-black text-slate-900 tabular-nums">{referralStats.total}</div>
-                      </div>
-                      <div className="bg-white p-6 rounded-[1.5rem] border border-slate-100 shadow-sm">
-                        <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Reward pool (£)</div>
-                        <div className="text-3xl font-black text-slate-900 tabular-nums">£{referralStats.totalReward.toFixed(2)}</div>
-                      </div>
-                      <div className="bg-white p-6 rounded-[1.5rem] border border-slate-100 shadow-sm">
-                        <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Settled vs open</div>
-                        <div className="text-lg font-black text-slate-900">
-                          <span className="text-green-600 tabular-nums">{referralStats.completed + referralStats.paid}</span>
-                          <span className="text-slate-300 mx-1">/</span>
-                          <span className="text-amber-600 tabular-nums">{referralStats.pending}</span>
-                        </div>
-                      </div>
-                      <div className="bg-white p-6 rounded-[1.5rem] border border-slate-100 shadow-sm">
-                        <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Completion rate</div>
-                        <div className="text-3xl font-black text-slate-900 tabular-nums">{referralStats.conversion}%</div>
-                        <p className="text-[10px] text-slate-400 font-medium mt-1">Completed or paid ÷ total</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5">
-                        <div className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1">Active promo codes</div>
-                        <div className="text-2xl font-black text-indigo-900 tabular-nums">{discountStats.active}</div>
-                      </div>
-                      <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5">
-                        <div className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1">Total redemptions</div>
-                        <div className="text-2xl font-black text-indigo-900 tabular-nums">{discountStats.redemptions}</div>
-                      </div>
-                      <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5">
-                        <div className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1">Codes in system</div>
-                        <div className="text-2xl font-black text-indigo-900 tabular-nums">{discountStats.count}</div>
-                      </div>
-                    </div>
-
-                    <div className="pt-6 border-t border-slate-100">
-                      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
-                        <div>
-                          <h4 className="text-lg font-black text-slate-900">Free quote requests</h4>
-                          <p className="text-sm text-slate-600 font-medium mt-1">
-                            {newQuoteCount > 0
-                              ? `${newQuoteCount} new ${newQuoteCount === 1 ? 'request is' : 'requests are'} waiting for a reply.`
-                              : 'No new requests waiting.'}{' '}
-                            Homepage quotes now have their own page.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setActiveTab('quotes')}
-                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-black hover:bg-blue-700"
-                        >
-                          <ClipboardList className="w-4 h-4" /> Open Quote Requests
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {marketingSection === 'referrals' && (
-                  <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100/50 p-5 sm:p-8">
-                    <div className="mb-6 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
-                      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-                        <div>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Global referral reward</p>
-                          <p className="text-xs font-bold text-slate-600 mt-1">This amount is applied to all referral rows (staff + customer).</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-black text-slate-500">£</span>
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            value={Number.isFinite(referralRewardAmount) ? referralRewardAmount : 0}
-                            onChange={(e) => setReferralRewardAmount(Number(e.target.value))}
-                            className="w-28 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-black text-slate-900"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleSaveReferralRewardAmount}
-                            disabled={isSavingReferralReward}
-                            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-black uppercase tracking-widest hover:bg-blue-700 disabled:opacity-50"
-                          >
-                            {isSavingReferralReward ? 'Saving...' : 'Save'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
-                      <h4 className="text-xl font-black text-slate-900">Referral monitoring</h4>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-bold text-slate-400">Filter by Status:</span>
-                        <select
-                          value={referralFilter}
-                          onChange={(e) => setReferralFilter(e.target.value)}
-                          className="bg-slate-50 border-none text-xs font-black uppercase text-slate-600 py-2 pl-3 pr-8 rounded-lg cursor-pointer outline-none focus:ring-0"
-                        >
-                          <option value="All Select">All Status</option>
-                          <option value="Pending">Pending</option>
-                          <option value="Completed">Completed</option>
-                          <option value="Paid Out">Paid Out</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="overflow-x-auto no-scrollbar">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-slate-50 text-left">
-                            <th className="py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2">Referrer</th>
-                            <th className="py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Type</th>
-                            <th className="py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Referred Client</th>
-                            <th className="py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Added</th>
-                            <th className="py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Reward (£)</th>
-                            <th className="py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Status</th>
-                            <th className="py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right pr-2">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {referrals
-                            .filter((r) => referralFilter === 'All Select' || r.status === referralFilter)
-                            .map((r) => (
-                              <tr key={r.id} className="group hover:bg-slate-50/50 transition-colors">
-                                <td className="py-4 pl-2">
-                                  <div className="font-bold text-sm text-slate-900">{r.referrerName}</div>
-                                </td>
-                                <td className="py-4">
-                                  <span
-                                    className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider ${r.referrerType === 'staff' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'
-                                      }`}
-                                  >
-                                    {r.referrerType}
-                                  </span>
-                                </td>
-                                <td className="py-4">
-                                  <div className="font-bold text-sm text-slate-600">{r.referredClientName}</div>
-                                </td>
-                                <td className="py-4">
-                                  <div className="text-xs font-bold text-slate-400">{new Date(r.dateReferred).toLocaleDateString()}</div>
-                                </td>
-                                <td className="py-4">
-                                  <div className="font-black text-slate-900 text-sm">£{Number(r.rewardAmount || 0).toFixed(2)}</div>
-                                </td>
-                                <td className="py-4">
-                                  <span
-                                    className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider ${r.status === 'Paid Out'
-                                        ? 'bg-green-50 text-green-600'
-                                        : r.status === 'Completed'
-                                          ? 'bg-blue-50 text-blue-600'
-                                          : 'bg-amber-50 text-amber-600'
-                                      }`}
-                                  >
-                                    {r.status}
-                                  </span>
-                                </td>
-                                <td className="py-4 text-right pr-2">
-                                  <button
-                                    onClick={() => setEditingReferral(r)}
-                                    className="p-2 bg-slate-50 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors shadow-sm"
-                                    title="Edit Reward"
-                                  >
-                                    <Edit2 className="w-4 h-4" />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          {referrals.filter((r) => referralFilter === 'All Select' || r.status === referralFilter).length === 0 && (
-                            <tr className="border-none">
-                              <td colSpan={7} className="py-8 text-center text-xs font-bold text-slate-400 italic">
-                                No referrals found matching this filter
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {marketingSection === 'loyalty' && (
-                  <div className="space-y-6">
-                    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100/50 p-5 sm:p-8">
-                      <h4 className="text-xl font-black text-slate-900 mb-6">Loyalty monitoring (customers + staff referrals)</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total customers</p>
-                          <p className="text-3xl font-black text-slate-900 mt-1 tabular-nums">{loyaltyOverview.totalCustomers}</p>
-                        </div>
-                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customers with points</p>
-                          <p className="text-3xl font-black text-slate-900 mt-1 tabular-nums">{loyaltyOverview.customersWithPoints}</p>
-                        </div>
-                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total loyalty points</p>
-                          <p className="text-3xl font-black text-slate-900 mt-1 tabular-nums">{loyaltyOverview.totalPoints}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                      <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100/50 p-5 sm:p-8">
-                        <h5 className="text-lg font-black text-slate-900 mb-4">Top customers by loyalty points</h5>
-                        {loyaltyOverview.topCustomers.length === 0 ? (
-                          <p className="text-sm font-bold text-slate-400">No loyalty data yet.</p>
-                        ) : (
-                          <div className="space-y-3">
-                            {loyaltyOverview.topCustomers.map((u) => (
-                              <div key={u.id} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="font-black text-slate-900 truncate">{u.name}</p>
-                                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 truncate">{u.email}</p>
-                                </div>
-                                <div className="text-right shrink-0">
-                                  <p className="font-black text-slate-900 tabular-nums">{u.loyaltyPoints} pts</p>
-                                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{u.referralCode || 'No code'}</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100/50 p-5 sm:p-8">
-                        <h5 className="text-lg font-black text-slate-900 mb-4">Top referrers (staff + customers)</h5>
-                        {loyaltyOverview.topReferrers.length === 0 ? (
-                          <p className="text-sm font-bold text-slate-400">No referral activity yet.</p>
-                        ) : (
-                          <div className="space-y-3">
-                            {loyaltyOverview.topReferrers.map((r) => (
-                              <div key={r.id} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="font-black text-slate-900 truncate">{r.name}</p>
-                                  <p className={`inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${String(r.role).toLowerCase() === 'staff' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
-                                    {String(r.role).toLowerCase() === 'staff' ? 'staff' : 'customer'}
-                                  </p>
-                                </div>
-                                <p className="font-black text-slate-900 tabular-nums shrink-0">{r.referrals} referrals</p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {marketingSection === 'promos' && (
-                  <div className="space-y-6">
-                    <div className="flex justify-between items-center flex-wrap gap-4">
-                      <h4 className="text-xl font-black text-slate-900">Active promo codes</h4>
-                      <button
-                        onClick={() => setIsCreatingDiscount(true)}
-                        className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
-                      >
-                        <Plus className="w-5 h-5 mr-2 inline" /> New code
-                      </button>
-                    </div>
-                    {!discounts || discounts.length === 0 ? (
-                      <div className="text-slate-400 text-sm font-bold bg-slate-50 p-6 rounded-2xl text-center">No promo codes yet.</div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {discounts.map((d) => (
-                          <div key={d.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 relative group">
-                            <div className="absolute top-6 right-6">
-                              <button
-                                onClick={() =>
-                                  window.confirm('Delete this promo code?') &&
-                                  apiAdmin.deleteDiscount(d.id).then(() => setDiscounts(discounts.filter((x) => x.id !== d.id)))
-                                }
-                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                            <div className="text-2xl font-black text-blue-600 tracking-tight mb-2">{d.code}</div>
-                            <div className="text-sm font-bold text-slate-700">{d.type === 'percentage' ? `${d.value}% OFF` : `£${d.value} OFF`}</div>
-                            <div className="text-[10px] font-black uppercase text-slate-400 mt-4 tracking-widest">
-                              Used {d.usedCount} times {d.usageLimit ? `/ ${d.usageLimit}` : ''}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="pt-6 border-t border-slate-100 space-y-6">
-                      <div className="flex justify-between items-center flex-wrap gap-4">
-                        <div>
-                          <h4 className="text-xl font-black text-slate-900">Seasonal promotions</h4>
-                          <p className="text-sm text-slate-500 font-medium mt-1">
-                            Time-limited banners shown on the website between the dates you set.
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setEditingPromo(null);
-                            setPromoForm(EMPTY_PROMO_FORM);
-                            setShowPromoForm(true);
-                          }}
-                          className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
-                        >
-                          <Plus className="w-5 h-5 mr-2 inline" /> New promotion
-                        </button>
-                      </div>
-
-                      {showPromoForm && (
-                        <div className="bg-slate-50 rounded-2xl p-6 space-y-4">
-                          <h5 className="font-black text-slate-900">{editingPromo ? 'Edit promotion' : 'Create promotion'}</h5>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <input
-                              value={promoForm.title}
-                              onChange={(e) => setPromoForm((f) => ({ ...f, title: e.target.value }))}
-                              placeholder="Internal title *"
-                              className="px-4 py-3 rounded-xl border border-slate-200 font-medium outline-none focus:border-blue-400"
-                            />
-                            <input
-                              value={promoForm.bannerText}
-                              onChange={(e) => setPromoForm((f) => ({ ...f, bannerText: e.target.value }))}
-                              placeholder="Banner text shown on the site"
-                              className="px-4 py-3 rounded-xl border border-slate-200 font-medium outline-none focus:border-blue-400"
-                            />
-                            <input
-                              value={promoForm.discountCode}
-                              onChange={(e) => setPromoForm((f) => ({ ...f, discountCode: e.target.value.toUpperCase() }))}
-                              placeholder="Linked promo code (optional)"
-                              className="px-4 py-3 rounded-xl border border-slate-200 font-medium uppercase outline-none focus:border-blue-400"
-                            />
-                            <input
-                              value={promoForm.discountPercent}
-                              onChange={(e) => setPromoForm((f) => ({ ...f, discountPercent: e.target.value }))}
-                              type="number"
-                              min={0}
-                              max={100}
-                              placeholder="Discount % (optional)"
-                              className="px-4 py-3 rounded-xl border border-slate-200 font-medium outline-none focus:border-blue-400"
-                            />
-                            <label className="text-xs font-black uppercase tracking-widest text-slate-400">
-                              Starts
-                              <input
-                                value={promoForm.startDate}
-                                onChange={(e) => setPromoForm((f) => ({ ...f, startDate: e.target.value }))}
-                                type="date"
-                                className="mt-1 w-full px-4 py-3 rounded-xl border border-slate-200 font-medium text-slate-900 normal-case tracking-normal outline-none focus:border-blue-400"
-                              />
-                            </label>
-                            <label className="text-xs font-black uppercase tracking-widest text-slate-400">
-                              Ends
-                              <input
-                                value={promoForm.endDate}
-                                onChange={(e) => setPromoForm((f) => ({ ...f, endDate: e.target.value }))}
-                                type="date"
-                                className="mt-1 w-full px-4 py-3 rounded-xl border border-slate-200 font-medium text-slate-900 normal-case tracking-normal outline-none focus:border-blue-400"
-                              />
-                            </label>
-                          </div>
-                          <textarea
-                            value={promoForm.description}
-                            onChange={(e) => setPromoForm((f) => ({ ...f, description: e.target.value }))}
-                            placeholder="Internal notes"
-                            rows={2}
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 font-medium outline-none focus:border-blue-400"
-                          />
-                          <div className="flex flex-wrap gap-6 text-sm font-bold text-slate-700">
-                            <label className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={promoForm.showOnHomepage}
-                                onChange={(e) => setPromoForm((f) => ({ ...f, showOnHomepage: e.target.checked }))}
-                              />
-                              Show on homepage
-                            </label>
-                            <label className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={promoForm.showOnBooking}
-                                onChange={(e) => setPromoForm((f) => ({ ...f, showOnBooking: e.target.checked }))}
-                              />
-                              Show on booking page
-                            </label>
-                          </div>
-                          {promoError && <div className="text-sm font-bold text-red-600">{promoError}</div>}
-                          <div className="flex gap-3">
-                            <button
-                              onClick={savePromotion}
-                              disabled={promoSaving}
-                              className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-60"
-                            >
-                              {promoSaving ? 'Saving…' : editingPromo ? 'Update promotion' : 'Create promotion'}
-                            </button>
-                            <button
-                              onClick={() => {
-                                setShowPromoForm(false);
-                                setPromoError('');
-                              }}
-                              className="px-6 py-3 rounded-xl font-bold border border-slate-200 text-slate-600 hover:bg-slate-100"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {promosLoading ? (
-                        <div className="text-slate-400 text-sm font-bold">Loading promotions…</div>
-                      ) : promotionsList.length === 0 ? (
-                        <div className="text-slate-400 text-sm font-bold bg-slate-50 p-6 rounded-2xl text-center">
-                          No seasonal promotions yet.
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {promotionsList.map((p) => {
-                            const today = new Date().toISOString().slice(0, 10);
-                            const live = !!p.active && p.startDate <= today && p.endDate >= today;
-                            return (
-                              <div
-                                key={p.id}
-                                className="bg-white p-5 rounded-2xl border border-slate-100 flex flex-col md:flex-row md:items-center gap-4"
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className={`w-2 h-2 rounded-full ${live ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                                    <span className="font-black text-slate-900">{p.title}</span>
-                                    {p.discountCode && (
-                                      <span className="text-[10px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 px-2 py-1 rounded-full">
-                                        {p.discountCode}
-                                      </span>
-                                    )}
-                                    {p.discountPercent ? (
-                                      <span className="text-xs font-bold text-slate-500">{p.discountPercent}% off</span>
-                                    ) : null}
-                                  </div>
-                                  <div className="text-[10px] font-black uppercase text-slate-400 mt-2 tracking-widest">
-                                    {p.startDate} → {p.endDate} {live ? '· Live now' : '· Not showing'}
-                                  </div>
-                                  {p.bannerText && (
-                                    <div className="text-sm text-slate-600 font-medium mt-2 truncate">{p.bannerText}</div>
-                                  )}
-                                </div>
-                                <div className="flex gap-2 shrink-0">
-                                  <button
-                                    onClick={() => {
-                                      setEditingPromo(p);
-                                      setPromoForm({
-                                        title: p.title || '',
-                                        description: p.description || '',
-                                        bannerText: p.bannerText || '',
-                                        discountCode: p.discountCode || '',
-                                        discountPercent: p.discountPercent == null ? '' : String(p.discountPercent),
-                                        startDate: p.startDate || '',
-                                        endDate: p.endDate || '',
-                                        showOnHomepage: p.showOnHomepage !== false,
-                                        showOnBooking: p.showOnBooking !== false,
-                                      });
-                                      setPromoError('');
-                                      setShowPromoForm(true);
-                                    }}
-                                    className="px-4 py-2 rounded-lg text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    onClick={() => togglePromotionActive(p)}
-                                    className="px-4 py-2 rounded-lg text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50"
-                                  >
-                                    {p.active ? 'Deactivate' : 'Activate'}
-                                  </button>
-                                  <button
-                                    onClick={() => deletePromotion(p.id)}
-                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                    aria-label="Delete promotion"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {marketingSection === 'website' && (
-                  <div className="space-y-4">
-                    <h4 className="text-xl font-black text-slate-900">Website content</h4>
-                    <WebsiteContentManager />
-                  </div>
-                )}
-
-                {marketingSection === 'gallery' && (
-                  <div className="space-y-4">
-                    <h4 className="text-xl font-black text-slate-900">Gallery</h4>
-                    <GalleryManager />
-                  </div>
-                )}
-
-                {marketingSection === 'blog' && (
-                  <div className="space-y-4">
-                    <h4 className="text-xl font-black text-slate-900">Blog</h4>
-                    <BlogManager />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <MarketingHub
+            section={marketingSection}
+            onSectionChange={setMarketingSection}
+            referrals={referrals}
+            onReferralsChanged={async () => {
+              const [nextReferrals, nextLoyalty] = await Promise.all([
+                apiAdmin.getReferrals().catch(() => referrals),
+                apiAdmin.getLoyaltyOverview().catch(() => loyaltyOverview),
+              ]);
+              setReferrals(Array.isArray(nextReferrals) ? nextReferrals : []);
+              setLoyaltyOverview(nextLoyalty);
+            }}
+            onEditReferral={setEditingReferral}
+            rewardAmount={referralRewardAmount}
+            onRewardAmountChange={setReferralRewardAmount}
+            onSaveReward={handleSaveReferralRewardAmount}
+            savingReward={isSavingReferralReward}
+            loyalty={loyaltyOverview}
+            discounts={discounts}
+            onDiscountsChange={setDiscounts}
+            newQuoteCount={newQuoteCount}
+            onOpenQuotes={() => setActiveTab('quotes')}
+          />
         )}
 
         {activeTab === 'customerInvoices' && (
@@ -3638,614 +2899,25 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
         )}
 
         {activeTab === 'settings' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            <div className="pb-4 border-b border-slate-100">
-              <h3 className="text-3xl font-black text-slate-900 tracking-tight">Platform Settings</h3>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                Choose a section - no long scrolling
-              </p>
-            </div>
-
-            <div className="flex flex-col lg:flex-row gap-8 items-start">
-              <AdminInnerSubNav
-                ariaLabel="Settings sections"
-                items={SETTINGS_NAV}
-                active={settingsSection}
-                onChange={(id) => {
-                  setSettingsSection(id);
-                  if (id === 'business') setBusinessProfileSub('company');
-                }}
-              />
-
-              <div className="flex-1 min-w-0 w-full space-y-8">
-                {settingsSection === 'seo' && <SeoSettingsManager />}
-
-                {settingsSection === 'ai' && <AiAssistantSettingsPanel />}
-
-                {settingsSection === 'pricing' && <PricingPageSettingsPanel />}
-
-                {settingsSection === 'website' && (
-                  <div className="space-y-4">
-                    <h4 className="text-xl font-black text-slate-900">Website advert cards</h4>
-                    <WebsiteContentManager />
-                  </div>
-                )}
-
-                {settingsSection === 'business' && (
-                  <div className="space-y-6 w-full">
-                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                      <div>
-                        <h4 className="text-xl font-black text-slate-900">Business profile</h4>
-                        <p className="text-sm text-slate-500 font-medium mt-1 max-w-2xl">
-                          Use the tabs below for a full-width layout. Each section has short guidance under the fields. Saving once updates company, social, bank, deposit, and cancellation settings together.
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap p-1 rounded-2xl bg-slate-200/70 border border-slate-200 gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setBusinessProfileSub('company')}
-                          className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${businessProfileSub === 'company' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                          Company &amp; contact
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setBusinessProfileSub('social')}
-                          className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${businessProfileSub === 'social' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                          Social profiles
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setBusinessProfileSub('payments')}
-                          className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${businessProfileSub === 'payments' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                          Bank &amp; policies
-                        </button>
-                      </div>
-                    </div>
-
-                    {businessProfileSub === 'company' && (
-                      <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100/50 p-6 sm:p-10 lg:p-12 w-full">
-                        <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 sm:p-6 mb-8 max-w-3xl">
-                          <h5 className="text-sm font-black text-blue-950 flex items-center gap-2">
-                            <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0" />
-                            Public company &amp; contact details
-                          </h5>
-                          <p className="text-sm text-blue-900/80 font-medium mt-2 leading-relaxed">
-                            These values power the admin header, customer-facing confirmations, invoices, and default notification targets. Keep the support email accurate so booking alerts and Brevo flows reach the right inbox.
-                          </p>
-                        </div>
-                        <div className="space-y-8 max-w-3xl">
-                          <BusinessInputField
-                            label="Company name"
-                            hint="Shown in the admin sidebar, client portal, emails, and PDF-style invoice headers."
-                            value={businessSettings.companyName || ''}
-                            onChange={(v) => setBusinessSettings({ ...businessSettings, companyName: v })}
-                          />
-                          <BusinessInputField
-                            label="Support email"
-                            hint="Primary business inbox. Used for contact forms and as the fallback admin booking address when ADMIN_BOOKING_EMAIL is not set in the server environment."
-                            value={businessSettings.email || ''}
-                            onChange={(v) => setBusinessSettings({ ...businessSettings, email: v })}
-                          />
-                          <BusinessInputField
-                            label="Support phone"
-                            hint="Displayed on invoices, booking confirmations, and SMS templates that reference your brand phone."
-                            value={businessSettings.phone || ''}
-                            onChange={(v) => setBusinessSettings({ ...businessSettings, phone: v })}
-                          />
-                          <BusinessInputField
-                            label="Website URL"
-                            hint="Include https:// when possible. Used in email footers and anywhere the site link is surfaced to customers."
-                            value={businessSettings.website || ''}
-                            onChange={(v) => setBusinessSettings({ ...businessSettings, website: v })}
-                          />
-                          <BusinessTextareaField
-                            label="Business address"
-                            rows={4}
-                            hint="Printed on invoices and used as the official trading address in customer communications. Use line breaks for street, city, and postcode."
-                            value={businessSettings.address || ''}
-                            onChange={(v) => setBusinessSettings({ ...businessSettings, address: v })}
-                          />
-                        </div>
-                        <div className="mt-10 pt-6 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                          <p className="text-xs text-slate-500 font-medium max-w-xl">
-                            Saves together with social, bank, and policy fields from the other tabs.
-                          </p>
-                          <button
-                            type="button"
-                            disabled={isSavingBusinessProfile}
-                            onClick={() => void saveBusinessProfileSettings()}
-                            className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-all shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
-                          >
-                            {isSavingBusinessProfile ? 'Saving…' : 'Save business profile'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {businessProfileSub === 'social' && (
-                      <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100/50 p-6 sm:p-10 lg:p-12 w-full">
-                        <div className="rounded-2xl border border-purple-100 bg-purple-50/60 p-5 sm:p-6 mb-8 max-w-3xl">
-                          <h5 className="text-sm font-black text-purple-950 flex items-center gap-2">
-                            <span className="w-8 h-8 rounded-xl bg-white flex items-center justify-center text-purple-600 font-black border border-purple-100">@</span>
-                            Social &amp; discovery links
-                          </h5>
-                          <p className="text-sm text-purple-900/80 font-medium mt-2 leading-relaxed">
-                            Paste full profile or page URLs. When filled, these typically appear in the website footer, marketing blocks, and anywhere the brand links out to social proof.
-                          </p>
-                        </div>
-                        <div className="space-y-8 max-w-3xl">
-                          <BusinessInputField
-                            label="Facebook URL"
-                            hint="Company page URL (https://facebook.com/…)."
-                            value={businessSettings.socialLinks?.facebook || ''}
-                            onChange={(v) =>
-                              setBusinessSettings({
-                                ...businessSettings,
-                                socialLinks: { ...businessSettings.socialLinks, facebook: v },
-                              })
-                            }
-                          />
-                          <BusinessInputField
-                            label="TikTok URL"
-                            hint="Public profile link."
-                            value={businessSettings.socialLinks?.tiktok || ''}
-                            onChange={(v) =>
-                              setBusinessSettings({
-                                ...businessSettings,
-                                socialLinks: { ...businessSettings.socialLinks, tiktok: v },
-                              })
-                            }
-                          />
-                          <BusinessInputField
-                            label="Instagram URL"
-                            hint="Main grid profile URL."
-                            value={businessSettings.socialLinks?.instagram || ''}
-                            onChange={(v) =>
-                              setBusinessSettings({
-                                ...businessSettings,
-                                socialLinks: { ...businessSettings.socialLinks, instagram: v },
-                              })
-                            }
-                          />
-                          <BusinessInputField
-                            label="Twitter / X URL"
-                            hint="Profile or brand handle URL on X."
-                            value={businessSettings.socialLinks?.twitter || ''}
-                            onChange={(v) =>
-                              setBusinessSettings({
-                                ...businessSettings,
-                                socialLinks: { ...businessSettings.socialLinks, twitter: v },
-                              })
-                            }
-                          />
-                          <BusinessInputField
-                            label="LinkedIn URL"
-                            hint="Company page on LinkedIn."
-                            value={businessSettings.socialLinks?.linkedin || ''}
-                            onChange={(v) =>
-                              setBusinessSettings({
-                                ...businessSettings,
-                                socialLinks: { ...businessSettings.socialLinks, linkedin: v },
-                              })
-                            }
-                          />
-                        </div>
-                        <div className="mt-10 pt-6 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                          <p className="text-xs text-slate-500 font-medium max-w-xl">
-                            Saves together with company, bank, and policy fields from the other tabs.
-                          </p>
-                          <button
-                            type="button"
-                            disabled={isSavingBusinessProfile}
-                            onClick={() => void saveBusinessProfileSettings()}
-                            className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-all shrink-0 disabled:opacity-60 disabled:pointer-events-none"
-                          >
-                            {isSavingBusinessProfile ? 'Saving…' : 'Save business profile'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {businessProfileSub === 'payments' && (
-                      <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100/50 p-6 sm:p-10 lg:p-12 w-full space-y-10">
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 sm:p-6 max-w-3xl">
-                          <h5 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                            <DollarSign className="w-5 h-5 text-emerald-600 shrink-0" />
-                            Bank accounts, deposit, and short-notice cancellation
-                          </h5>
-                          <p className="text-sm text-slate-600 font-medium mt-2 leading-relaxed">
-                            Bank rows shown to customers must include name, account number, and sort code. Inactive accounts are hidden on invoices. Deposit and cancellation text is shown in the booking wizard, confirmation, and client portal when relevant.
-                          </p>
-                        </div>
-
-                        <section className="space-y-5">
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 max-w-3xl">
-                            <div>
-                              <h5 className="text-lg font-black text-slate-900">Bank details</h5>
-                              <p className="text-xs text-slate-500 font-medium mt-1">
-                                Each saved account can be toggled for display on customer invoices and confirmation screens.
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              className="px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-black uppercase tracking-wider shrink-0"
-                              onClick={() =>
-                                setBusinessSettings((prev) => ({
-                                  ...prev,
-                                  bankDetails: [
-                                    ...(prev.bankDetails || []),
-                                    {
-                                      id: `bank-${Date.now()}`,
-                                      accountName: '',
-                                      accountNumber: '',
-                                      sortCode: '',
-                                      bankName: '',
-                                      notes: '',
-                                      active: true,
-                                    },
-                                  ],
-                                }))
-                              }
-                            >
-                              Add account
-                            </button>
-                          </div>
-                          <div className="space-y-4 max-w-3xl">
-                            {(businessSettings.bankDetails || []).length === 0 && (
-                              <p className="text-sm font-semibold text-slate-500">No bank accounts yet. Use Add account to create one.</p>
-                            )}
-                            {(businessSettings.bankDetails || []).map((bank, index) => (
-                              <div key={bank.id || `bank-row-${index}`} className="p-5 sm:p-6 rounded-2xl border border-slate-100 bg-slate-50/70 space-y-4">
-                                <div className="flex items-center justify-between gap-3">
-                                  <p className="text-xs font-black uppercase tracking-wider text-slate-500">Account {index + 1}</p>
-                                  <button
-                                    type="button"
-                                    className="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-black uppercase tracking-wider"
-                                    onClick={() =>
-                                      setBusinessSettings((prev) => ({
-                                        ...prev,
-                                        bankDetails: (prev.bankDetails || []).filter((_, i) => i !== index),
-                                      }))
-                                    }
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  <BusinessInputField
-                                    label="Account name"
-                                    hint="Legal name as it appears on the bank account (e.g. payee on transfers)."
-                                    value={bank.accountName || ''}
-                                    onChange={(v) =>
-                                      setBusinessSettings((prev) => ({
-                                        ...prev,
-                                        bankDetails: (prev.bankDetails || []).map((b, i) => (i === index ? { ...b, accountName: v } : b)),
-                                      }))
-                                    }
-                                  />
-                                  <BusinessInputField
-                                    label="Bank name (optional)"
-                                    hint="Helps customers recognise the institution."
-                                    value={bank.bankName || ''}
-                                    onChange={(v) =>
-                                      setBusinessSettings((prev) => ({
-                                        ...prev,
-                                        bankDetails: (prev.bankDetails || []).map((b, i) => (i === index ? { ...b, bankName: v } : b)),
-                                      }))
-                                    }
-                                  />
-                                  <BusinessInputField
-                                    label="Account number"
-                                    value={bank.accountNumber || ''}
-                                    onChange={(v) =>
-                                      setBusinessSettings((prev) => ({
-                                        ...prev,
-                                        bankDetails: (prev.bankDetails || []).map((b, i) => (i === index ? { ...b, accountNumber: v } : b)),
-                                      }))
-                                    }
-                                  />
-                                  <BusinessInputField
-                                    label="Sort code"
-                                    hint="UK format, e.g. 04-06-05."
-                                    value={bank.sortCode || ''}
-                                    onChange={(v) =>
-                                      setBusinessSettings((prev) => ({
-                                        ...prev,
-                                        bankDetails: (prev.bankDetails || []).map((b, i) => (i === index ? { ...b, sortCode: v } : b)),
-                                      }))
-                                    }
-                                  />
-                                </div>
-                                <BusinessTextareaField
-                                  label="Notes (optional)"
-                                  rows={3}
-                                  hint="Internal memo or extra payment instructions for staff; may be shown on invoices if you use notes publicly."
-                                  value={bank.notes || ''}
-                                  onChange={(v) =>
-                                    setBusinessSettings((prev) => ({
-                                      ...prev,
-                                      bankDetails: (prev.bankDetails || []).map((b, i) => (i === index ? { ...b, notes: v } : b)),
-                                    }))
-                                  }
-                                />
-                                <label className="inline-flex items-start gap-2 text-sm font-semibold text-slate-700">
-                                  <input
-                                    type="checkbox"
-                                    className="mt-1 rounded border-slate-300"
-                                    checked={bank.active !== false}
-                                    onChange={(e) =>
-                                      setBusinessSettings((prev) => ({
-                                        ...prev,
-                                        bankDetails: (prev.bankDetails || []).map((b, i) =>
-                                          i === index ? { ...b, active: e.target.checked } : b
-                                        ),
-                                      }))
-                                    }
-                                  />
-                                  <span>Show this account on customer invoices and booking confirmation payment blocks.</span>
-                                </label>
-                              </div>
-                            ))}
-                          </div>
-                        </section>
-
-                        <section className="space-y-5 max-w-3xl border-t border-slate-100 pt-10">
-                          <h5 className="text-lg font-black text-slate-900">Deposit policy</h5>
-                          <p className="text-sm text-slate-500 font-medium">
-                            The message appears next to the calculated deposit on invoices and confirmations. Percent must be between 0 and 100.
-                          </p>
-                          <div className="max-w-xs">
-                            <BusinessInputField
-                              label="Required deposit (%)"
-                              hint="Example: 40 means customers see 40% of the booking total as the amount to pay now."
-                              value={String(businessSettings.depositPolicy?.requiredPercent ?? 40)}
-                              onChange={(v) =>
-                                setBusinessSettings((prev) => ({
-                                  ...prev,
-                                  depositPolicy: {
-                                    ...(prev.depositPolicy || {}),
-                                    requiredPercent: Number.isFinite(Number(v)) ? Number(v) : 40,
-                                  },
-                                }))
-                              }
-                            />
-                          </div>
-                          <BusinessTextareaField
-                            label="Deposit message"
-                            rows={5}
-                            hint="Plain language shown with the deposit amount on invoices and booking confirmation. You can write several sentences."
-                            value={
-                              businessSettings.depositPolicy?.message ||
-                              'A 40% deposit secures your booking and guarantees our staff arrive on schedule, fully prepared to deliver.'
-                            }
-                            onChange={(v) =>
-                              setBusinessSettings((prev) => ({
-                                ...prev,
-                                depositPolicy: {
-                                  ...(prev.depositPolicy || {}),
-                                  message: v,
-                                },
-                              }))
-                            }
-                          />
-                        </section>
-
-                        <section className="space-y-5 max-w-3xl border-t border-slate-100 pt-10">
-                          <h5 className="text-lg font-black text-slate-900">Short-notice cancellation</h5>
-                          <p className="text-sm text-slate-500 font-medium">
-                            Used when a client cancels close to the job time. The consent line is shown in the portal before they confirm a fee-bearing cancel.
-                          </p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <BusinessInputField
-                              label="Short-notice window (hours)"
-                              hint="Inside this many hours before the visit, the client must consent to the fee to cancel (e.g. 24)."
-                              value={String(businessSettings.cancellationPolicy?.shortNoticeWindowHours ?? 24)}
-                              onChange={(v) =>
-                                setBusinessSettings((prev) => ({
-                                  ...prev,
-                                  cancellationPolicy: {
-                                    ...(prev.cancellationPolicy || {}),
-                                    shortNoticeWindowHours: Number.isFinite(Number(v)) ? Number(v) : 24,
-                                  },
-                                }))
-                              }
-                            />
-                            <BusinessInputField
-                              label="Short-notice fee (%)"
-                              hint="Maximum percentage of booking total referenced in consent (0–100)."
-                              value={String(businessSettings.cancellationPolicy?.shortNoticeFeePercent ?? 10)}
-                              onChange={(v) =>
-                                setBusinessSettings((prev) => ({
-                                  ...prev,
-                                  cancellationPolicy: {
-                                    ...(prev.cancellationPolicy || {}),
-                                    shortNoticeFeePercent: Number.isFinite(Number(v)) ? Number(v) : 10,
-                                  },
-                                }))
-                              }
-                            />
-                          </div>
-                          <BusinessTextareaField
-                            label="Cancellation consent message"
-                            rows={6}
-                            hint="Shown next to the consent checkbox when clients cancel inside the short-notice window. Mention the fee percentage and how payment will be collected."
-                            value={
-                              businessSettings.cancellationPolicy?.consentMessage ||
-                              'If you choose to cancel within 24 hours of your appointment, you agree to a short-notice cancellation fee of 10% of the booking total.'
-                            }
-                            onChange={(v) =>
-                              setBusinessSettings((prev) => ({
-                                ...prev,
-                                cancellationPolicy: {
-                                  ...(prev.cancellationPolicy || {}),
-                                  consentMessage: v,
-                                },
-                              }))
-                            }
-                          />
-                        </section>
-
-                        <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                          <p className="text-xs text-slate-500 font-medium max-w-xl">
-                            Saves together with company and social fields from the other tabs.
-                          </p>
-                          <button
-                            type="button"
-                            disabled={isSavingBusinessProfile}
-                            onClick={() => void saveBusinessProfileSettings()}
-                            className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-all shrink-0 disabled:opacity-60 disabled:pointer-events-none"
-                          >
-                            {isSavingBusinessProfile ? 'Saving…' : 'Save business profile'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {settingsSection === 'theme' && (
-                  <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100/50 p-5 sm:p-8">
-                    <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
-                      <div>
-                        <h4 className="text-xl font-black text-slate-900">Theme &amp; Branding</h4>
-                        <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Customize your global appearance</p>
-                      </div>
-                      <button
-                        onClick={() => saveTheme().then(() => showFlyer('Theme Saved Successfully!', 'success'))}
-                        className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all text-sm"
-                      >
-                        Apply Theme
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
-                      <div className="flex items-center space-x-6">
-                        <input
-                          type="color"
-                          value={themeSettings.theme_primary || '#4f46e5'}
-                          onChange={(e) => updateTheme({ theme_primary: e.target.value })}
-                          className="w-20 h-20 rounded-[1.5rem] border-4 border-white shadow-sm cursor-pointer p-0 bg-transparent overflow-hidden"
-                        />
-                        <div>
-                          <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest block mb-1">Primary Color</label>
-                          <div className="text-xl font-black text-slate-900 uppercase">{themeSettings.theme_primary}</div>
-                          <p className="text-xs text-slate-500 mt-1 font-medium">Used for buttons, CTAs, and active states.</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-6">
-                        <input
-                          type="color"
-                          value={themeSettings.theme_background || '#f4f6fb'}
-                          onChange={(e) => updateTheme({ theme_background: e.target.value })}
-                          className="w-20 h-20 rounded-[1.5rem] border-4 border-white shadow-sm cursor-pointer p-0 bg-transparent overflow-hidden"
-                        />
-                        <div>
-                          <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest block mb-1">Global Background</label>
-                          <div className="text-xl font-black text-slate-900 uppercase">{themeSettings.theme_background}</div>
-                          <p className="text-xs text-slate-500 mt-1 font-medium">The main background color for your application.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {settingsSection === 'reminders' && <BookingRemindersPanel />}
-
-                {settingsSection === 'qrcode' && <QrCodePanel />}
-
-                {settingsSection === 'templates' && (
-                  <div className="space-y-8">
-                    <div className="rounded-2xl border border-slate-100 bg-slate-50/80 px-5 py-4 text-sm text-slate-600 leading-relaxed">
-                      <p className="font-bold text-slate-800 mb-1">How this works</p>
-                      <p>
-                        Transactional emails use the <strong className="text-slate-900">email shell</strong> layout: logo and contact
-                        block come from <strong className="text-slate-900">Business profile</strong> plus your public site URL (for the
-                        logo image). SMS templates here are used when Brevo transactional SMS is configured on the server; staff and
-                        customer mobiles must be on file where noted in each template description.
-                      </p>
-                    </div>
-                    <BrevoSettingsCard
-                      onStatus={(msg, kind = 'info') => showFlyer(msg, kind === 'info' ? 'success' : kind)}
-                    />
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <div>
-                        <h4 className="text-lg font-black text-slate-900 tracking-tight">Message templates</h4>
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                          {emailTemplates.length} email · {smsTemplates.length} SMS
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={reloadMessageTemplates}
-                        disabled={templatesReloading}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-black uppercase tracking-widest hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <RefreshCw className={`w-4 h-4 ${templatesReloading ? 'animate-spin' : ''}`} />
-                        {templatesReloading ? 'Reloading…' : 'Reload templates'}
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                      <div className="bg-white p-5 sm:p-8 rounded-[2.5rem] border border-slate-100/50 shadow-sm">
-                        <h4 className="text-xl font-black text-slate-900 mb-6 flex items-center">
-                          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mr-3">
-                            <MessageSquare className="w-5 h-5" />
-                          </div>
-                          Email Templates
-                        </h4>
-                        <div className="space-y-4">
-                          {emailTemplates.length === 0 && <p className="text-slate-400 font-bold italic text-sm">No email templates found.</p>}
-                          {emailTemplates.map((t) => (
-                            <div key={t.id} className="p-5 bg-slate-50 rounded-[1.5rem] hover:bg-white hover:shadow-md transition-all border border-transparent hover:border-blue-100 group">
-                              <div className="flex justify-between items-start mb-2">
-                                <div>
-                                  <div className="font-black text-slate-900">{t.description?.trim() ? t.description.split('.')[0] : t.name.replace(/_/g, ' ')}</div>
-                                  <div className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">{t.name}</div>
-                                </div>
-                                <button onClick={() => setEditingEmailTemplate(t)} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-colors">
-                                  Edit
-                                </button>
-                              </div>
-                              <div className="text-xs text-slate-500 font-bold truncate pr-4">{t.subject}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="bg-white p-5 sm:p-8 rounded-[2.5rem] border border-slate-100/50 shadow-sm">
-                        <h4 className="text-xl font-black text-slate-900 mb-6 flex items-center">
-                          <div className="w-10 h-10 rounded-xl bg-green-50 text-green-600 flex items-center justify-center mr-3">
-                            <Smartphone className="w-5 h-5" />
-                          </div>
-                          SMS Templates
-                        </h4>
-                        <div className="space-y-4">
-                          {smsTemplates.length === 0 && <p className="text-slate-400 font-bold italic text-sm">No SMS templates found.</p>}
-                          {smsTemplates.map((t) => (
-                            <div key={t.id} className="p-5 bg-slate-50 rounded-[1.5rem] hover:bg-white hover:shadow-md transition-all border border-transparent hover:border-green-100 group">
-                              <div className="flex justify-between items-start mb-2">
-                                <div>
-                                  <div className="font-black text-slate-900">{t.description?.trim() ? t.description.split('.')[0] : t.name.replace(/_/g, ' ')}</div>
-                                  <div className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">{t.name}</div>
-                                </div>
-                                <button onClick={() => setEditingSmsTemplate(t)} className="px-4 py-2 bg-green-50 text-green-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-green-600 hover:text-white transition-colors">
-                                  Edit
-                                </button>
-                              </div>
-                              <div className="text-xs text-slate-500 font-bold line-clamp-2 pr-4">{t.message}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <SettingsHub
+            section={settingsSection}
+            onSectionChange={setSettingsSection}
+            settings={businessSettings}
+            setSettings={setBusinessSettings}
+            settingsLoaded={didHydrateBusinessSettingsRef.current}
+            onSaveProfile={saveBusinessProfileSettings}
+            savingProfile={isSavingBusinessProfile}
+            emailTemplates={emailTemplates}
+            smsTemplates={smsTemplates}
+            onEditEmailTemplate={setEditingEmailTemplate}
+            onEditSmsTemplate={setEditingSmsTemplate}
+            onReloadTemplates={reloadMessageTemplates}
+            templatesReloading={templatesReloading}
+            onOpenWebsiteContent={() => {
+              setMarketingSection('website');
+              setActiveTab('marketing');
+            }}
+          />
         )}
 
         {/* Communication Center */}
@@ -4519,56 +3191,6 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                 disabled={isExtraFormSubmitting}
                 onClick={() => {
                   if (!isExtraFormSubmitting) setIsCreatingExtra(false);
-                }}
-                className="absolute top-6 right-6 p-2 rounded-full bg-slate-50 hover:bg-slate-100 disabled:opacity-40"
-              >
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {isCreatingDiscount && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 animate-in fade-in zoom-in-95">
-            <div
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-              onClick={() => {
-                if (!isDiscountFormSubmitting) setIsCreatingDiscount(false);
-              }}
-            />
-            <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-6 md:p-10 relative z-10 shadow-2xl">
-              <h3 className="text-2xl font-black text-slate-900 mb-6">Create Discount</h3>
-              <form onSubmit={handleCreateDiscount} className="space-y-4">
-                <BusinessInputField label="Promo Code" value={newDiscount.code} onChange={v => setNewDiscount({ ...newDiscount, code: v.toUpperCase() })} />
-                <div className="grid grid-cols-2 gap-4">
-                  <BusinessInputField label="Value" value={newDiscount.value} onChange={v => setNewDiscount({ ...newDiscount, value: v })} />
-                  <div className="space-y-3">
-                    <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Type</label>
-                    <select
-                      className="w-full bg-card border-2 border-input rounded-2xl p-5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 font-bold text-sm text-foreground"
-                      value={newDiscount.type}
-                      onChange={e => setNewDiscount({ ...newDiscount, type: e.target.value })}
-                    >
-                      <option value="fixed">Fixed Amount (£)</option>
-                      <option value="percentage">Percentage (%)</option>
-                    </select>
-                  </div>
-                </div>
-                <BusinessInputField label="Usage Limit (Optional)" value={newDiscount.usageLimit} onChange={v => setNewDiscount({ ...newDiscount, usageLimit: v })} />
-
-                <button
-                  type="submit"
-                  disabled={isDiscountFormSubmitting}
-                  className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold text-lg mt-4 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:pointer-events-none"
-                >
-                  {isDiscountFormSubmitting ? 'Creating…' : 'Create Promo'}
-                </button>
-              </form>
-              <button
-                type="button"
-                disabled={isDiscountFormSubmitting}
-                onClick={() => {
-                  if (!isDiscountFormSubmitting) setIsCreatingDiscount(false);
                 }}
                 className="absolute top-6 right-6 p-2 rounded-full bg-slate-50 hover:bg-slate-100 disabled:opacity-40"
               >

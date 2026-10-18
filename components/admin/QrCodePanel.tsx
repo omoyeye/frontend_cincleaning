@@ -127,12 +127,12 @@ const QrCodePanel: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Controls */}
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100/50 p-5 sm:p-8 space-y-5">
-          <h5 className="text-sm font-black text-slate-800 uppercase tracking-widest">Configuration</h5>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-8 space-y-5">
+          <h5 className="text-sm font-bold text-slate-800">Configuration</h5>
 
           {/* Target */}
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-bold text-slate-700 mb-2">
               QR code links to
             </label>
             <div className="flex flex-wrap gap-2">
@@ -141,7 +141,7 @@ const QrCodePanel: React.FC = () => {
                   key={opt.value}
                   type="button"
                   onClick={() => setTarget(opt.value)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all ${
+                  className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
                     target === opt.value
                       ? 'bg-primary text-white border-primary shadow-sm'
                       : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
@@ -156,7 +156,7 @@ const QrCodePanel: React.FC = () => {
           {/* Custom URL input */}
           {target === 'custom' && (
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-bold text-slate-700 mb-2">
                 Custom URL
               </label>
               <input
@@ -185,7 +185,7 @@ const QrCodePanel: React.FC = () => {
           {/* Format + Size */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Format</label>
+              <label className="block text-xs font-bold text-slate-700 mb-2">Format</label>
               <select
                 value={format}
                 onChange={(e) => setFormat(e.target.value as QrFormat)}
@@ -196,7 +196,7 @@ const QrCodePanel: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Size</label>
+              <label className="block text-xs font-bold text-slate-700 mb-2">Size</label>
               <select
                 value={size}
                 onChange={(e) => setSize(Number(e.target.value) as QrSize)}
@@ -212,7 +212,7 @@ const QrCodePanel: React.FC = () => {
           {/* Colors */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-bold text-slate-700 mb-2">
                 QR colour
               </label>
               <div className="flex items-center gap-3">
@@ -231,7 +231,7 @@ const QrCodePanel: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-bold text-slate-700 mb-2">
                 Background
               </label>
               <div className="flex items-center gap-3">
@@ -256,7 +256,7 @@ const QrCodePanel: React.FC = () => {
             type="button"
             onClick={generateQr}
             disabled={generating || (target === 'custom' && !customUrl)}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-primary text-white font-bold text-sm uppercase tracking-widest hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+            className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-primary text-white font-bold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
           >
             {generating ? (
               <RefreshCw className="w-4 h-4 animate-spin" />
@@ -268,7 +268,7 @@ const QrCodePanel: React.FC = () => {
         </div>
 
         {/* Preview */}
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100/50 p-5 sm:p-8 flex flex-col items-center justify-center min-h-[400px]">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-8 flex flex-col items-center justify-center min-h-[400px]">
           {!generated ? (
             <div className="text-center space-y-3">
               <div className="w-20 h-20 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center mx-auto">
@@ -280,7 +280,7 @@ const QrCodePanel: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-5 text-center">
-              <h5 className="text-sm font-black text-slate-800 uppercase tracking-widest">Preview</h5>
+              <h5 className="text-sm font-bold text-slate-800">Preview</h5>
               <div className="inline-block rounded-2xl border-2 border-slate-100 p-4 bg-white shadow-sm">
                 {format === 'png' ? (
                   <canvas
@@ -302,7 +302,7 @@ const QrCodePanel: React.FC = () => {
               <button
                 type="button"
                 onClick={downloadQr}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-emerald-600 text-white font-bold text-sm uppercase tracking-widest hover:bg-emerald-700 transition-colors shadow-sm"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition-colors shadow-sm"
               >
                 <Download className="w-4 h-4" />
                 Download {format.toUpperCase()}
