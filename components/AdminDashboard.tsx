@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import BookingPaymentCell from './admin/BookingPaymentCell';
+import BookingsBoard, { type BookingsView } from './admin/BookingsBoard';
 import {
   Users,
   Calendar,
@@ -330,10 +330,8 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
   // Marketing/Discounts State
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<BookingStatus | 'All'>('All');
-  const [bookingsSubView, setBookingsSubView] = useState<'pipeline' | 'upcoming'>('pipeline');
-  const [pipelineQuickFilter, setPipelineQuickFilter] = useState<
-    'none' | 'today' | 'unassigned' | 'stale_pending' | 'cancel_requests' | 'cancelled' | 'hidden'
-  >('none');
+  /** Which slice of bookings the Bookings page shows (also set by shortcuts on the overview). */
+  const [pipelineQuickFilter, setPipelineQuickFilter] = useState<BookingsView>('upcoming');
 
   const [selectedBookingIds, setSelectedBookingIds] = useState<Set<number>>(new Set());
   const [hiddenBookingIds, setHiddenBookingIds] = useState<Set<number>>(() => {
@@ -824,40 +822,6 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
       { label: 'Avg. Rating', value: '4.9', icon: <Star className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
     ];
   }, [bookings, staffList]);
-
-  const filteredBookings = useMemo(() => {
-    const today = getTodayYYYYMMDD();
-    const requestBookingIds = new Set(
-      staffCancelRequests
-        .filter((r) => String(r.status || '').toLowerCase() === 'approved')
-        .map((r) => r.bookingId)
-        .filter((id) => Number.isFinite(id) && id > 0)
-    );
-    return bookings.filter(b => {
-      if (pipelineQuickFilter === 'hidden') return hiddenBookingIds.has(Number(b.id));
-      if (hiddenBookingIds.has(Number(b.id))) return false;
-      const ref = String(b.bookingId ?? b.id);
-      const matchesSearch = (b.contact?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        ref.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = statusFilter === 'All' || b.status === statusFilter;
-      if (!matchesSearch || !matchesStatus) return false;
-      if (pipelineQuickFilter === 'today') return b.date === today;
-      if (pipelineQuickFilter === 'unassigned') {
-        const active = b.status !== BookingStatus.CANCELLED && b.status !== BookingStatus.COMPLETED;
-        return active && !bookingHasStaff(b) && b.date >= today;
-      }
-      if (pipelineQuickFilter === 'stale_pending') {
-        return b.status === BookingStatus.PENDING && b.date < today;
-      }
-      if (pipelineQuickFilter === 'cancel_requests') {
-        return requestBookingIds.has(Number(b.id));
-      }
-      if (pipelineQuickFilter === 'cancelled') {
-        return b.status === BookingStatus.CANCELLED;
-      }
-      return true;
-    });
-  }, [bookings, searchTerm, statusFilter, pipelineQuickFilter, staffCancelRequests, hiddenBookingIds]);
 
   const cancelledBookingsCount = useMemo(
     () => bookings.filter((b) => b.status === BookingStatus.CANCELLED).length,
@@ -1609,9 +1573,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
 
   const mobileHeaderTitle =
     activeTab === 'bookings'
-      ? bookingsSubView === 'upcoming'
-        ? 'Bookings · Upcoming'
-        : 'Bookings · Pipeline'
+      ? 'Bookings'
       : activeTab === 'quotes'
         ? 'Quote Requests'
       : activeTab === 'communication'
@@ -1716,7 +1678,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                         type="button"
                         onClick={() => {
                           setActiveTab(item.id);
-                          if (item.id === 'bookings') setBookingsSubView('pipeline');
+                          if (item.id === 'bookings') setPipelineQuickFilter('upcoming');
                           if (item.id === 'services') setServicesSection('catalog');
                           setIsSidebarOpen(false);
                         }}
@@ -2040,7 +2002,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
-                        setBookingsSubView('pipeline');
+                        setPipelineQuickFilter('all');
                         setActiveTab('bookings'); // Jump to bookings tab on search
                       }
                     }}
@@ -2111,7 +2073,6 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                 <button
                   type="button"
                   onClick={() => {
-                    setBookingsSubView('pipeline');
                     setActiveTab('bookings');
                     setPipelineQuickFilter('stale_pending');
                   }}
@@ -2122,7 +2083,6 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                 <button
                   type="button"
                   onClick={() => {
-                    setBookingsSubView('pipeline');
                     setActiveTab('bookings');
                     setPipelineQuickFilter('today');
                     setStatusFilter(BookingStatus.PENDING);
@@ -2229,7 +2189,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
               type="button"
               onClick={() => {
                 setActiveTab('bookings');
-                setBookingsSubView('upcoming');
+                setPipelineQuickFilter('upcoming');
               }}
               className="w-full flex items-center justify-between gap-4 p-5 sm:p-6 rounded-[1.5rem] border-2 border-blue-200/80 bg-gradient-to-r from-blue-50/90 to-white shadow-sm hover:border-blue-300 hover:shadow-md transition-all text-left group"
             >
@@ -2342,563 +2302,51 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
         )}
 
         {activeTab === 'bookings' && (
-          <div className="flex-1 flex flex-col animate-in fade-in duration-500">
-            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-8">
-              <div>
-                <h3 className="text-3xl font-black text-slate-900 tracking-tight">Bookings</h3>
-                <p className="text-slate-500 text-sm font-medium mt-1">Service pipeline and upcoming appointments in one place.</p>
-              </div>
-              <div className="flex p-1 rounded-2xl bg-slate-200/70 border border-slate-200 gap-1 w-full lg:w-auto shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setBookingsSubView('pipeline')}
-                  className={`flex-1 lg:flex-none px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${bookingsSubView === 'pipeline' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                >
-                  Service pipeline
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBookingsSubView('upcoming')}
-                  className={`flex-1 lg:flex-none px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${bookingsSubView === 'upcoming' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                >
-                  Upcoming appointments
-                </button>
-              </div>
-            </div>
-
-            {bookingsSubView === 'pipeline' && (
-              <>
-                <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
-                  <div>
-                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Service pipeline</h3>
-                    <p className="text-slate-500 text-sm font-medium mt-1">Manage and track all incoming client requests.</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="relative w-full md:w-64">
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                      <input
-                        type="text"
-                        placeholder="Search..."
-                        className="w-full pl-12 pr-6 py-4 bg-white border border-slate-100 rounded-2xl outline-none focus:ring-2 ring-blue-500/20 font-bold shadow-sm transition-all"
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                      />
-                    </div>
-                    {/* Filters */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="relative">
-                        <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                        <select
-                          className="pl-10 pr-8 py-4 bg-white border border-slate-100 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 ring-blue-500/20 appearance-none cursor-pointer shadow-sm transition-all"
-                          value={statusFilter}
-                          onChange={e => setStatusFilter(e.target.value as any)}
-                        >
-                          {[
-                            'All',
-                            BookingStatus.PENDING,
-                            BookingStatus.CONFIRMED,
-                            BookingStatus.COMPLETED,
-                            BookingStatus.CANCELLED,
-                          ].map((st) => (
-                            <option key={st} value={st}>
-                              {st}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 items-center">
-                        {([
-                          { id: 'none' as const, label: 'All' },
-                          { id: 'today' as const, label: 'Today' },
-                          { id: 'unassigned' as const, label: 'Unassigned' },
-                          { id: 'stale_pending' as const, label: 'Stale pending' },
-                          { id: 'cancel_requests' as const, label: `Cancel requests (${approvedCancelNeedsReassignCount})` },
-                          { id: 'cancelled' as const, label: `Cancelled (${cancelledBookingsCount})` },
-                          ...(hiddenBookingsCount > 0 ? [{ id: 'hidden' as const, label: `Hidden (${hiddenBookingsCount})` }] : []),
-                        ]).map((q) => (
-                          <button
-                            key={q.id}
-                            type="button"
-                            onClick={() => { setPipelineQuickFilter(q.id); setSelectedBookingIds(new Set()); }}
-                            className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide border transition-all ${pipelineQuickFilter === q.id
-                              ? q.id === 'hidden' ? 'bg-orange-600 text-white border-orange-600' : 'bg-slate-900 text-white border-slate-900'
-                              : q.id === 'hidden' ? 'bg-orange-50 border-orange-200 text-orange-600 hover:border-orange-300' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}
-                          >
-                            {q.label}
-                          </button>
-                        ))}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          exportBookingsCsv(filteredBookings, `bookings-export-${new Date().toISOString().slice(0, 10)}.csv`);
-                          showFlyer('Downloaded CSV with the current pipeline view.', 'success');
-                        }}
-                        className="p-4 bg-white border border-slate-100 text-slate-700 rounded-2xl hover:bg-slate-50 transition-colors shadow-sm"
-                        title="Export visible rows to CSV"
-                      >
-                        <Download className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={async () => {
-                          const toRemind = filteredBookings.filter(b => b.status === BookingStatus.CONFIRMED);
-                          if (toRemind.length === 0) {
-                            showFlyer("No confirmed bookings to remind", 'error');
-                            return;
-                          }
-                          setReminderMessage("Hi there, just a quick reminder about your upcoming booking. Looking forward to seeing you!");
-                          setBatchReminderModalOpen(true);
-                        }}
-                        className="p-4 bg-white border border-slate-100 text-blue-600 rounded-2xl hover:bg-blue-50 transition-colors shadow-sm"
-                        title="Send Reminders to Confirmed Bookings"
-                      >
-                        <Mail className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {pendingCancelRequests.length > 0 && (
-                  <div className="mb-6 space-y-3">
-                    <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-1">Staff cancellation requests</p>
-                      <p className="text-sm font-bold text-amber-900">
-                        {pendingCancelRequests.length} pending request{pendingCancelRequests.length === 1 ? '' : 's'} need your response.
-                      </p>
-                    </div>
-                    <div className="space-y-3">
-                      {pendingCancelRequests.map((r) => (
-                        <div key={r.id} className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-                          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                Booking {r.bookingId} • {r.date || 'N/A'} {r.time || ''}
-                              </p>
-                              <p className="font-black text-slate-900 mt-1">
-                                {r.staffName} requested cancellation{r.serviceType ? ` (${r.serviceType})` : ''}.
-                              </p>
-                              {r.reason ? <p className="text-sm font-medium text-slate-600 mt-1">Reason: {r.reason}</p> : null}
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleCancelRequestDecision(r.id, 'approve')}
-                                className="px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-black uppercase tracking-widest hover:bg-red-700"
-                              >
-                                Approve cancel
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleCancelRequestDecision(r.id, 'reject')}
-                                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-black uppercase tracking-widest hover:bg-slate-700"
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          </div>
-                          <input
-                            type="text"
-                            value={cancelDecisionNotes[r.id] || ''}
-                            onChange={(e) =>
-                              setCancelDecisionNotes((prev) => ({
-                                ...prev,
-                                [r.id]: e.target.value,
-                              }))
-                            }
-                            placeholder="Optional note (sent when rejecting)"
-                            className="mt-3 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-medium"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {selectedBookingIds.size > 0 && (
-                  <div className="mb-4 flex items-center gap-3 p-3 rounded-2xl bg-slate-900 text-white animate-in slide-in-from-top-2 duration-300">
-                    <span className="text-xs font-black uppercase tracking-widest">
-                      {selectedBookingIds.size} selected
-                    </span>
-                    <div className="flex-1" />
-                    {pipelineQuickFilter === 'hidden' ? (
-                      <button
-                        type="button"
-                        onClick={() => handleRestoreBookings([...selectedBookingIds])}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all flex items-center gap-2"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" /> Restore to view
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleDismissBookings([...selectedBookingIds])}
-                        className="px-4 py-2 rounded-xl bg-orange-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-orange-500 transition-all flex items-center gap-2"
-                      >
-                        <EyeOff className="w-3.5 h-3.5" /> Remove from view
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedBookingIds(new Set())}
-                      className="px-4 py-2 rounded-xl bg-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/20 transition-all"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between mb-2 px-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    {filteredBookings.length} booking{filteredBookings.length === 1 ? '' : 's'}
-                    {pipelineQuickFilter === 'hidden' ? ' hidden from view' : ''}
-                  </span>
-                </div>
-
-                <div className="overflow-x-auto no-scrollbar flex-1">
-                  <table className="w-full text-left min-w-[1180px]">
-                    <thead className="sticky top-0 bg-slate-50/80 backdrop-blur-md z-10">
-                      <tr>
-                        <th className="pl-4 pr-2 py-5 w-[44px]">
-                          <input
-                            type="checkbox"
-                            checked={filteredBookings.length > 0 && filteredBookings.every(b => selectedBookingIds.has(Number(b.id)))}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedBookingIds(new Set(filteredBookings.map(b => Number(b.id))));
-                              } else {
-                                setSelectedBookingIds(new Set());
-                              }
-                            }}
-                            className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 cursor-pointer"
-                            title="Select all"
-                          />
-                        </th>
-                        <th className="px-6 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Client</th>
-                        <th className="px-6 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Service</th>
-                        <th className="px-6 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Price</th>
-                        <th className="px-6 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Status</th>
-                        <th className="px-4 py-5 text-center text-[10px] font-black uppercase text-slate-400 tracking-widest w-[180px]">Payment</th>
-                        <th className="px-6 py-5 text-right text-[10px] font-black uppercase text-slate-400 tracking-widest">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {filteredBookings.map(b => {
-                        const isSelected = selectedBookingIds.has(Number(b.id));
-                        const isHiddenView = pipelineQuickFilter === 'hidden';
-                        return (
-                        <tr
-                          key={b.id}
-                          className={`group transition-all ${isSelected ? 'bg-blue-50/60' : b.status === BookingStatus.CANCELLED
-                              ? 'bg-red-50/70 hover:bg-red-50'
-                              : isHiddenView
-                                ? 'bg-orange-50/40 hover:bg-orange-50/60'
-                                : approvedCancelBookingIds.has(b.id) &&
-                                  !bookingHasStaff(b) &&
-                                  b.status !== BookingStatus.COMPLETED
-                                  ? 'bg-red-50/55 hover:bg-red-50'
-                                  : 'hover:bg-slate-50/30'
-                            }`}
-                        >
-                          <td className="pl-4 pr-2 py-5 w-[44px]">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={(e) => {
-                                const next = new Set(selectedBookingIds);
-                                if (e.target.checked) next.add(Number(b.id)); else next.delete(Number(b.id));
-                                setSelectedBookingIds(next);
-                              }}
-                              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 cursor-pointer"
-                            />
-                          </td>
-                          <td className="px-6 py-5">
-                            <div
-                              className="font-black text-slate-900 hover:text-blue-600 cursor-pointer transition-colors inline-block"
-                              onClick={(e) => { e.stopPropagation(); if (b.contact?.email) setProfileClientEmail(b.contact.email); }}
-                            >{b.contact?.name || 'Guest'}</div>
-                            <div className="text-[10px] font-bold text-slate-400">REF: {b.bookingId}</div>
-                          </td>
-                          <td className="px-6 py-5">
-                            <div className="font-bold text-sm text-slate-700">{b.serviceType}</div>
-                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{b.date} • {b.time}</div>
-                          </td>
-                          <td className="px-6 py-5">
-                            <div className="font-black text-sm text-slate-800">£{Number(b.totalPrice || 0).toFixed(2)}</div>
-                          </td>
-                          <td className="px-6 py-5">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {b.status === BookingStatus.CANCELLED ? (
-                                <Ban className="w-4 h-4 text-red-500 shrink-0" aria-hidden />
-                              ) : null}
-                              <span
-                                className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${b.status === BookingStatus.COMPLETED
-                                    ? 'bg-green-50 text-green-600'
-                                    : b.status === BookingStatus.PENDING
-                                      ? 'bg-amber-50 text-amber-600'
-                                      : b.status === BookingStatus.CANCELLED
-                                        ? 'bg-red-50 text-red-600 ring-1 ring-red-100'
-                                        : 'bg-blue-50 text-blue-600'
-                                  }`}
-                              >
-                                {b.status}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-5 text-center">
-                            <BookingPaymentCell
-                              booking={b}
-                              onChanged={(patch) => setBookings((prev) => prev.map((row) => (row.id === b.id ? { ...row, ...patch } : row)))}
-                            />
-                          </td>
-                          <td className="px-6 py-5 text-right">
-                            <div className="flex justify-end space-x-2 transition-opacity">
-                              {isHiddenView ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleRestoreBookings([Number(b.id)])}
-                                  className="px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 transition-all flex items-center"
-                                  title="Restore this booking to the pipeline view"
-                                >
-                                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Restore
-                                </button>
-                              ) : (
-                                <>
-                                  {approvedCancelBookingIds.has(b.id) && !bookingHasStaff(b) && b.status !== BookingStatus.CANCELLED && b.status !== BookingStatus.COMPLETED && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveTab('assignment');
-                                        setSelectedBookingForAssignment(b);
-                                      }}
-                                      className="px-3 py-2 rounded-xl bg-red-50 text-red-700 border border-red-200 text-[10px] font-black uppercase tracking-widest hover:bg-red-100 transition-all flex items-center"
-                                      title="Staff cancel approved - click to reassign now"
-                                    >
-                                      <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
-                                      staff cancel
-                                    </button>
-                                  )}
-                                  <button onClick={() => {
-                                    setReminderMessage(`Reminder: Your booking for ${b.serviceType} is coming up on ${b.date} at ${b.time}.`);
-                                    setReminderModalBooking(b);
-                                  }} className="p-2 bg-slate-50 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50" title="Send Reminder">
-                                    <Mail className="w-4 h-4" />
-                                  </button>
-                                  <button onClick={() => setRescheduleBooking(b)} className="p-2 bg-slate-50 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50" title="Edit Date/Time">
-                                    <Edit2 className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => setReviewBooking(b)}
-                                    className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-slate-700 transition-all flex items-center active:scale-95"
-                                  >
-                                    <CheckCircle2 className="w-3.5 h-3.5 mr-2" /> Review
-                                  </button>
-                                  <button
-                                    onClick={() => apiAdmin.sendInvoice(b.id).then(() => showFlyer('Invoice Sent Successfully!', 'success'))}
-                                    className="bg-green-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-green-700 transition-all flex items-center active:scale-95"
-                                  >
-                                    <Send className="w-3.5 h-3.5 mr-2" /> Invoice
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDismissBookings([Number(b.id)])}
-                                    className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors"
-                                    title="Hide from view"
-                                  >
-                                    <EyeOff className="w-4 h-4" />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                        );
-                      })}
-                      {filteredBookings.length === 0 && (
-                        <tr>
-                          <td colSpan={7} className="py-12 text-center">
-                            <div className="text-slate-400">
-                              {pipelineQuickFilter === 'hidden' ? (
-                                <>
-                                  <Eye className="w-8 h-8 mx-auto mb-3 text-slate-300" />
-                                  <p className="text-sm font-bold">No hidden bookings</p>
-                                  <p className="text-xs mt-1">All bookings are visible in the pipeline.</p>
-                                </>
-                              ) : (
-                                <>
-                                  <Calendar className="w-8 h-8 mx-auto mb-3 text-slate-300" />
-                                  <p className="text-sm font-bold">No bookings match this filter</p>
-                                  <p className="text-xs mt-1">Try adjusting your search or filter criteria.</p>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-
-            {bookingsSubView === 'upcoming' && (
-              <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100/50 p-5 sm:p-8">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-                  <div>
-                    <h3 className="text-xl font-black text-slate-900">Upcoming appointments</h3>
-                    <p className="text-xs font-medium text-slate-500 mt-1">Sorted by date and time · assign or unassign staff</p>
-                  </div>
-                  <div className="flex items-center space-x-2 shrink-0">
-                    <span className="text-xs font-bold text-slate-400">Filter by:</span>
-                    <select
-                      value={upcomingFilter}
-                      onChange={(e) => setUpcomingFilter(e.target.value)}
-                      className="bg-slate-50 border border-slate-100 text-xs font-black uppercase text-slate-600 py-2 pl-3 pr-8 rounded-lg cursor-pointer outline-none focus:ring-2 focus:ring-blue-500/20"
-                    >
-                      <option value="All Status">All Status</option>
-                      <option value={BookingStatus.CONFIRMED}>Confirmed</option>
-                      <option value={BookingStatus.PENDING}>Pending</option>
-                      <option value={BookingStatus.CANCELLED}>Cancelled</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto no-scrollbar">
-                  <table className="w-full min-w-[900px]">
-                    <thead>
-                      <tr className="border-b border-slate-50 text-left">
-                        <th className="py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest pl-2">Client</th>
-                        <th className="py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Service Type</th>
-                        <th className="py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Date &amp; time</th>
-                        <th className="py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Assigned Staff</th>
-                        <th className="py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Status</th>
-                        <th className="py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right pr-2">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {[...bookings.filter((b) => upcomingFilter === 'All Status' || b.status === upcomingFilter)]
-                        .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
-                        .map((b) => (
-                          <tr
-                            key={b.id}
-                            className={`group transition-colors ${b.status === BookingStatus.CANCELLED ? 'bg-red-50/70 hover:bg-red-50' : 'hover:bg-slate-50/50'
-                              }`}
-                          >
-                            <td className="py-4 pl-2">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-black text-xs text-slate-500">
-                                  {(b.contact?.name || '?').charAt(0)}
-                                </div>
-                                <div>
-                                  <div
-                                    className="text-sm font-bold text-slate-900 hover:text-blue-600 cursor-pointer transition-colors inline-block"
-                                    onClick={(e) => { e.stopPropagation(); if (b.contact?.email) setProfileClientEmail(b.contact.email); }}
-                                  >{b.contact?.name}</div>
-                                  <div className="text-[10px] text-slate-400 font-medium">{b.address.line1}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-4">
-                              <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-wide">
-                                {b.serviceType}
-                              </span>
-                            </td>
-                            <td className="py-4">
-                              <span className="text-xs font-bold text-slate-700">{b.date}</span>
-                              <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-widest">{b.time}</span>
-                            </td>
-                            <td className="py-4">
-                              <div className="flex items-center space-x-2">
-                                {b.assignedStaffId || (b.assignedStaffIds && b.assignedStaffIds.length > 0) ? (
-                                  (() => {
-                                    const sid = b.assignedStaffId || (b.assignedStaffIds && b.assignedStaffIds[0]);
-                                    const s = staffList.find((st) => st.id === sid);
-                                    return s ? (
-                                      <>
-                                        <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] font-black text-emerald-600">
-                                          {s.name.charAt(0)}
-                                        </div>
-                                        <span className="text-xs font-bold text-slate-600">{s.name}</span>
-                                      </>
-                                    ) : (
-                                      <span className="text-xs font-bold text-slate-400">Unassigned</span>
-                                    );
-                                  })()
-                                ) : (
-                                  <span className="text-xs font-bold text-slate-400">Unassigned</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-4">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                {b.status === BookingStatus.CANCELLED ? (
-                                  <Ban className="w-3.5 h-3.5 text-red-500 shrink-0" aria-hidden />
-                                ) : null}
-                                <div
-                                  className={`w-2 h-2 rounded-full shrink-0 ${b.status === BookingStatus.CONFIRMED
-                                      ? 'bg-green-500'
-                                      : b.status === BookingStatus.PENDING
-                                        ? 'bg-amber-500'
-                                        : b.status === BookingStatus.CANCELLED
-                                          ? 'bg-red-500'
-                                          : 'bg-slate-300'
-                                    }`}
-                                />
-                                <span
-                                  className={`text-xs font-bold ${b.status === BookingStatus.CONFIRMED
-                                      ? 'text-green-600'
-                                      : b.status === BookingStatus.PENDING
-                                        ? 'text-amber-600'
-                                        : b.status === BookingStatus.CANCELLED
-                                          ? 'text-red-600'
-                                          : 'text-slate-500'
-                                    }`}
-                                >
-                                  {b.status}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="py-4 text-right pr-2">
-                              <div className="inline-flex items-center gap-2 justify-end">
-                                {(b.assignedStaffId || (b.assignedStaffIds && b.assignedStaffIds.length > 0)) && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleUnassignBooking(b);
-                                    }}
-                                    title="Unassign staff — return job to dispatch queue"
-                                    className="text-slate-400 hover:text-red-600 transition-colors p-2 bg-slate-50 rounded-lg shadow-sm"
-                                  >
-                                    <UserX className="w-4 h-4" />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => {
-                                    setSelectedBookingForAssignment(b);
-                                  }}
-                                  title="Assign Staff"
-                                  className="text-slate-400 hover:text-blue-600 transition-colors p-2 bg-slate-50 rounded-lg shadow-sm"
-                                >
-                                  <UserCheck className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      {bookings.filter((b) => upcomingFilter === 'All Status' || b.status === upcomingFilter).length === 0 && (
-                        <tr className="border-none">
-                          <td colSpan={6} className="py-8 text-center text-xs font-bold text-slate-400 italic">
-                            No appointments matching this filter
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
+          <BookingsBoard
+            bookings={bookings}
+            staffList={staffList}
+            view={pipelineQuickFilter}
+            onViewChange={setPipelineQuickFilter}
+            search={searchTerm}
+            onSearchChange={setSearchTerm}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            hiddenIds={hiddenBookingIds}
+            onHide={handleDismissBookings}
+            onRestore={handleRestoreBookings}
+            cancelRequests={staffCancelRequests}
+            cancelNotes={cancelDecisionNotes}
+            onCancelNoteChange={(id, note) => setCancelDecisionNotes((prev) => ({ ...prev, [id]: note }))}
+            onCancelDecision={handleCancelRequestDecision}
+            onOpen={(b) => setReviewBooking(b)}
+            onReschedule={(b) => setRescheduleBooking(b)}
+            onAssign={(b) => setSelectedBookingForAssignment(b)}
+            onUnassign={(b) => handleUnassignBooking(b)}
+            onRemind={(b) => {
+              setReminderMessage(`Reminder: Your booking for ${b.serviceType} is coming up on ${b.date} at ${b.time}.`);
+              setReminderModalBooking(b);
+            }}
+            onSendInvoice={(b) =>
+              apiAdmin
+                .sendInvoice(String(b.id))
+                .then(() => showFlyer('Invoice sent.', 'success'))
+                .catch((err) => showFlyer(err instanceof Error ? err.message : 'Could not send the invoice', 'error'))
+            }
+            onClientProfile={(email) => setProfileClientEmail(email)}
+            onExport={(list) => {
+              exportBookingsCsv(list, `bookings-export-${new Date().toISOString().slice(0, 10)}.csv`);
+              showFlyer(`Downloaded ${list.length} booking${list.length === 1 ? '' : 's'} as CSV.`, 'success');
+            }}
+            onRemindConfirmed={(list) => {
+              if (!list.some((b) => b.status === BookingStatus.CONFIRMED)) {
+                showFlyer('No confirmed bookings in this view to remind', 'error');
+                return;
+              }
+              setReminderMessage('Hi there, just a quick reminder about your upcoming booking. Looking forward to seeing you!');
+              setBatchReminderModalOpen(true);
+            }}
+            onPaymentChanged={(id, patch) => setBookings((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)))}
+          />
         )}
 
         {activeTab === 'assignment' && (
