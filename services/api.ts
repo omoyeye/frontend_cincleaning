@@ -1484,6 +1484,15 @@ async function handleAdminJson<T>(res: Response, fallbackMsg: string): Promise<T
 
 export const apiAdmin = {
     ...adminRealmApi,
+    /** The finished branded email (layout, logo, footer) with sample values, for the template editor. */
+    previewEmailTemplate: async (payload: { name: string; subject: string; body: string }): Promise<{ subject: string; html: string }> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/email-templates/preview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader('admin') },
+            body: JSON.stringify(payload),
+        });
+        return handleAdminJson<{ subject: string; html: string }>(res, 'Could not build the preview');
+    },
     /** Client paid the rest by cash or bank transfer. */
     markBookingPaidInFull: async (id: string | number): Promise<{ ok: true }> => {
         const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/bookings/${encodeURIComponent(String(id))}/mark-paid-in-full`, {

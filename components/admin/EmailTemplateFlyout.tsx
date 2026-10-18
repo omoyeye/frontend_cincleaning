@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { X, Mail, CheckCircle2, Eye } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, Mail, CheckCircle2, Eye, Smartphone, Monitor, Loader2 } from 'lucide-react';
 import type { EmailTemplate } from '../../types';
-import { sanitizeHtml } from '../../src/utils/sanitizeHtml';
+import { apiAdmin } from '../../services/api';
 
 interface EmailTemplateFlyoutProps {
   template: EmailTemplate;
@@ -14,6 +14,24 @@ const EmailTemplateFlyout: React.FC<EmailTemplateFlyoutProps> = ({ template, onC
   const [body, setBody] = useState(template.body || '');
   const [isSaving, setIsSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null);
+  const [previewError, setPreviewError] = useState('');
+  const [previewWidth, setPreviewWidth] = useState<'phone' | 'desktop'>('desktop');
+
+  // The finished email as clients receive it: branded layout, logo, contact footer and sample values.
+  useEffect(() => {
+    if (!showPreview) return;
+    let alive = true;
+    setPreview(null);
+    setPreviewError('');
+    apiAdmin
+      .previewEmailTemplate({ name: template.name, subject, body })
+      .then((p) => alive && setPreview(p))
+      .catch((e) => alive && setPreviewError(e instanceof Error ? e.message : 'Could not build the preview'));
+    return () => {
+      alive = false;
+    };
+  }, [showPreview]);
 
   const vars = template.variables?.length ? template.variables : [];
 
@@ -56,10 +74,11 @@ const EmailTemplateFlyout: React.FC<EmailTemplateFlyoutProps> = ({ template, onC
               <p className="mt-2">
                 This wraps all other emails. Keep <code className="bg-white/80 px-1 rounded">{'{{inner_content}}'}</code> where each
                 message body goes. Use <code className="bg-white/80 px-1 rounded">{'{{brand_primary}}'}</code> and{' '}
-                <code className="bg-white/80 px-1 rounded">{'{{brand_name}}'}</code> for the header strip.{' '}
-                <code className="bg-white/80 px-1 rounded">{'{{brand_logo_block}}'}</code> and{' '}
-                <code className="bg-white/80 px-1 rounded">{'{{contact_block}}'}</code> are filled from Business profile (phone, email,
-                website, address) and your public site URL for the logo image.
+                <code className="bg-white/80 px-1 rounded">{'{{brand_name}}'}</code> for colours and name.{' '}
+                <code className="bg-white/80 px-1 rounded">{'{{brand_logo_block}}'}</code>,{' '}
+                <code className="bg-white/80 px-1 rounded">{'{{contact_block}}'}</code> and{' '}
+                <code className="bg-white/80 px-1 rounded">{'{{social_block}}'}</code> are filled from Business profile (logo, phone, email,
+                website, address, social links). Every email sent, including system notices, uses this layout.
               </p>
             </div>
           ) : null}
@@ -87,10 +106,44 @@ const EmailTemplateFlyout: React.FC<EmailTemplateFlyoutProps> = ({ template, onC
               </button>
             </div>
             {showPreview ? (
-              <div
-                className="w-full bg-white border-2 border-input rounded-2xl p-6 min-h-[300px] overflow-y-auto text-sm text-slate-800 leading-relaxed [&_a]:text-primary [&_img]:max-w-full"
-                dangerouslySetInnerHTML={{ __html: sanitizeHtml(body || '<p class=\"text-slate-400 italic\">No content</p>') }}
-              />
+              <div className="flex-1 flex flex-col rounded-2xl border-2 border-input bg-slate-100 overflow-hidden min-h-[520px]">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2.5">
+                  <p className="min-w-0 truncate text-xs font-bold text-slate-600">
+                    <span className="text-slate-400">Subject:</span> {preview?.subject || subject}
+                  </p>
+                  <div className="flex shrink-0 rounded-lg bg-slate-100 p-0.5">
+                    {(['desktop', 'phone'] as const).map((w) => (
+                      <button
+                        key={w}
+                        type="button"
+                        onClick={() => setPreviewWidth(w)}
+                        className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${previewWidth === w ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                      >
+                        {w === 'phone' ? <Smartphone className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
+                        {w}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-1 overflow-auto p-3 flex justify-center">
+                  {previewError ? (
+                    <p className="self-center text-sm font-bold text-red-600">{previewError}</p>
+                  ) : !preview ? (
+                    <Loader2 className="h-6 w-6 animate-spin self-center text-slate-400" />
+                  ) : (
+                    <iframe
+                      title="Email preview"
+                      sandbox=""
+                      srcDoc={`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0">${preview.html}</body>`}
+                      className="h-full min-h-[480px] rounded-xl bg-white shadow-sm transition-all"
+                      style={{ width: previewWidth === 'phone' ? 380 : '100%', maxWidth: '100%' }}
+                    />
+                  )}
+                </div>
+                <p className="border-t border-slate-200 bg-white px-4 py-2 text-[11px] font-semibold text-slate-500">
+                  Sample values are filled in. Logo, contact details and social links come from Settings.
+                </p>
+              </div>
             ) : (
               <textarea
                 value={body}
