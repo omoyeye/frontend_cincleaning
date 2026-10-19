@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOMServer from "react-dom/server";
 import App from './App';
 import { buildSsrHeadHtml } from './src/seo/ssrSeo';
+import { setPrerenderWebsiteContent } from './src/cms/content';
 
 import { defaultSiteSeo, deepMergePages } from './src/seo/seoStorage';
 import type { SiteSeoSettings } from './types';
@@ -26,7 +27,7 @@ export function resolveSeoForPrerender(raw: Partial<SiteSeoSettings> | null | un
 if (typeof globalThis !== "undefined") (globalThis as unknown as { React: typeof React }).React = React;
 else if (typeof global !== "undefined") (global as unknown as { React: typeof React }).React = React;
 
-export function render(url: string, settings?: any) {
+export function render(url: string, settings?: any, websiteContent?: unknown) {
   if (url.startsWith('/admin') || url.startsWith('/staff') || url.startsWith('/portal') || url.startsWith('/my-account')) {
     return { html: '', headHtml: '' };
   }
@@ -40,6 +41,7 @@ export function render(url: string, settings?: any) {
     </React.StrictMode>
   );
 
+  setPrerenderWebsiteContent(websiteContent);
   const html = ReactDOMServer.renderToString(app);
   return { html, headHtml };
 }

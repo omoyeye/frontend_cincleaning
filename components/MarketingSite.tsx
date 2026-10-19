@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Loader2, Mail, Phone, Facebook, Instagram } from 'lucide-react';
 import type { BlogPost, Extra, GalleryItem, WebsiteContent } from '../types';
 import { getSiteSeo } from '../src/seo/seoStorage';
-import { getWebsiteContent, normalizeWebsiteContent, saveWebsiteContent } from '../src/cms/content';
+import { getInitialWebsiteContent, getWebsiteContent, normalizeWebsiteContent, saveWebsiteContent } from '../src/cms/content';
 import { subscribeNnSync } from '../services/realtime';
 import { type CustomerPageKey, customerPageFromPath } from '../src/seo/routePaths';
 import { apiClient } from '../services/api';
@@ -128,7 +128,11 @@ const MarketingSite: React.FC<{
   const brandPhone = (brand.phone ?? '').trim();
   const brandEmail = (brand.email ?? '').trim();
   const brandAddress = (brand.address ?? '').trim();
-  const [content, setContent] = useState<WebsiteContent>(() => getWebsiteContent());
+  // First render must match the prerendered HTML; the saved copy (and live settings below) apply after mount.
+  const [content, setContent] = useState<WebsiteContent>(() => getInitialWebsiteContent());
+  useEffect(() => {
+    if (!(window as unknown as { __NN_WEBSITE_CONTENT__?: unknown }).__NN_WEBSITE_CONTENT__) setContent(getWebsiteContent());
+  }, []);
   const [pricingCfg, setPricingCfg] = useState(() => mergePricingPageConfig(null));
   const [frequencyId, setFrequencyId] = useState<string>('weekly');
   const [serviceLength, setServiceLength] = useState(() => mergePricingPageConfig(null).calculator.serviceLengthDefault);

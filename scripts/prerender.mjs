@@ -21,19 +21,24 @@ const { render, PRERENDER_PATHS, resolveSeoForPrerender } = await import(
 );
 const SITE_URL = (process.env.VITE_SITE_URL || 'https://cleanitneatly.com').replace(/\/$/, '');
 
-async function loadLiveSeoSettings() {
+async function loadLiveSettings() {
   const api = (process.env.PRERENDER_API_URL || process.env.VITE_API_URL || '').replace(/\/$/, '');
-  if (!/^https?:\/\//.test(api)) return null;
+  if (!/^https?:\/\//.test(api)) return {};
   try {
     const res = await fetch(`${api}/business-settings`, { signal: AbortSignal.timeout(15000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const settings = await res.json();
-    return settings && typeof settings.seo_settings === 'object' ? settings.seo_settings : null;
+    return {
+      seo: settings && typeof settings.seo_settings === 'object' ? settings.seo_settings : null,
+      websiteContent: settings && typeof settings.websiteContent === 'object' ? settings.websiteContent : null,
+    };
   } catch (e) {
-    console.warn(`[prerender] Could not load SEO settings from ${api} (${e.message}); using defaults.`);
-    return null;
+    console.warn(`[prerender] Could not load settings from ${api} (${e.message}); using defaults.`);
+    return {};
   }
 }
+
+const inlineJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
 
 const insertBefore = (html, marker, snippet) => {
   const i = html.toLowerCase().lastIndexOf(marker);
@@ -41,7 +46,7 @@ const insertBefore = (html, marker, snippet) => {
 };
 
 /** Same head/body injection the old Express SSR handler performed. */
-function buildPage(appHtml, headHtml, seo) {
+function buildPage(appHtml, headHtml, seo, websiteContent) {
   let out = template.split('<!--app-html-->').join(appHtml);
   if (headHtml) {
     out = out.replace(/<title>.*?<\/title>/is, '');
@@ -49,6 +54,8 @@ function buildPage(appHtml, headHtml, seo) {
   }
   let head = '';
   if (seo) head += `<script>window.__NN_SEO_SETTINGS__ = ${JSON.stringify(seo).replace(/<\//g, '<\\/')};</script>\n`;
+  // The content this page was rendered with, so the browser's first render matches (no hydration error).
+  if (appHtml && websiteContent) head += `<script>window.__NN_WEBSITE_CONTENT__ = ${inlineJson(websiteContent)};</script>\n`;
   if (headHtml) head += `${headHtml}\n`;
   if (seo?.scriptHead) head += `${seo.scriptHead}\n`;
   out = insertBefore(out, '</head>', head);
@@ -57,7 +64,7 @@ function buildPage(appHtml, headHtml, seo) {
   return out;
 }
 
-const seo = await loadLiveSeoSettings();
+const { seo = null, websiteContent = null } = await loadLiveSettings();
 // Head tags use defaults merged with live settings; the browser still receives the raw live settings.
 const renderSettings = resolveSeoForPrerender(seo, SITE_URL);
 
@@ -66,8 +73,8 @@ writeFileSync(path.join(distDir, 'app-shell.html'), buildPage('', '', seo));
 
 let count = 0;
 for (const route of PRERENDER_PATHS) {
-  const { html, headHtml } = render(route, renderSettings);
-  const page = buildPage(html, headHtml, seo);
+  const { html, headHtml } = render(route, renderSettings, websiteContent);
+  const page = buildPage(html, headHtml, seo, websiteContent);
   // Vercel `cleanUrls` serves deep-cleaning.html at /deep-cleaning.
   const file = route === '/' ? path.join(distDir, 'index.html') : path.join(distDir, `${route.replace(/^\//, '')}.html`);
   mkdirSync(path.dirname(file), { recursive: true });
@@ -76,4 +83,4 @@ for (const route of PRERENDER_PATHS) {
 }
 
 rmSync(ssrDir, { recursive: true, force: true });
-console.log(`[prerender] ${count} pages + app-shell.html written${seo ? ' (live SEO settings)' : ' (default SEO settings)'}.`);
+console.log(`[prerender] ${count} pages + app-shell.html written (${seo ? 'live' : 'default'} SEO settings, ${websiteContent ? 'live' : 'default'} website content).`);

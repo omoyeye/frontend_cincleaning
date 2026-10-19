@@ -172,6 +172,24 @@ export function normalizeWebsiteContent(raw: unknown): WebsiteContent {
   };
 }
 
+/** Content the prerender rendered with (set by entry-server before renderToString). */
+let prerenderContent: WebsiteContent | null = null;
+
+export function setPrerenderWebsiteContent(raw: unknown): void {
+  prerenderContent = raw ? normalizeWebsiteContent(raw) : null;
+}
+
+/**
+ * Content for the first render. It must be identical on the server and in the browser or React's
+ * hydration fails (#418): the prerender embeds the content it used as window.__NN_WEBSITE_CONTENT__,
+ * and both sides fall back to the defaults. Saved or live content is applied after mount.
+ */
+export function getInitialWebsiteContent(): WebsiteContent {
+  if (typeof window === 'undefined') return prerenderContent ?? defaultWebsiteContent;
+  const snapshot = (window as unknown as { __NN_WEBSITE_CONTENT__?: unknown }).__NN_WEBSITE_CONTENT__;
+  return snapshot ? normalizeWebsiteContent(snapshot) : defaultWebsiteContent;
+}
+
 export function getWebsiteContent(): WebsiteContent {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
