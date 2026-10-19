@@ -153,6 +153,10 @@ export interface Booking {
   pointsEarned?: number;
   rating?: number;
   feedback?: string;
+  /** Customer agreed to show their review on the website. */
+  reviewPublic?: boolean;
+  /** Admin hid the review from the website. */
+  reviewHidden?: boolean;
   /** Populated after staff completes job (clock in/out, notes, photos) */
   workCompletion?: Partial<WorkCompletionData> | WorkCompletionData;
   /** Client-uploaded deposit or cancellation-fee payment proof (registered customers). */
@@ -769,6 +773,8 @@ export interface BusinessSettings {
   logoUrl?: string | null;
   address?: string;
   socialLinks?: SocialMediaLinks;
+  /** Google Business Profile "write a review" link, offered to happy customers after they rate a clean. */
+  googleReviewUrl?: string;
   bankDetails?: BankAccountDetail[];
   depositPolicy?: DepositPolicy;
   cancellationPolicy?: CancellationPolicy;

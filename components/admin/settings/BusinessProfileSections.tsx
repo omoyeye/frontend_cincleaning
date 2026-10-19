@@ -15,6 +15,7 @@ import {
   Globe,
   Plus,
   Trash2,
+  Star,
   Twitter,
   Wand2,
 } from 'lucide-react';
@@ -26,11 +27,11 @@ type Settings = Partial<BusinessSettings>;
 type SetSettings = React.Dispatch<React.SetStateAction<Settings>>;
 
 /** Fields the Business profile owns (and the only ones its Save sends). */
-export const PROFILE_KEYS = ['companyName', 'email', 'phone', 'website', 'address', 'socialLinks', 'bankDetails', 'depositPolicy', 'cancellationPolicy'] as const;
+export const PROFILE_KEYS = ['companyName', 'email', 'phone', 'website', 'address', 'socialLinks', 'googleReviewUrl', 'bankDetails', 'depositPolicy', 'cancellationPolicy'] as const;
 
 export const PROFILE_GROUPS = {
   company: ['companyName', 'email', 'phone', 'website', 'address'],
-  social: ['socialLinks'],
+  social: ['socialLinks', 'googleReviewUrl'],
   bank: ['bankDetails'],
   policies: ['depositPolicy', 'cancellationPolicy'],
 } as const;
@@ -168,6 +169,40 @@ export function SocialSection({ settings, setSettings }: { settings: Settings; s
         })}
       </Card>
       <p className="text-xs text-slate-500">Links need to start with https:// so they open correctly.</p>
+
+      <Card className="space-y-3 p-4 sm:p-5">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-500">
+            <Star className="h-4 w-4 fill-current" />
+          </span>
+          <div>
+            <p className="text-sm font-black text-slate-900">Google review link</p>
+            <p className="text-sm text-slate-500">
+              Customers who give 4 or 5 stars are invited to post the same review on Google. Reviews there are what show
+              stars next to your business in Google Search and Maps.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="url"
+            aria-label="Google review link"
+            className={INPUT}
+            value={settings.googleReviewUrl || ''}
+            placeholder="https://g.page/r/your-business-id/review"
+            onChange={(e) => setSettings((p) => ({ ...p, googleReviewUrl: e.target.value }))}
+          />
+          {looksLikeUrl(String(settings.googleReviewUrl || '')) ? (
+            <a href={settings.googleReviewUrl} target="_blank" rel="noreferrer" className={`${BTN_SECONDARY} shrink-0 px-3`} title="Test link" aria-label="Test Google review link">
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          ) : null}
+        </div>
+        <p className="text-xs text-slate-500">
+          Find it in your Google Business Profile: open your business on Google, choose <strong>Ask for reviews</strong> (or
+          <strong> Share review form</strong>) and copy the link.
+        </p>
+      </Card>
     </div>
   );
 }

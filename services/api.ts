@@ -232,6 +232,20 @@ function authHeader(realm: AuthRealm): Record<string, string> {
     return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
+export interface PublicReviewsData {
+    averageRating: number | null;
+    reviewCount: number;
+    distribution: Record<number, number>;
+    reviews: Array<{ id: number; name: string; area: string | null; service: string | null; date: string | null; rating: number; comment: string }>;
+}
+
+/** Real customer ratings for the public website (no login). */
+export async function getPublicReviews(): Promise<PublicReviewsData> {
+    const res = await fetch(apiUrl('/public/reviews'));
+    if (!res.ok) throw new Error('Could not load reviews');
+    return res.json();
+}
+
 /** Bearer header for admin calls made with plain fetch (the session cookie is sent too). */
 export function adminAuthHeaders(): Record<string, string> {
     return authHeader('admin');
@@ -719,6 +733,8 @@ function createRealmApi(realm: AuthRealm) {
                 date: string;
                 rating: number;
                 feedback: string | null;
+                reviewPublic?: boolean;
+                reviewHidden?: boolean;
                 staffNames: string[];
             }>;
             total: number;
@@ -737,6 +753,17 @@ function createRealmApi(realm: AuthRealm) {
             if (!res.ok) throw new Error('Failed to fetch reviews');
             const data = await res.json();
             return data as any;
+        },
+
+        /** Admin: hide or show a customer's review on the public website. */
+        setReviewHidden: async (id: number, hidden: boolean) => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/admin/reviews/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', ...H() },
+                body: JSON.stringify({ hidden }),
+            });
+            if (!res.ok) throw new Error('Could not update the review');
+            return res.json();
         },
 
         getStaff: async (): Promise<Staff[]> => {

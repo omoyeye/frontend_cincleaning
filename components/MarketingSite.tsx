@@ -10,6 +10,7 @@ import { mergePricingPageConfig, computePricingEstimate } from '../src/pricing/p
 import { useBusinessSettings } from '../src/context/BusinessSettingsContext';
 import { sanitizeHtml } from '../src/utils/sanitizeHtml';
 import BrandLogoMark from './BrandLogoMark';
+import PublicReviews from './PublicReviews';
 import CleaningFaq from './CleaningFaq';
 import MarketingFooter from './MarketingFooter';
 import QuoteWidget from './QuoteWidget';
@@ -872,6 +873,8 @@ const MarketingSite: React.FC<{
               ))}
             </div>
           </section>
+
+          <PublicReviews />
 
           <section className="max-w-7xl mx-auto px-4 lg:px-8 py-14 md:py-20">
             <div className="rounded-2xl bg-gradient-to-r from-slate-800 via-slate-800 to-teal-900 text-white p-6 sm:p-8 md:p-12 text-center max-w-4xl mx-auto nn-cta-glow transition-transform duration-500 hover:scale-[1.01]">
@@ -2258,6 +2261,8 @@ const MarketingSite: React.FC<{
             </div>
           </div>
         </section>
+
+        <PublicReviews title={`What customers say about CiN`} />
 
         <section className="max-w-7xl mx-auto px-4 lg:px-8 py-14 md:py-20">
           <div className="max-w-3xl rounded-2xl border border-teal-200/80 bg-teal-50/60 p-6 sm:p-8 md:p-10">

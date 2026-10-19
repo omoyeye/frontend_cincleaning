@@ -650,11 +650,13 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
   const stats = useMemo(() => {
     const revenue = bookings.reduce((acc, curr) => acc + Number(curr.totalPrice || 0), 0);
     const active = bookings.filter(b => b.status === BookingStatus.PENDING || b.status === BookingStatus.CONFIRMED).length;
+    const rated = bookings.map((b) => Number(b.rating)).filter((r) => r >= 1 && r <= 5);
+    const avgRatingLabel = rated.length ? (rated.reduce((s, r) => s + r, 0) / rated.length).toFixed(1) : '—';
     return [
       { label: 'Total Revenue', value: `£${revenue.toFixed(2)} `, icon: <TrendingUp className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
       { label: 'Active Jobs', value: active.toString(), icon: <Calendar className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
       { label: 'Team Members', value: staffList.length.toString(), icon: <Users className="w-6 h-6" />, color: 'bg-purple-50 text-purple-600' },
-      { label: 'Avg. Rating', value: '4.9', icon: <Star className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
+      { label: 'Avg. Rating', value: avgRatingLabel, icon: <Star className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
     ];
   }, [bookings, staffList]);
 
@@ -726,6 +728,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
         phone: String(businessSettings.phone || '').trim(),
         website: String(businessSettings.website || '').trim(),
         socialLinks: businessSettings.socialLinks,
+        googleReviewUrl: String(businessSettings.googleReviewUrl || '').trim(),
         address: clamp(String(businessSettings.address || '')),
         bankDetails: cleanedBankDetails,
         depositPolicy: {

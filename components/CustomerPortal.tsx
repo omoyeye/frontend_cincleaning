@@ -124,7 +124,7 @@ const CustomerPortal: React.FC<Props> = ({
 }) => {
   const { showFlyer } = useFlyer();
   const brandName = useBusinessBrand();
-  const { bankDetails, cancellationPolicy, depositPolicy } = useBusinessSettings();
+  const { bankDetails, cancellationPolicy, depositPolicy, googleReviewUrl } = useBusinessSettings();
   const portalDepositPercent = Number.isFinite(Number(depositPolicy?.requiredPercent))
     ? Math.min(100, Math.max(0, Number(depositPolicy?.requiredPercent)))
     : 40;
@@ -233,6 +233,10 @@ const CustomerPortal: React.FC<Props> = ({
   const [selectedBookingForDetail, setSelectedBookingForDetail] = useState<Booking | null>(null);
   const [viewMode, setViewMode] = useState<'details' | 'invoice' | 'confirmation'>('details');
   const [ratingBooking, setRatingBooking] = useState<Booking | null>(null);
+  /** Customer agreed their review may appear on the website (must be opted in). */
+  const [reviewPublic, setReviewPublic] = useState(false);
+  /** After a 4 or 5 star rating: invite the customer to post it on Google too. */
+  const [googlePrompt, setGooglePrompt] = useState<{ comment: string } | null>(null);
   const [cancellingBooking, setCancellingBooking] = useState<Booking | null>(null);
   /** Client moving their own booking (allowed up to RESCHEDULE_NOTICE_HOURS before it starts). */
   const [reschedulingBooking, setReschedulingBooking] = useState<Booking | null>(null);
@@ -688,12 +692,19 @@ const CustomerPortal: React.FC<Props> = ({
       await apiClient.updateBooking(ratingBooking.id, {
         rating: starCount,
         ...(fb ? { feedback: fb } : {}),
+        reviewPublic: reviewPublic && !!fb,
       });
       onUpdateBooking({ ...ratingBooking, rating: starCount, ...(fb ? { feedback: fb } : {}) });
-      showFlyer(`Thank you! Your feedback helps us maintain professional standards.`, 'success');
-      setRatingBooking(null);
+      const google = String(googleReviewUrl || '').trim();
+      if (starCount >= 4 && /^https?:\/\//i.test(google)) {
+        setGooglePrompt({ comment: fb });
+      } else {
+        showFlyer(`Thank you! Your feedback helps us maintain professional standards.`, 'success');
+        setRatingBooking(null);
+      }
       setStarCount(5);
       setFeedback('');
+      setReviewPublic(false);
     } catch (err) {
       showFlyer('Failed to submit rating.', 'error');
     }
@@ -2074,7 +2085,7 @@ const CustomerPortal: React.FC<Props> = ({
                                               <div className="font-black text-slate-900 text-sm">{s.name}</div>
                                               <div className="flex items-center text-amber-500 space-x-1">
                                                 <Star className="w-3 h-3 fill-current" />
-                                                <span className="text-[10px] font-black">{Number(s.rating ?? 4.9).toFixed(1)}</span>
+                                                <span className="text-[10px] font-black">{s.rating != null ? Number(s.rating).toFixed(1) : 'New'}</span>
                                                 <span className={`text-[10px] font-black ml-2 ${s.isVerified === false || s.status !== 'Active' ? 'text-amber-600' : 'text-green-600'}`}>
                                                   {s.isVerified === false || s.status !== 'Active' ? 'UNVERIFIED' : 'VERIFIED'}
                                                 </span>
@@ -2545,9 +2556,43 @@ const CustomerPortal: React.FC<Props> = ({
             <div className="fixed inset-0 z-[130] bg-slate-900/60 backdrop-blur-md flex items-stretch sm:items-center justify-center p-0 sm:p-6 overflow-y-auto">
               <div className="bg-white w-full sm:max-w-lg rounded-none sm:rounded-[3.5rem] shadow-2xl relative overflow-hidden animate-in fade-in sm:zoom-in-95 duration-300 min-h-screen sm:min-h-0 flex flex-col">
                 <div className="p-6 sm:p-10 bg-amber-50 border-b flex justify-between items-center">
-                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-none">Rate Service</h3>
-                  <button onClick={() => setRatingBooking(null)} className="p-4 bg-white rounded-2xl shadow-sm text-slate-400 hover:text-slate-900 transition-all active:scale-90"><X className="w-6 h-6" /></button>
+                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-none">{googlePrompt ? 'Thank you!' : 'Rate Service'}</h3>
+                  <button onClick={() => { setRatingBooking(null); setGooglePrompt(null); }} className="p-4 bg-white rounded-2xl shadow-sm text-slate-400 hover:text-slate-900 transition-all active:scale-90"><X className="w-6 h-6" /></button>
                 </div>
+                {googlePrompt ? (
+                  <div className="p-6 sm:p-12 space-y-6 text-center">
+                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
+                      <Star className="h-8 w-8 fill-amber-400 text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="text-xl font-black text-slate-900">Glad you are happy with your clean</p>
+                      <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+                        Would you share it on Google too? It takes a minute and really helps local customers find us.
+                        {googlePrompt.comment ? ' We will copy your comment so you can paste it.' : ''}
+                      </p>
+                    </div>
+                    <a
+                      href={String(googleReviewUrl || '')}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => {
+                        if (googlePrompt.comment) void navigator.clipboard?.writeText(googlePrompt.comment).catch(() => {});
+                        setGooglePrompt(null);
+                        setRatingBooking(null);
+                      }}
+                      className="flex w-full items-center justify-center gap-2 rounded-[2rem] bg-slate-900 py-5 text-sm font-black text-white shadow-2xl hover:bg-slate-800"
+                    >
+                      <Star className="h-4 w-4 fill-amber-400 text-amber-400" /> Review us on Google
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => { setGooglePrompt(null); setRatingBooking(null); }}
+                      className="text-sm font-bold text-slate-500 hover:text-slate-800"
+                    >
+                      Maybe later
+                    </button>
+                  </div>
+                ) : (
                 <div className="p-6 sm:p-12 space-y-10 text-center">
                   <div className="flex items-center justify-center space-x-3">
                     {[1, 2, 3, 4, 5].map(s => (
@@ -2562,8 +2607,20 @@ const CustomerPortal: React.FC<Props> = ({
                     placeholder="Tell us about your cleaning professional..."
                     className="w-full p-8 bg-slate-50 border border-slate-100 rounded-[2.5rem] min-h-[160px] text-sm font-medium outline-none focus:ring-4 ring-amber-500/10 transition-all resize-none shadow-inner"
                   />
+                  <label className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4 text-left cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reviewPublic}
+                      onChange={(e) => setReviewPublic(e.target.checked)}
+                      className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 accent-amber-500"
+                    />
+                    <span className="text-xs leading-relaxed text-slate-600">
+                      You can show my rating and comment on the CiN website with my first name, the first letter of my surname and my town. I can ask for it to be removed at any time.
+                    </span>
+                  </label>
                   <button onClick={handleRatingSubmit} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-2xl hover:bg-slate-800 active:scale-95 transition-all">Submit Feedback</button>
                 </div>
+                )}
               </div>
             </div>
           )}

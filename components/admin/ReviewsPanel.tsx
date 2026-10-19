@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Star, Filter, ChevronLeft, ChevronRight, Users, MessageSquare, Calendar, TrendingUp } from 'lucide-react';
+import { Star, Filter, ChevronLeft, ChevronRight, Users, MessageSquare, Calendar, TrendingUp, Globe, Eye, EyeOff } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Review {
@@ -10,6 +10,10 @@ interface Review {
   date: string;
   rating: number;
   feedback: string | null;
+  /** Customer agreed to show it on the website. */
+  reviewPublic?: boolean;
+  /** Admin hid it from the website. */
+  reviewHidden?: boolean;
   staffNames: string[];
 }
 
@@ -26,7 +30,10 @@ interface ReviewsPanelProps {
   /** 'admin' uses apiAdmin; 'staff' uses apiStaff */
   role: 'admin' | 'staff';
   /** The api object (apiAdmin or apiStaff) passed in — avoids a hard import */
-  api: { getReviews: (params?: { page?: number; limit?: number; rating?: number; sort?: string }) => Promise<ReviewsData> };
+  api: {
+    getReviews: (params?: { page?: number; limit?: number; rating?: number; sort?: string }) => Promise<ReviewsData>;
+    setReviewHidden?: (id: number, hidden: boolean) => Promise<unknown>;
+  };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -173,8 +180,9 @@ const StatBar: React.FC<{ avgRating: number | null; total: number; distribution:
   );
 }
 
-const ReviewCard: React.FC<{ review: Review }> = ({ review }) => {
+const ReviewCard: React.FC<{ review: Review; onToggleHidden?: (r: Review) => void }> = ({ review, onToggleHidden }) => {
   const grad = avatarGradient(review.customerName || 'C');
+  const onSite = !!review.reviewPublic && !review.reviewHidden && !!review.feedback;
   return (
     <article className="group relative overflow-hidden rounded-3xl bg-white border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 animate-in fade-in slide-in-from-bottom-4">
       {/* Left accent bar */}
@@ -243,6 +251,31 @@ const ReviewCard: React.FC<{ review: Review }> = ({ review }) => {
             </div>
           )}
         </div>
+
+        {onToggleHidden ? (
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl bg-slate-50 px-3 py-2">
+            <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold ${onSite ? 'text-emerald-700' : 'text-slate-500'}`}>
+              <Globe className="h-3.5 w-3.5" />
+              {onSite
+                ? 'Shown on the website'
+                : !review.reviewPublic
+                  ? 'Private: customer did not agree to publish'
+                  : !review.feedback
+                    ? 'Rating only, no comment to show'
+                    : 'Hidden from the website'}
+            </span>
+            {review.reviewPublic && review.feedback ? (
+              <button
+                type="button"
+                onClick={() => onToggleHidden(review)}
+                className="inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-white"
+              >
+                {review.reviewHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                {review.reviewHidden ? 'Show' : 'Hide'}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </article>
   );
@@ -263,7 +296,7 @@ const EmptyState: React.FC = () => {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-const ReviewsPanel: React.FC<ReviewsPanelProps> = ({ api }) => {
+const ReviewsPanel: React.FC<ReviewsPanelProps> = ({ api, role }) => {
   const LIMIT = 12;
   const [data, setData] = useState<ReviewsData | null>(null);
   const [page, setPage] = useState(1);
@@ -386,7 +419,23 @@ const ReviewsPanel: React.FC<ReviewsPanelProps> = ({ api }) => {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {data.reviews.map(review => (
-              <ReviewCard key={review.id} review={review} />
+              <ReviewCard
+                key={review.id}
+                review={review}
+                onToggleHidden={
+                  role === 'admin' && api.setReviewHidden
+                    ? async (r) => {
+                        const hidden = !r.reviewHidden;
+                        setData((d) => (d ? { ...d, reviews: d.reviews.map((x) => (x.id === r.id ? { ...x, reviewHidden: hidden } : x)) } : d));
+                        try {
+                          await api.setReviewHidden!(r.id, hidden);
+                        } catch {
+                          setData((d) => (d ? { ...d, reviews: d.reviews.map((x) => (x.id === r.id ? { ...x, reviewHidden: !hidden } : x)) } : d));
+                        }
+                      }
+                    : undefined
+                }
+              />
             ))}
           </div>
 

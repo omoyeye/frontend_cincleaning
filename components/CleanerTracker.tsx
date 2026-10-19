@@ -271,7 +271,7 @@ const CleanerTracker: React.FC<Props> = ({ booking, staff }) => {
                   <h3 className="font-black text-lg">{s.name}</h3>
                   <div className="flex items-center space-x-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                    <span>{Number(s.rating ?? 4.9).toFixed(1)} Rating</span>
+                    <span>{s.rating != null ? `${Number(s.rating).toFixed(1)} Rating` : 'New cleaner'}</span>
                     <span className="w-1 h-1 bg-slate-500 rounded-full" />
                     <span className={`${s.isVerified === false || s.status !== 'Active' ? 'text-amber-400' : 'text-emerald-400'}`}>
                       {s.isVerified === false || s.status !== 'Active' ? 'UNVERIFIED' : 'VERIFIED'}
