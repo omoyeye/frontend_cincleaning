@@ -133,7 +133,7 @@ export function buildSsrHeadHtml(
     if (name && content) lines.push(metaName(name, content));
   });
 
-  // JSON-LD structured data (LocalBusiness, CleaningService, FAQ, Breadcrumbs)
+  // JSON-LD structured data (LocalBusiness, Service, FAQ, Breadcrumbs)
   if (!noindex && origin) {
     const jsonLd = buildJsonLdForPage(pageId, origin, areaSlug || undefined);
     if (jsonLd) lines.push(jsonLd);

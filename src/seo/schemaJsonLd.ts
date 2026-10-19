@@ -5,12 +5,16 @@
 import type { SeoPageId } from './routePaths';
 import { SERVICE_AREAS } from './routePaths';
 
+/*
+ * No aggregateRating anywhere: Google ignores star ratings a business publishes about itself
+ * (self-serving reviews) and rejects ratings that are not shown on the page, which is what
+ * Search Console flagged ("Invalid object type for field <parent_node>").
+ */
 const BUSINESS = {
   name: 'CiN Cleaning',
   legalName: 'Clean It Neatly',
   phone: '07909565925',
-  email: 'hello@cleanitneatly.com',
-  url: 'https://cleanitneatly.com',
+  email: 'support@cleanitneatly.com',
   priceRange: '££',
   openingHours: ['Mo-Sa 08:00-18:00'],
   areaServed: [
@@ -22,31 +26,29 @@ const BUSINESS = {
     addressLocality: 'Manchester',
     addressCountry: 'GB',
   },
-  aggregateRating: {
-    '@type': 'AggregateRating',
-    ratingValue: '4.9',
-    bestRating: '5',
-    reviewCount: '127',
-  },
 };
 
-function localBusiness(origin: string) {
+/** The business itself. schema.org has no "CleaningService" type, so this is a plain LocalBusiness. */
+function businessEntity(origin: string) {
   return {
-    '@context': 'https://schema.org',
-    '@type': ['LocalBusiness', 'CleaningService'],
+    '@type': 'LocalBusiness',
     '@id': `${origin}/#organization`,
     name: BUSINESS.name,
     alternateName: BUSINESS.legalName,
-    url: BUSINESS.url,
+    url: `${origin}/`,
+    logo: `${origin}/brand-logo.png`,
+    image: `${origin}/brand-logo.png`,
     telephone: BUSINESS.phone,
     email: BUSINESS.email,
     priceRange: BUSINESS.priceRange,
     openingHours: BUSINESS.openingHours,
     address: BUSINESS.address,
     areaServed: BUSINESS.areaServed,
-    aggregateRating: BUSINESS.aggregateRating,
-    sameAs: [],
   };
+}
+
+function localBusiness(origin: string) {
+  return { '@context': 'https://schema.org', ...businessEntity(origin) };
 }
 
 interface ServiceSchema {
@@ -58,20 +60,13 @@ interface ServiceSchema {
 function cleaningService(origin: string, svc: ServiceSchema) {
   return {
     '@context': 'https://schema.org',
-    '@type': 'CleaningService',
+    '@type': 'Service',
+    serviceType: 'Cleaning',
     name: svc.name,
     description: svc.description,
     url: `${origin}${svc.path}`,
-    telephone: BUSINESS.phone,
-    email: BUSINESS.email,
     areaServed: BUSINESS.areaServed,
-    aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: BUSINESS.aggregateRating.ratingValue,
-      bestRating: BUSINESS.aggregateRating.bestRating,
-      reviewCount: BUSINESS.aggregateRating.reviewCount,
-    },
-    provider: { '@id': `${origin}/#organization` },
+    provider: businessEntity(origin),
   };
 }
 
@@ -190,23 +185,18 @@ const PAGE_FAQS: Record<string, { question: string; answer: string }[]> = {
   ],
 };
 
-/** Area landing page schema: a local CleaningService scoped to one town/region. */
+/** Area landing page schema: the cleaning service offered in one town/region. */
 function areaService(origin: string, areaName: string, areaSlug: string) {
   return {
     '@context': 'https://schema.org',
-    '@type': 'CleaningService',
+    '@type': 'Service',
     '@id': `${origin}/cleaning-in-${areaSlug}#service`,
+    serviceType: 'Cleaning',
     name: `Cleaning Services in ${areaName}`,
     description: `Professional domestic and commercial cleaning in ${areaName} by ${BUSINESS.name}. Vetted, insured cleaners with online booking.`,
     url: `${origin}/cleaning-in-${areaSlug}`,
-    telephone: BUSINESS.phone,
-    email: BUSINESS.email,
-    priceRange: BUSINESS.priceRange,
-    openingHours: BUSINESS.openingHours,
-    address: BUSINESS.address,
     areaServed: { '@type': 'Place', name: areaName },
-    provider: { '@id': `${origin}/#organization` },
-    aggregateRating: BUSINESS.aggregateRating,
+    provider: businessEntity(origin),
   };
 }
 
@@ -219,10 +209,10 @@ export function buildJsonLdForPage(pageId: SeoPageId, origin: string, areaSlug?:
     const areaName = SERVICE_AREAS[areaSlug];
     if (areaName) {
       scripts.push(
-        `<script type="application/ld+json">${JSON.stringify(areaService(origin, areaName, areaSlug))}</script>`
+        `<script type="application/ld+json" data-nn-seo="1">${JSON.stringify(areaService(origin, areaName, areaSlug))}</script>`
       );
       scripts.push(
-        `<script type="application/ld+json">${JSON.stringify(
+        `<script type="application/ld+json" data-nn-seo="1">${JSON.stringify(
           breadcrumb(origin, [
             { name: 'Home', path: '/' },
             { name: `Cleaning in ${areaName}`, path: `/cleaning-in-${areaSlug}` },
@@ -230,7 +220,7 @@ export function buildJsonLdForPage(pageId: SeoPageId, origin: string, areaSlug?:
         )}</script>`
       );
       scripts.push(
-        `<script type="application/ld+json">${JSON.stringify(faqPage(PAGE_FAQS.faq || []))}</script>`
+        `<script type="application/ld+json" data-nn-seo="1">${JSON.stringify(faqPage(PAGE_FAQS.faq || []))}</script>`
       );
     }
     return scripts.join('\n');
@@ -238,10 +228,10 @@ export function buildJsonLdForPage(pageId: SeoPageId, origin: string, areaSlug?:
 
   if (pageId === 'home') {
     scripts.push(
-      `<script type="application/ld+json">${JSON.stringify(localBusiness(origin))}</script>`
+      `<script type="application/ld+json" data-nn-seo="1">${JSON.stringify(localBusiness(origin))}</script>`
     );
     scripts.push(
-      `<script type="application/ld+json">${JSON.stringify(
+      `<script type="application/ld+json" data-nn-seo="1">${JSON.stringify(
         breadcrumb(origin, [{ name: 'Home', path: '/' }])
       )}</script>`
     );
@@ -250,12 +240,12 @@ export function buildJsonLdForPage(pageId: SeoPageId, origin: string, areaSlug?:
   const svcDef = SERVICE_DEFS[pageId];
   if (svcDef) {
     scripts.push(
-      `<script type="application/ld+json">${JSON.stringify(
+      `<script type="application/ld+json" data-nn-seo="1">${JSON.stringify(
         cleaningService(origin, svcDef)
       )}</script>`
     );
     scripts.push(
-      `<script type="application/ld+json">${JSON.stringify(
+      `<script type="application/ld+json" data-nn-seo="1">${JSON.stringify(
         breadcrumb(origin, [
           { name: 'Home', path: '/' },
           { name: 'Services', path: '/residential-cleaning' },
@@ -268,7 +258,7 @@ export function buildJsonLdForPage(pageId: SeoPageId, origin: string, areaSlug?:
   const faqs = PAGE_FAQS[pageId];
   if (faqs) {
     scripts.push(
-      `<script type="application/ld+json">${JSON.stringify(faqPage(faqs))}</script>`
+      `<script type="application/ld+json" data-nn-seo="1">${JSON.stringify(faqPage(faqs))}</script>`
     );
   }
 
