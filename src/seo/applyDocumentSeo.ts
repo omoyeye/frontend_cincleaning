@@ -45,6 +45,7 @@ export function injectGtm(containerId: string) {
   if (!id || typeof document === 'undefined') return;
   if (gtmInjected) return;
   gtmInjected = true;
+  if (document.querySelector(`script[src*="googletagmanager.com/gtm.js?id=${id}"]`)) return;
 
   const w = window as Window & { dataLayer?: unknown[] };
   w.dataLayer = w.dataLayer || [];
@@ -65,6 +66,7 @@ export function injectGa4(measurementId: string) {
   if (!id || typeof document === 'undefined') return;
   if (ga4InjectedId === id) return;
   ga4InjectedId = id;
+  if (document.querySelector(`script[src*="googletagmanager.com/gtag/js?id=${id}"]`)) return;
 
   const script1 = document.createElement('script');
   script1.async = true;

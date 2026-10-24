@@ -38,6 +38,17 @@ async function loadLiveSettings() {
   }
 }
 
+/** A custom head/body snippet is only safe to inject when it is real HTML (contains a tag). */
+const htmlSnippet = (value, label) => {
+  const v = String(value || '').trim();
+  if (!v) return '';
+  if (!/<[a-z!]/i.test(v)) {
+    console.warn(`[prerender] Skipping SEO "${label}": it has no HTML tags, so it would show as text on the page.`);
+    return '';
+  }
+  return v;
+};
+
 const inlineJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
 
 const insertBefore = (html, marker, snippet) => {
@@ -57,10 +68,13 @@ function buildPage(appHtml, headHtml, seo, websiteContent) {
   // The content this page was rendered with, so the browser's first render matches (no hydration error).
   if (appHtml && websiteContent) head += `<script>window.__NN_WEBSITE_CONTENT__ = ${inlineJson(websiteContent)};</script>\n`;
   if (headHtml) head += `${headHtml}\n`;
-  if (seo?.scriptHead) head += `${seo.scriptHead}\n`;
+  const scriptHead = htmlSnippet(seo?.scriptHead, 'Head scripts');
+  const scriptBodyStart = htmlSnippet(seo?.scriptBodyStart, 'Body start scripts');
+  const scriptBodyEnd = htmlSnippet(seo?.scriptBodyEnd, 'Body end scripts');
+  if (scriptHead) head += `${scriptHead}\n`;
   out = insertBefore(out, '</head>', head);
-  if (seo?.scriptBodyStart) out = out.replace(/<body[^>]*>/i, (m) => `${m}\n${seo.scriptBodyStart}`);
-  if (seo?.scriptBodyEnd) out = insertBefore(out, '</body>', `${seo.scriptBodyEnd}\n`);
+  if (scriptBodyStart) out = out.replace(/<body[^>]*>/i, (m) => `${m}\n${scriptBodyStart}`);
+  if (scriptBodyEnd) out = insertBefore(out, '</body>', `${scriptBodyEnd}\n`);
   return out;
 }
 
