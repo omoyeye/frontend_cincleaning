@@ -623,7 +623,7 @@ const AppContent: React.FC<{ serverUrl?: string }> = ({ serverUrl }) => {
                   Pricing
                 </button>
 
-                <button onClick={() => openCustomerPage('book')} className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground font-bold shadow">
+                <button onClick={() => openCustomerPage('book')} className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold shadow shadow-teal-600/25 transition-colors">
                   <PlusCircle className="w-4 h-4" />
                   <span>Book Now</span>
                 </button>
@@ -651,7 +651,7 @@ const AppContent: React.FC<{ serverUrl?: string }> = ({ serverUrl }) => {
                 <button
                   type="button"
                   onClick={() => openCustomerPage('book')}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-bold shadow shrink-0 active:scale-95 transition-transform"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-sm font-bold shadow shrink-0 active:scale-95 transition-transform"
                   aria-label="Book a clean"
                 >
                   <PlusCircle className="w-4 h-4" />
@@ -780,7 +780,7 @@ const AppContent: React.FC<{ serverUrl?: string }> = ({ serverUrl }) => {
                   Pricing
                 </button>
 
-                <button type="button" onClick={() => openCustomerPage('book')} className="px-3 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-left mt-1">
+                <button type="button" onClick={() => openCustomerPage('book')} className="px-3 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-left mt-1">
                   Book Service
                 </button>
                 <button
@@ -986,7 +986,9 @@ const AIAssistant: React.FC<{ brandName: string }> = ({ brandName }) => {
       return;
     }
     if (sessionStorage.getItem(AI_WELCOME_NUDGE_KEY) === '1') return;
-    const openTimer = window.setTimeout(() => setShowWelcomeNudge(true), 1200);
+    // Phones already show the Book / Call bar and two round buttons; skip the pop-up there.
+    if (window.matchMedia('(max-width: 768px)').matches) return;
+    const openTimer = window.setTimeout(() => setShowWelcomeNudge(true), 4000);
     const closeTimer = window.setTimeout(() => {
       setShowWelcomeNudge(false);
       sessionStorage.setItem(AI_WELCOME_NUDGE_KEY, '1');
@@ -1109,9 +1111,9 @@ const AIAssistant: React.FC<{ brandName: string }> = ({ brandName }) => {
           sessionStorage.setItem(AI_WELCOME_NUDGE_KEY, '1');
         }}
         aria-label={isOpen ? 'Close AI assistant' : 'Open AI assistant'}
-        className="cin-ai-fab fixed bottom-[calc(8rem+env(safe-area-inset-bottom,0px))] right-4 z-[91] group flex items-center justify-center w-12 h-12 min-[769px]:w-14 min-[769px]:h-14 rounded-full shadow-2xl shadow-primary/40 hover:scale-110 active:scale-95 transition-all duration-300 overflow-hidden print:hidden min-[769px]:bottom-[5.5rem] min-[769px]:right-6"
+        className="cin-ai-fab fixed bottom-[calc(8rem+env(safe-area-inset-bottom,0px))] right-4 z-[91] group flex items-center justify-center w-12 h-12 min-[769px]:w-14 min-[769px]:h-14 rounded-full shadow-2xl shadow-teal-700/40 hover:scale-110 active:scale-95 transition-all duration-300 overflow-hidden print:hidden min-[769px]:bottom-[5.5rem] min-[769px]:right-6"
       >
-        <div className="absolute inset-0 bg-gradient-to-tr from-indigo-800 to-primary scale-150 group-hover:rotate-45 transition-transform duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-tr from-teal-800 to-teal-500 scale-150 group-hover:rotate-45 transition-transform duration-500" />
         {isOpen ? (
           <X className="w-6 h-6 text-white relative z-10" />
         ) : (

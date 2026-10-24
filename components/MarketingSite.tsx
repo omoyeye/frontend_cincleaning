@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Loader2, Mail, Phone, Facebook, Instagram } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Loader2, Mail, Phone, Facebook, Instagram, Tag } from 'lucide-react';
 import type { BlogPost, Extra, GalleryItem, WebsiteContent } from '../types';
 import { getSiteSeo } from '../src/seo/seoStorage';
 import { getInitialWebsiteContent, getWebsiteContent, normalizeWebsiteContent, saveWebsiteContent } from '../src/cms/content';
@@ -11,6 +11,7 @@ import { useBusinessSettings } from '../src/context/BusinessSettingsContext';
 import { sanitizeHtml } from '../src/utils/sanitizeHtml';
 import BrandLogoMark from './BrandLogoMark';
 import PublicReviews from './PublicReviews';
+import { HeroRating, HeroTrustRow, HowItWorks, RecentWork, ReferralStrip, WhyChooseUs } from './home/HomeSections';
 import CleaningFaq from './CleaningFaq';
 import MarketingFooter from './MarketingFooter';
 import QuoteWidget from './QuoteWidget';
@@ -653,50 +654,63 @@ const MarketingSite: React.FC<{
     const h = content.heroes.find((x) => x.page === 'home') ?? hero;
     const heroImg = h?.imageUrl || '/siteshots/home-reference-final.jpg';
     const homeAdverts = content.adverts.filter((ad) => ad.active !== false).slice(0, 2);
+    const heroTitle = (h?.title ?? 'Clean It Neatly.').trim();
+    const heroHi = h?.highlight?.trim();
+    const heroTitleNode =
+      heroHi && heroTitle.includes(heroHi) ? (
+        <>
+          {heroTitle.slice(0, heroTitle.indexOf(heroHi))}
+          <span className="text-teal-300">{heroHi}</span>
+          {heroTitle.slice(heroTitle.indexOf(heroHi) + heroHi.length)}
+        </>
+      ) : (
+        heroTitle
+      );
     return (
       <>
         <div className="space-y-0">
-          <section className="relative w-full px-4 lg:px-8 overflow-hidden min-h-[min(82dvh,580px)] md:min-h-[540px] bg-slate-950 nn-marketing-hero-glow">
-            <img src={heroImg} alt="" className="absolute inset-0 z-0 h-full w-full object-cover" />
-            <div className="relative z-10 max-w-7xl mx-auto px-5 sm:px-8 lg:px-10 safe-area-px py-14 md:py-24">
-              <div className="max-w-2xl rounded-2xl border border-white/15 bg-slate-950/45 p-6 sm:p-8 md:p-10 shadow-2xl shadow-black/30 backdrop-blur-md text-white space-y-5">
-                <span className="inline-flex text-[11px] sm:text-xs font-black tracking-widest uppercase text-teal-300">
-                  {h?.eyebrow ?? 'CiN Cleaning'}
-                </span>
-                <h1 className="text-4xl sm:text-5xl md:text-6xl font-black leading-[1.02] sm:leading-[0.95]">
-                  {h?.title ?? 'Clean It Neatly.'}
+          {/* Hero: one clear action, proof and the first-clean offer above the fold */}
+          <section className="relative flex w-full items-center overflow-hidden bg-slate-950 min-h-[min(88dvh,640px)] md:min-h-[600px]">
+            <img src={heroImg} alt="" className="absolute inset-0 z-0 h-full w-full object-cover" fetchPriority="high" />
+            <div className="absolute inset-0 z-0 bg-gradient-to-r from-slate-950/90 via-slate-950/65 to-slate-950/10" aria-hidden />
+            <div className="absolute inset-x-0 bottom-0 z-0 h-40 bg-gradient-to-t from-slate-950/70 to-transparent" aria-hidden />
+            <div className="relative z-10 w-full max-w-7xl mx-auto px-5 sm:px-8 lg:px-10 py-16 md:py-24">
+              <div className="max-w-2xl space-y-6 text-white">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="inline-flex rounded-full bg-teal-400/15 px-3 py-1 text-[11px] sm:text-xs font-black uppercase tracking-widest text-teal-300 ring-1 ring-teal-300/30">
+                    {h?.eyebrow ?? 'CiN Cleaning'}
+                  </span>
+                  <HeroRating />
+                </div>
+                <h1 className="text-4xl sm:text-5xl md:text-6xl font-black leading-[1.02] sm:leading-[0.98] tracking-tight drop-shadow-sm">
+                  {heroTitleNode}
                 </h1>
-                <p className="text-base sm:text-lg text-white/90 max-w-xl leading-relaxed">
+                <p className="max-w-xl text-base sm:text-lg leading-relaxed text-white/85">
                   {h?.subtitle ??
                     'Professional cleaning across London and Manchester, built on one idea: your space should feel calm, fresh, and finished - not half-done.'}
                 </p>
-                <p className="text-sm text-teal-100/95 font-semibold tracking-wide">
-                  <span className="text-teal-300 font-black">C</span>lean · <span className="text-teal-300 font-black">I</span>t ·{' '}
-                  <span className="text-teal-300 font-black">N</span>eatly - the meaning behind CiN.
+                <p className="inline-flex flex-wrap items-center gap-2 rounded-xl bg-amber-400/15 px-3 py-2 text-sm font-semibold text-amber-100 ring-1 ring-amber-300/30">
+                  <Tag className="h-4 w-4 text-amber-300" aria-hidden />
+                  New customer? Get 10% off your first clean with code
+                  <span className="rounded-md bg-amber-300 px-1.5 py-0.5 font-mono text-xs font-black tracking-wider text-slate-900">FIRST10</span>
                 </p>
-                <div className="flex flex-wrap gap-3 pt-1">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 pt-1">
                   <button
                     type="button"
                     onClick={onBookNow}
-                    className="px-5 py-3 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold text-sm sm:text-base"
+                    className="group inline-flex items-center gap-2 rounded-xl bg-teal-500 px-7 py-4 text-base font-black text-white shadow-xl shadow-teal-500/30 transition hover:bg-teal-400"
                   >
                     {h?.ctaPrimary ?? 'Book a clean'}
+                    <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" aria-hidden />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('residential')}
-                    className="px-5 py-3 rounded-lg bg-white/10 hover:bg-white/15 text-white font-bold text-sm sm:text-base ring-1 ring-white/25"
+                  <a
+                    href="#instant-quote"
+                    className="inline-flex items-center gap-1.5 text-sm sm:text-base font-bold text-white/90 underline-offset-4 hover:text-white hover:underline"
                   >
-                    {h?.ctaSecondary ?? 'Residential services'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('contact')}
-                    className="px-5 py-3 rounded-lg bg-white/10 hover:bg-white/15 text-white font-bold text-sm sm:text-base ring-1 ring-white/25"
-                  >
-                    {(h?.ctaTertiary ?? 'Contact us').trim() || 'Contact us'}
-                  </button>
+                    Get an instant price
+                  </a>
                 </div>
+                <HeroTrustRow />
               </div>
             </div>
           </section>
@@ -751,56 +765,11 @@ const MarketingSite: React.FC<{
             </div>
           </section>
 
-          {/* Referral Banner */}
-          <section className="max-w-7xl mx-auto px-4 lg:px-8 py-12">
-            <div className="rounded-2xl border border-teal-200/80 bg-teal-50/60 p-6 sm:p-8 md:p-10 flex flex-col md:flex-row md:items-center gap-6">
-              <div className="flex-1">
-                <h3 className="text-2xl font-black text-slate-900">Refer a friend, earn 5%</h3>
-                <p className="mt-2 text-slate-700 text-base leading-relaxed">
-                  Love our service? Share your referral code and earn 5% credit for every friend who books their first clean.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onBookNow}
-                className="shrink-0 px-6 py-3 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold text-sm"
-              >
-                Book &amp; get your code
-              </button>
-            </div>
-          </section>
+          <HowItWorks onBookNow={onBookNow} />
 
-          {/* Areas we serve — internal links for local SEO */}
-          <section className="max-w-7xl mx-auto px-4 lg:px-8 py-12">
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900">Areas we serve</h2>
-            <p className="mt-2 text-slate-600">
-              Professional, insured cleaners across London and Greater Manchester. Enter your postcode when you book and we will confirm coverage.
-            </p>
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-              {[
-                { city: 'London', blurb: 'From the City and Westminster to Hackney, Clapham, Ealing and Islington.', match: 'london' },
-                { city: 'Manchester', blurb: 'From the city centre and Salford to Didsbury, Chorlton, Prestwich and Ashton.', match: 'manchester' },
-              ].map((group) => (
-                <div key={group.city} className="rounded-2xl border border-slate-200 bg-white p-6">
-                  <h3 className="text-lg font-black text-slate-900">Cleaning in {group.city}</h3>
-                  <p className="mt-1 text-sm text-slate-600">{group.blurb}</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {Object.entries(AREA_DATA)
-                      .filter(([slug]) => slug.endsWith(group.match))
-                      .map(([slug, area]) => (
-                        <a
-                          key={slug}
-                          href={`/cleaning-in-${slug}`}
-                          className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 hover:border-teal-300 hover:text-teal-700 transition-colors"
-                        >
-                          {area.name}
-                        </a>
-                      ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+          <RecentWork />
+
+          <WhyChooseUs />
 
           {homeAdverts.length > 0 && (
             <section className="max-w-7xl mx-auto px-4 lg:px-8 py-10 md:py-14">
@@ -839,74 +808,62 @@ const MarketingSite: React.FC<{
             </section>
           )}
 
-          <section className="max-w-7xl mx-auto px-4 lg:px-8 py-14 md:py-20">
-            <div className="max-w-3xl">
-              <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">Professional Cleaning You Can Trust</h2>
-              <p className="text-slate-600 mt-4 text-base sm:text-lg leading-relaxed">
-                At <strong className="text-teal-700">CiN Cleaning</strong>, we provide a full spectrum of cleaning services designed to enhance the appearance of your property and keep your investment in pristine condition. Our fully insured and vetted operatives bring years of experience to every job.
-              </p>
-              <p className="text-slate-600 mt-4 leading-relaxed">
-                We believe in clear communication, eco-friendly industry-tested products, and a 100% satisfaction guarantee. Whether it is a family home, a rental turnover, or a front-of-house that represents your brand, we treat cleanliness as part of how your space feels.
-              </p>
-            </div>
-          </section>
+          <PublicReviews />
 
-          <section className="max-w-7xl mx-auto px-4 lg:px-8 py-14 md:py-20 bg-slate-50 border-y border-slate-100">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 md:[&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1 gap-10 md:gap-12">
+          {/* Areas we serve — internal links for local SEO */}
+          <section className="max-w-7xl mx-auto px-4 lg:px-8 py-12">
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900">Areas we serve</h2>
+            <p className="mt-2 text-slate-600">
+              Professional, insured cleaners across London and Greater Manchester. Enter your postcode when you book and we will confirm coverage.
+            </p>
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
               {[
-                {
-                  title: 'Trained & Vetted Operatives',
-                  body: 'Our cleaning professionals have extensive experience and are continuously trained to the highest industry standards, ensuring meticulous results every time.',
-                },
-                {
-                  title: 'Agency & Owner Approved',
-                  body: 'Our first-class service has built a loyal clientele of homeowners, businesses, and estate agents who trust our end-to-end reliability.',
-                },
-                {
-                  title: 'Cleaned With Confidence',
-                  body: 'We arrive with eco-friendly and industry-tested tools in hand. Paired with our absolute satisfaction guarantee, we are fully committed to earning your trust.',
-                },
-              ].map((item) => (
-                <div
-                  key={item.title}
-                  className="p-6 bg-white rounded-2xl shadow-sm border border-slate-100/80 nn-card-lift"
-                >
-                  <h3 className="text-xl font-black text-slate-900">{item.title}</h3>
-                  <p className="text-slate-600 mt-3 leading-relaxed text-sm sm:text-base">{item.body}</p>
+                { city: 'London', blurb: 'From the City and Westminster to Hackney, Clapham, Ealing and Islington.', match: 'london' },
+                { city: 'Manchester', blurb: 'From the city centre and Salford to Didsbury, Chorlton, Prestwich and Ashton.', match: 'manchester' },
+              ].map((group) => (
+                <div key={group.city} className="rounded-2xl border border-slate-200 bg-white p-6">
+                  <h3 className="text-lg font-black text-slate-900">Cleaning in {group.city}</h3>
+                  <p className="mt-1 text-sm text-slate-600">{group.blurb}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {Object.entries(AREA_DATA)
+                      .filter(([slug]) => slug.endsWith(group.match))
+                      .map(([slug, area]) => (
+                        <a
+                          key={slug}
+                          href={`/cleaning-in-${slug}`}
+                          className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 hover:border-teal-300 hover:text-teal-700 transition-colors"
+                        >
+                          {area.name}
+                        </a>
+                      ))}
+                  </div>
                 </div>
               ))}
             </div>
           </section>
 
-          <PublicReviews />
+          <ReferralStrip onBookNow={onBookNow} />
 
           <section className="max-w-7xl mx-auto px-4 lg:px-8 py-14 md:py-20">
-            <div className="rounded-2xl bg-gradient-to-r from-slate-800 via-slate-800 to-teal-900 text-white p-6 sm:p-8 md:p-12 text-center max-w-4xl mx-auto nn-cta-glow transition-transform duration-500 hover:scale-[1.01]">
+            <div className="rounded-2xl bg-gradient-to-r from-slate-800 via-slate-800 to-teal-900 text-white p-6 sm:p-8 md:p-12 text-center max-w-4xl mx-auto nn-cta-glow">
               <h3 className="text-2xl md:text-3xl font-black">Ready for a neater space?</h3>
               <p className="text-white/85 mt-3 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed">
-                Start with a booking or compare plans - CiN Cleaning is here to Clean It Neatly, on your schedule.
+                Book online in under two minutes. New customers save 10% with code FIRST10.
               </p>
-              <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 mt-8">
+              <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-4 mt-8">
                 <button
                   type="button"
                   onClick={onBookNow}
-                  className="px-6 py-3 rounded-lg bg-teal-500 hover:bg-teal-400 text-white font-bold"
+                  className="inline-flex items-center gap-2 rounded-xl bg-teal-500 px-7 py-3.5 font-black text-white shadow-lg shadow-teal-500/30 hover:bg-teal-400"
                 >
-                  Book now
+                  Book now <ArrowRight className="h-4 w-4" aria-hidden />
                 </button>
                 <button
                   type="button"
                   onClick={() => onNavigate('pricing')}
-                  className="px-6 py-3 rounded-lg bg-white/10 hover:bg-white/15 font-bold ring-1 ring-white/35"
+                  className="text-sm font-bold text-white/85 underline-offset-4 hover:text-white hover:underline"
                 >
                   View pricing
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('contact')}
-                  className="px-6 py-3 rounded-lg bg-white/10 hover:bg-white/15 font-bold ring-1 ring-white/35"
-                >
-                  Contact us
                 </button>
               </div>
             </div>
