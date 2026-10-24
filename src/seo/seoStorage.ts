@@ -34,6 +34,17 @@ function defaultMeta(brand: string, titleSuffix: string, description: string, ke
   };
 }
 
+/** "CiN  Cleaning- Deep cleaning" -> "CiN Cleaning - Deep cleaning": collapse spaces, space a dangling dash. */
+export function tidySeoTitle(title: string): string {
+  return String(title || '').replace(/\s+/g, ' ').replace(/(\S)- /g, '$1 - ').trim();
+}
+
+/** Keep only the real ID from a pasted value, e.g. "\tGTM-M942C9ZH," -> "GTM-M942C9ZH". */
+export function cleanTrackingId(raw: string, kind: 'gtm' | 'ga4'): string {
+  const m = String(raw || '').toUpperCase().match(kind === 'gtm' ? /GTM-[A-Z0-9]+/ : /G-[A-Z0-9]+/);
+  return m ? m[0] : '';
+}
+
 export function defaultSiteSeo(brand = 'CiN'): SiteSeoSettings {
   const pages: SiteSeoSettings['pages'] = {
     home: defaultMeta(

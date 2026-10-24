@@ -28,9 +28,18 @@ async function loadLiveSettings() {
     const res = await fetch(`${api}/business-settings`, { signal: AbortSignal.timeout(15000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const settings = await res.json();
+    // Published blog posts, so the blog index and each article are prerendered with real content.
+    let blogPosts = [];
+    try {
+      const b = await fetch(`${api}/blog-posts`, { signal: AbortSignal.timeout(15000) });
+      if (b.ok) blogPosts = (await b.json()).filter((p) => p && p.slug && p.published !== false);
+    } catch (e) {
+      console.warn(`[prerender] Could not load blog posts (${e.message}); articles stay client-rendered.`);
+    }
     return {
       seo: settings && typeof settings.seo_settings === 'object' ? settings.seo_settings : null,
       websiteContent: settings && typeof settings.websiteContent === 'object' ? settings.websiteContent : null,
+      blogPosts,
     };
   } catch (e) {
     console.warn(`[prerender] Could not load settings from ${api} (${e.message}); using defaults.`);
@@ -57,7 +66,7 @@ const insertBefore = (html, marker, snippet) => {
 };
 
 /** Same head/body injection the old Express SSR handler performed. */
-function buildPage(appHtml, headHtml, seo, websiteContent) {
+function buildPage(appHtml, headHtml, seo, websiteContent, blog) {
   let out = template.split('<!--app-html-->').join(appHtml);
   if (headHtml) {
     out = out.replace(/<title>.*?<\/title>/is, '');
@@ -67,6 +76,8 @@ function buildPage(appHtml, headHtml, seo, websiteContent) {
   if (seo) head += `<script>window.__NN_SEO_SETTINGS__ = ${JSON.stringify(seo).replace(/<\//g, '<\\/')};</script>\n`;
   // The content this page was rendered with, so the browser's first render matches (no hydration error).
   if (appHtml && websiteContent) head += `<script>window.__NN_WEBSITE_CONTENT__ = ${inlineJson(websiteContent)};</script>\n`;
+  if (appHtml && blog?.posts) head += `<script>window.__NN_BLOG_POSTS__ = ${inlineJson(blog.posts)};</script>\n`;
+  if (appHtml && blog?.post) head += `<script>window.__NN_BLOG_POST__ = ${inlineJson(blog.post)};</script>\n`;
   if (headHtml) head += `${headHtml}\n`;
   const scriptHead = htmlSnippet(seo?.scriptHead, 'Head scripts');
   const scriptBodyStart = htmlSnippet(seo?.scriptBodyStart, 'Body start scripts');
@@ -78,23 +89,33 @@ function buildPage(appHtml, headHtml, seo, websiteContent) {
   return out;
 }
 
-const { seo = null, websiteContent = null } = await loadLiveSettings();
+const { seo = null, websiteContent = null, blogPosts = [] } = await loadLiveSettings();
 // Head tags use defaults merged with live settings; the browser still receives the raw live settings.
 const renderSettings = resolveSeoForPrerender(seo, SITE_URL);
 
 // Client-only routes get the shell (with live settings + admin scripts, but no pre-rendered markup to hydrate).
 writeFileSync(path.join(distDir, 'app-shell.html'), buildPage('', '', seo));
 
+const isBlogIndex = (route) => route === '/cleaning-blog' || route === '/blog';
+const articleRoutes = blogPosts.map((post) => ({ route: `/cleaning-blog/${encodeURIComponent(post.slug)}`, post }));
+
 let count = 0;
-for (const route of PRERENDER_PATHS) {
-  const { html, headHtml } = render(route, renderSettings, websiteContent);
-  const page = buildPage(html, headHtml, seo, websiteContent);
+for (const { route, post } of [...PRERENDER_PATHS.map((route) => ({ route, post: null })), ...articleRoutes]) {
+  const blog = post ? { post } : isBlogIndex(route) && blogPosts.length ? { posts: blogPosts } : null;
+  const { html, headHtml } = render(route, renderSettings, websiteContent, blog);
+  const page = buildPage(html, headHtml, seo, websiteContent, blog);
   // Vercel `cleanUrls` serves deep-cleaning.html at /deep-cleaning.
   const file = route === '/' ? path.join(distDir, 'index.html') : path.join(distDir, `${route.replace(/^\//, '')}.html`);
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, page);
+  // Articles live in a cleaning-blog/ folder, so give the blog index an index.html there too: the
+  // folder then resolves to the index whichever way the host maps /cleaning-blog.
+  if (route === '/cleaning-blog' && articleRoutes.length) {
+    mkdirSync(path.join(distDir, 'cleaning-blog'), { recursive: true });
+    writeFileSync(path.join(distDir, 'cleaning-blog', 'index.html'), page);
+  }
   count += 1;
 }
 
 rmSync(ssrDir, { recursive: true, force: true });
-console.log(`[prerender] ${count} pages + app-shell.html written (${seo ? 'live' : 'default'} SEO settings, ${websiteContent ? 'live' : 'default'} website content).`);
+console.log(`[prerender] ${count} pages (${articleRoutes.length} blog articles) + app-shell.html written (${seo ? 'live' : 'default'} SEO settings, ${websiteContent ? 'live' : 'default'} website content).`);

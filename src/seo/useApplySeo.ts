@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { applyDocumentSeo, injectGa4, injectGtm } from './applyDocumentSeo';
+import { cleanTrackingId } from './seoStorage';
 import { getSiteSeo } from './seoStorage';
 import { seoPageIdForRoute } from './routePaths';
 import type { CustomerPageKey } from './routePaths';
@@ -33,12 +34,10 @@ export function useApplySeo(
         areaSlug: customerPage === 'area' ? blogSlug : null,
       });
 
-      if (settings.gtmContainerId.trim()) {
-        injectGtm(settings.gtmContainerId.trim());
-      }
-      if (settings.googleAnalytics4Id.trim()) {
-        injectGa4(settings.googleAnalytics4Id.trim());
-      }
+      const gtmId = cleanTrackingId(settings.gtmContainerId, 'gtm');
+      if (gtmId) injectGtm(gtmId);
+      const ga4Id = cleanTrackingId(settings.googleAnalytics4Id, 'ga4');
+      if (ga4Id) injectGa4(ga4Id);
     } catch (e) {
       console.warn('applyDocumentSeo failed (non-fatal):', e);
     }

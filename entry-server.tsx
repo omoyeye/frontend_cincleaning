@@ -3,6 +3,7 @@ import ReactDOMServer from "react-dom/server";
 import App from './App';
 import { buildSsrHeadHtml } from './src/seo/ssrSeo';
 import { setPrerenderWebsiteContent } from './src/cms/content';
+import { setPrerenderBlog } from './src/cms/blogSnapshot';
 
 import { defaultSiteSeo, deepMergePages } from './src/seo/seoStorage';
 import type { SiteSeoSettings } from './types';
@@ -27,13 +28,13 @@ export function resolveSeoForPrerender(raw: Partial<SiteSeoSettings> | null | un
 if (typeof globalThis !== "undefined") (globalThis as unknown as { React: typeof React }).React = React;
 else if (typeof global !== "undefined") (global as unknown as { React: typeof React }).React = React;
 
-export function render(url: string, settings?: any, websiteContent?: unknown) {
+export function render(url: string, settings?: any, websiteContent?: unknown, blog?: { posts?: any[] | null; post?: any | null } | null) {
   if (url.startsWith('/admin') || url.startsWith('/staff') || url.startsWith('/portal') || url.startsWith('/my-account')) {
     return { html: '', headHtml: '' };
   }
 
   // Build SEO head tags server-side (no document/window needed)
-  const headHtml = buildSsrHeadHtml(url, settings);
+  const headHtml = buildSsrHeadHtml(url, settings, blog?.post ?? null);
 
   const app = (
     <React.StrictMode>
@@ -42,6 +43,7 @@ export function render(url: string, settings?: any, websiteContent?: unknown) {
   );
 
   setPrerenderWebsiteContent(websiteContent);
+  setPrerenderBlog(blog);
   const html = ReactDOMServer.renderToString(app);
   return { html, headHtml };
 }

@@ -2,6 +2,7 @@ import type { SiteSeoSettings } from '../../types';
 import type { SeoPageId } from './routePaths';
 import { pathForSeoPageId, SERVICE_AREAS } from './routePaths';
 import { buildJsonLdForPage } from './schemaJsonLd';
+import { tidySeoTitle } from './seoStorage';
 
 const NN_ATTR = 'data-nn-seo';
 
@@ -127,7 +128,7 @@ export function applyDocumentSeo(
   const ogImageRaw = meta?.ogImageUrl?.trim() || settings.defaultOgImageUrl?.trim() || '';
   const ogImage = ogImageRaw ? absoluteUrl(settings, ogImageRaw) : '';
 
-  document.title = title;
+  document.title = tidySeoTitle(title);
 
   stripNn();
 

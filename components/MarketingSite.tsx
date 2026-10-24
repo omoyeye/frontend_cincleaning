@@ -3,6 +3,7 @@ import { ArrowRight, CheckCircle2, Loader2, Mail, Phone, Facebook, Instagram, Ta
 import type { BlogPost, Extra, GalleryItem, WebsiteContent } from '../types';
 import { getSiteSeo } from '../src/seo/seoStorage';
 import { getInitialWebsiteContent, getWebsiteContent, normalizeWebsiteContent, saveWebsiteContent } from '../src/cms/content';
+import { getInitialBlogPost, getInitialBlogPosts } from '../src/cms/blogSnapshot';
 import { subscribeNnSync } from '../services/realtime';
 import { type CustomerPageKey, customerPageFromPath } from '../src/seo/routePaths';
 import { apiClient } from '../services/api';
@@ -147,9 +148,9 @@ const MarketingSite: React.FC<{
   const [contactError, setContactError] = useState<string | null>(null);
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   const [galleryLoading, setGalleryLoading] = useState(true);
-  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
-  const [blogListLoading, setBlogListLoading] = useState(true);
-  const [blogArticle, setBlogArticle] = useState<BlogPost | null>(null);
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(() => getInitialBlogPosts() ?? []);
+  const [blogListLoading, setBlogListLoading] = useState(() => getInitialBlogPosts() == null);
+  const [blogArticle, setBlogArticle] = useState<BlogPost | null>(() => getInitialBlogPost(blogSlug));
   const [blogArticleLoading, setBlogArticleLoading] = useState(false);
   const [blogArticleErr, setBlogArticleErr] = useState<string | null>(null);
   const [extraServiceSamples, setExtraServiceSamples] = useState<Extra[]>([]);
@@ -314,7 +315,8 @@ const MarketingSite: React.FC<{
   useEffect(() => {
     if (page !== 'blog' || blogSlug) return;
     let live = true;
-    setBlogListLoading(true);
+    // With a prerendered list on screen, refresh quietly instead of showing the spinner.
+    if (getInitialBlogPosts() == null) setBlogListLoading(true);
     setBlogListError(null);
     void apiClient
       .getBlogPosts()
@@ -346,7 +348,7 @@ const MarketingSite: React.FC<{
       return;
     }
     let live = true;
-    setBlogArticleLoading(true);
+    if (!getInitialBlogPost(blogSlug)) setBlogArticleLoading(true);
     setBlogArticleErr(null);
     void apiClient
       .getBlogPostBySlug(blogSlug)

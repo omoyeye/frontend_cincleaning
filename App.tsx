@@ -886,6 +886,8 @@ const AppContent: React.FC<{ serverUrl?: string }> = ({ serverUrl }) => {
 
             {currentView === 'customer' && (
               customerPage === 'book' ? (
+                <>
+                <h1 className="sr-only">Book a cleaning service with CiN Cleaning</h1>
                 <BookingWizard
                   currentUser={clientUser}
                   initialData={reorderBooking}
@@ -902,6 +904,7 @@ const AppContent: React.FC<{ serverUrl?: string }> = ({ serverUrl }) => {
                     void refetchAllBookings();
                   }}
                 />
+                </>
               ) : (
                 <MarketingSite
                   page={customerPage}
