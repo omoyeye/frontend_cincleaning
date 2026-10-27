@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Download, QrCode, Copy, Check, RefreshCw } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useBusinessSettings } from '../../src/context/BusinessSettingsContext';
@@ -23,9 +23,8 @@ const TARGET_OPTIONS: { value: QrTarget; label: string; path: string }[] = [
 const QrCodePanel: React.FC = () => {
   const { showFlyer } = useFlyer();
   const bs = useBusinessSettings();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const baseUrl = (bs.website || 'https://cleanitneatly.com').replace(/\/+$/, '');
+  const baseUrl = (bs.website || 'https://www.cleanitneatly.com').replace(/\/+$/, '');
 
   const [target, setTarget] = useState<QrTarget>('booking');
   const [customUrl, setCustomUrl] = useState('');
@@ -36,10 +35,16 @@ const QrCodePanel: React.FC = () => {
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
   const [svgData, setSvgData] = useState('');
+  /** Finished PNG as a data URL; shown in the preview and used for the download. */
+  const [pngData, setPngData] = useState('');
   const [copied, setCopied] = useState(false);
 
   const getUrl = useCallback(() => {
-    if (target === 'custom') return customUrl || baseUrl;
+    if (target === 'custom') {
+      const raw = customUrl.trim();
+      if (!raw) return baseUrl;
+      return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    }
     const info = TARGET_OPTIONS.find((t) => t.value === target);
     return `${baseUrl}${info?.path ?? '/book-cleaning'}`;
   }, [target, customUrl, baseUrl]);
@@ -50,16 +55,22 @@ const QrCodePanel: React.FC = () => {
       showFlyer('Please enter a valid URL', 'error');
       return;
     }
+    const hex = /^#[0-9a-f]{6}$/i;
+    if (!hex.test(fgColor) || !hex.test(bgColor)) {
+      showFlyer('Colours must be a hex value like #1e293b', 'error');
+      return;
+    }
     setGenerating(true);
-    setGenerated(false);
-    setSvgData('');
     try {
-      if (format === 'png' && canvasRef.current) {
-        await QRCode.toCanvas(canvasRef.current, url, {
+      if (format === 'png') {
+        const data = await QRCode.toDataURL(url, {
           width: size,
           margin: 2,
+          errorCorrectionLevel: 'M',
           color: { dark: fgColor, light: bgColor },
         });
+        setPngData(data);
+        setSvgData('');
       } else {
         const svg = await QRCode.toString(url, {
           type: 'svg',
@@ -68,6 +79,7 @@ const QrCodePanel: React.FC = () => {
           color: { dark: fgColor, light: bgColor },
         });
         setSvgData(svg);
+        setPngData('');
       }
       setGenerated(true);
     } catch {
@@ -77,12 +89,17 @@ const QrCodePanel: React.FC = () => {
     }
   }, [getUrl, size, format, fgColor, bgColor, showFlyer]);
 
+  // Keep the preview in step with the settings (short pause while typing).
   useEffect(() => {
-    setGenerated(false);
-  }, [target, customUrl, size, format, fgColor, bgColor]);
+    if (target === 'custom' && !customUrl.trim()) {
+      setGenerated(false);
+      return;
+    }
+    const t = setTimeout(() => void generateQr(), 300);
+    return () => clearTimeout(t);
+  }, [generateQr, target, customUrl]);
 
   const downloadQr = useCallback(() => {
-    const url = getUrl();
     const slug = target === 'custom' ? 'custom' : target;
     const filename = `cin-qr-${slug}-${size}`;
 
@@ -93,14 +110,14 @@ const QrCodePanel: React.FC = () => {
       a.download = `${filename}.svg`;
       a.click();
       URL.revokeObjectURL(a.href);
-    } else if (canvasRef.current) {
+    } else if (pngData) {
       const a = document.createElement('a');
-      a.href = canvasRef.current.toDataURL('image/png');
+      a.href = pngData;
       a.download = `${filename}.png`;
       a.click();
     }
     showFlyer('QR code downloaded', 'success');
-  }, [format, svgData, target, size, getUrl, showFlyer]);
+  }, [format, svgData, pngData, target, size, showFlyer]);
 
   const copyUrl = useCallback(async () => {
     try {
@@ -166,6 +183,14 @@ const QrCodePanel: React.FC = () => {
                 placeholder="https://cleanitneatly.com/your-page"
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
               />
+              {/cleanitneatly\.com\/booking\/?$/i.test(customUrl.trim()) ? (
+                <p className="mt-2 text-xs font-medium text-amber-700">
+                  /booking opens the homepage. The booking page is /book-cleaning.{' '}
+                  <button type="button" className="font-bold underline" onClick={() => setCustomUrl(`${baseUrl}/book-cleaning`)}>
+                    Use the booking page
+                  </button>
+                </p>
+              ) : null}
             </div>
           )}
 
@@ -283,8 +308,9 @@ const QrCodePanel: React.FC = () => {
               <h5 className="text-sm font-bold text-slate-800">Preview</h5>
               <div className="inline-block rounded-2xl border-2 border-slate-100 p-4 bg-white shadow-sm">
                 {format === 'png' ? (
-                  <canvas
-                    ref={canvasRef}
+                  <img
+                    src={pngData}
+                    alt={`QR code for ${getUrl()}`}
                     className="max-w-full h-auto"
                     style={{ width: Math.min(size, 300), height: Math.min(size, 300) }}
                   />
@@ -310,10 +336,6 @@ const QrCodePanel: React.FC = () => {
             </div>
           )}
 
-          {/* Hidden canvas for PNG generation when not yet generated */}
-          {format === 'png' && !generated && (
-            <canvas ref={canvasRef} className="hidden" />
-          )}
         </div>
       </div>
 
