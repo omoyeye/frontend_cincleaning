@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { formatHoursMinutes } from '../../src/utils/bookingHelpers';
 import {
   AlertTriangle,
   CalendarClock,
@@ -58,8 +59,7 @@ function outwardCode(raw: string | null | undefined): string {
 const areaOf = (outward: string) => outward.replace(/\d.*$/, '');
 
 const hoursLabel = (h: number) => {
-  const r = Math.round(h * 4) / 4;
-  return `${Number.isInteger(r) ? r : r.toFixed(2).replace(/0$/, '')}h`;
+  return formatHoursMinutes(h);
 };
 
 function dayLabel(ymd: string, today: string, tomorrow: string): string {

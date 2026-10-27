@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { formatHoursMinutes } from '../../src/utils/bookingHelpers';
 import {
   AlertTriangle,
   CalendarClock,
@@ -659,7 +660,7 @@ export default function BookingsBoard(props: Props) {
                         {hrs ? (
                           <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-slate-400">
                             <Clock3 className="h-3 w-3" />
-                            {hrs}h
+                            {formatHoursMinutes(hrs)}
                           </p>
                         ) : null}
                       </div>

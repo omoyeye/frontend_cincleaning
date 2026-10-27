@@ -164,53 +164,53 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex justify-end animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[200] flex justify-end bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="absolute inset-0" onClick={onClose} />
-            <div className="bg-white w-full max-w-md h-full shadow-2xl animate-in slide-in-from-right duration-500 relative flex flex-col">
+            <div className="relative flex h-full w-full max-w-lg flex-col bg-white shadow-2xl animate-in slide-in-from-right duration-300">
                 {/* Header */}
-                <div className="p-8 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
+                <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
                     <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
                             <Layers className="w-5 h-5" />
                         </div>
-                        <h2 className="text-xl font-black text-slate-900 tracking-tight">Edit Service</h2>
+                        <h2 className="text-lg font-black text-slate-900">Edit Service</h2>
                     </div>
-                    <button onClick={onClose} className="p-3 bg-white rounded-xl text-slate-400 hover:text-red-500 shadow-sm transition-all">
+                    <button onClick={onClose} className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 {/* Form Content */}
-                <div className="flex-1 overflow-y-auto p-8 border-b border-slate-100">
-                    <h3 className="text-2xl font-black text-slate-900 mb-6">{service.name}</h3>
+                <div className="flex-1 overflow-y-auto bg-slate-50 px-6 py-6">
+                    <h3 className="mb-5 text-sm font-medium text-slate-500">{service.name}</h3>
 
-                    <form id="edit-service-form" onSubmit={handleSave} className="space-y-6">
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Service Name</label>
+                    <form id="edit-service-form" onSubmit={handleSave} className="space-y-5">
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-800">Service Name</label>
                             <input
                                 type="text"
                                 value={name}
                                 onChange={e => setName(e.target.value)}
-                                className="w-full bg-card border-2 border-input rounded-2xl p-5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 font-bold text-sm text-foreground transition-all shadow-inner"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                 required
                             />
                         </div>
 
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Base Rate (£)</label>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-800">Base Rate (£)</label>
                             <input
                                 type="number"
                                 step="0.01"
                                 value={baseRate}
                                 onChange={e => setBaseRate(e.target.value)}
-                                className="w-full bg-card border-2 border-input rounded-2xl p-5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 font-bold text-lg text-foreground transition-all shadow-inner"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                 required
                             />
                         </div>
 
                         {trigger === 'standard' && (
-                            <div className="space-y-3">
-                                <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">London hourly rate (£)</label>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-semibold text-slate-800">London hourly rate (£)</label>
                                 <input
                                     type="number"
                                     step="0.01"
@@ -218,7 +218,7 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
                                     value={londonRate}
                                     onChange={e => setLondonRate(e.target.value)}
                                     placeholder="Same as base rate"
-                                    className="w-full bg-card border-2 border-input rounded-2xl p-5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 font-bold text-lg text-foreground transition-all shadow-inner"
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                 />
                                 <p className="text-xs text-slate-500 font-medium ml-1">
                                     Charged for Greater London postcodes (all 32 boroughs). Everywhere else, including Manchester, uses the base rate. Leave blank to use the base rate in London too.
@@ -226,8 +226,8 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
                             </div>
                         )}
 
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Pricing Model</label>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-800">Pricing Model</label>
                             <div className="grid grid-cols-2 gap-2">
                                 {PRICING_MODELS.map((m) => (
                                     <button
@@ -235,10 +235,10 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
                                         type="button"
                                         title={m.hint}
                                         onClick={() => setPricingModel(m.id)}
-                                        className={`py-2.5 rounded-xl font-bold text-xs uppercase tracking-wide transition-all ${
+                                        className={`py-2.5 rounded-xl font-semibold text-xs transition-all ${
                                             pricingModel === m.id
-                                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                                                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                                                ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                                                : 'bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:ring-slate-300'
                                         }`}
                                     >
                                         {m.label}
@@ -251,7 +251,7 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
                             <button
                                 type="button"
                                 onClick={() => setPricingHelpOpen((v) => !v)}
-                                className="text-[11px] font-black uppercase tracking-wide text-blue-600 hover:text-blue-700"
+                                className="text-xs font-bold text-blue-600 hover:text-blue-700"
                             >
                                 {pricingHelpOpen ? 'Hide pricing help' : 'Pricing help'}
                             </button>
@@ -266,8 +266,8 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
                             )}
                         </div>
 
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-800">
                                 Call-out charge (£)
                             </label>
                             <input
@@ -277,7 +277,7 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
                                 value={callOutCharge}
                                 onChange={(e) => setCallOutCharge(e.target.value)}
                                 placeholder="e.g. 30 (blank = default £30)"
-                                className="w-full bg-card border-2 border-input rounded-2xl p-5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 font-bold text-lg text-foreground transition-all shadow-inner"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                             />
                             <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
                                 Deep / end-of-tenancy call-out shown in the booking wizard and invoices. Leave blank to use the system default
@@ -286,54 +286,55 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-3">
-                                <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Min Duration (hrs)</label>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-semibold text-slate-800">Minimum length (hours)</label>
                                 <input
                                     type="number"
                                     min="1"
                                     value={minDuration}
                                     onChange={e => setMinDuration(e.target.value)}
-                                    className="w-full bg-card border-2 border-input rounded-2xl p-5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 font-bold text-lg text-foreground transition-all shadow-inner"
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                     required
                                 />
                             </div>
-                            <div className="space-y-3">
-                                <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Min Notice (days)</label>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-semibold text-slate-800">Minimum notice (hours)</label>
                                 <input
                                     type="number"
                                     min="0"
                                     value={minNotice}
                                     onChange={e => setMinNotice(e.target.value)}
-                                    className="w-full bg-card border-2 border-input rounded-2xl p-5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 font-bold text-lg text-foreground transition-all shadow-inner"
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                     required
                                 />
+                                    <p className="text-xs text-slate-500">How long before the start time customers must book.</p>
                             </div>
                         </div>
 
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Icon Name</label>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-800">Icon Name</label>
                             <input
                                 type="text"
                                 value={icon}
                                 onChange={e => setIcon(e.target.value)}
                                 placeholder="e.g. Sparkles"
-                                className="w-full bg-card border-2 border-input rounded-2xl p-5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 font-bold text-sm text-foreground transition-all shadow-inner"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                             />
                         </div>
 
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Description</label>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-800">Description</label>
                             <textarea
                                 value={description}
                                 onChange={e => setDescription(e.target.value)}
                                 rows={4}
-                                className="w-full bg-card border-2 border-input rounded-2xl p-5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 font-medium text-sm text-foreground transition-all shadow-inner resize-y"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 resize-y"
                                 placeholder="Short service description"
                             />
                         </div>
 
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Booking Trigger</label>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-800">Booking Trigger</label>
                             <div className="grid grid-cols-2 gap-2">
                                 {TRIGGER_OPTIONS.map((t) => (
                                     <button
@@ -348,10 +349,10 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
                                                 setMinDuration(String(defaults.minDuration));
                                             }
                                         }}
-                                        className={`py-2.5 px-3 rounded-xl font-bold text-[11px] uppercase tracking-wide transition-all text-center ${
+                                        className={`py-2.5 px-3 rounded-xl font-semibold text-xs transition-all text-center ${
                                             trigger === t.id
-                                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                                                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                                                ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+                                                : 'bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:ring-slate-300'
                                         }`}
                                     >
                                         {t.label}
@@ -363,8 +364,8 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
                             </p>
                         </div>
 
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Booking Form Steps</label>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-800">Booking Form Steps</label>
                             <div className="space-y-2">
                                 {ALL_WIZARD_STEPS.map((key) => {
                                     const on = flowSteps.includes(key);
@@ -393,9 +394,9 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
                             </p>
                         </div>
 
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Status</label>
-                            <label className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl cursor-pointer hover:bg-slate-100 transition-all">
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-800">Status</label>
+                            <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-300">
                                 <span className="font-bold text-slate-700">Currently {active ? 'Active' : 'Disabled'}</span>
                                 <div className={`relative w-12 h-6 rounded-full transition-colors ${active ? 'bg-green-500' : 'bg-slate-300'}`}>
                                     <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${active ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -412,12 +413,12 @@ const ServiceFlyout: React.FC<Props> = ({ service, onClose, onUpdate }) => {
                 </div>
 
                 {/* Footer */}
-                <div className="p-8 bg-slate-50">
+                <div className="border-t border-slate-200 bg-white px-6 py-4">
                     <button
                         type="submit"
                         form="edit-service-form"
                         disabled={isSaving}
-                        className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-200 hover:bg-blue-700 hover:-translate-y-0.5 active:scale-95 transition-all text-sm uppercase tracking-widest flex items-center justify-center disabled:opacity-50"
+                        className="flex w-full items-center justify-center rounded-xl bg-blue-600 py-3 text-sm font-bold text-white shadow-sm shadow-blue-200 transition hover:bg-blue-700 disabled:opacity-50"
                     >
                         {isSaving ? 'Saving...' : <><Save className="w-4 h-4 mr-2" /> Save Configuration</>}
                     </button>

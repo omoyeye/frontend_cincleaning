@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { apiClient, apiUrl } from '../services/api';
 import { ServiceConfig, Extra } from '../types';
 import {
@@ -46,6 +47,10 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
 
   // Email capture (after service step)
   const [emailCaptured, setEmailCaptured] = useState(false);
+  /** Email pop-up shown when they tap Next on step 1 (before the email is known). */
+  const [gateOpen, setGateOpen] = useState(false);
+  const [advanceAfterGate, setAdvanceAfterGate] = useState(false);
+  const gateInputRef = useRef<HTMLInputElement>(null);
   const [leadId, setLeadId] = useState<number | null>(null);
   const [gateSubmitting, setGateSubmitting] = useState(false);
   const [gateError, setGateError] = useState('');
@@ -96,6 +101,8 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
       const data = await res.json();
       setLeadId(data.id ?? null);
       setEmailCaptured(true);
+      setGateOpen(false);
+      setAdvanceAfterGate(true);
     } catch (e: any) {
       setGateError(e?.message || 'Something went wrong. Please try again.');
     } finally {
@@ -228,10 +235,23 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
     if (idx < activeSteps.length - 1) setStep(activeSteps[idx + 1]);
   }, [step, activeSteps]);
 
-  // Auto-advance after email capture
+  // Continue to the next step once the pop-up has the email (only right after it is given, so Back still works).
   useEffect(() => {
-    if (emailCaptured && step === 'service') goNext();
-  }, [emailCaptured, step, goNext]);
+    if (!advanceAfterGate || !emailCaptured) return;
+    setAdvanceAfterGate(false);
+    if (step === 'service') goNext();
+  }, [advanceAfterGate, emailCaptured, step, goNext]);
+
+  useEffect(() => {
+    if (!gateOpen) return;
+    const t = setTimeout(() => gateInputRef.current?.focus(), 50);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !gateSubmitting && setGateOpen(false);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [gateOpen, gateSubmitting]);
 
   const goBack = useCallback(() => {
     const idx = activeSteps.indexOf(step);
@@ -363,7 +383,7 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
           {resultPrice != null && !isQuoteBased && (
             <div className={styles.resultDuration}>
               Est. duration: {Math.floor(calculatedDuration)}h{' '}
-              {Math.round((calculatedDuration % 1) * 60) > 0 ? `${Math.round((calculatedDuration % 1) * 60)}m` : ''}
+              {Math.round((calculatedDuration % 1) * 60) > 0 ? `${Math.round((calculatedDuration % 1) * 60)}min` : ''}
             </div>
           )}
           {selectedExtras.length > 0 && (
@@ -402,6 +422,11 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
 
   return (
     <div className={styles.widget}>
+      <div className={styles.quoteHeading}>
+        <span className={styles.quoteHeadingTitle}>Get your free quote</span>
+        <span className={styles.quoteHeadingNote}>No payment, no obligation</span>
+      </div>
+
       {/* Progress */}
       <div className={styles.progress}>
         {activeSteps.filter(s => s !== 'result').map((s, i) => (
@@ -418,7 +443,7 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
           </div>
           <div className={styles.priceMeta}>
             {selectedService.name} · {Math.floor(calculatedDuration)}h
-            {Math.round((calculatedDuration % 1) * 60) > 0 ? ` ${Math.round((calculatedDuration % 1) * 60)}m` : ''}
+            {Math.round((calculatedDuration % 1) * 60) > 0 ? ` ${Math.round((calculatedDuration % 1) * 60)}min` : ''}
           </div>
         </div>
       )}
@@ -471,41 +496,57 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
             </div>
           )}
 
-          {/* Email capture — shown after service selection, before proceeding */}
-          {canProceedFromService && !emailCaptured && (
-            <div className={styles.emailCapture}>
-              <div className={styles.emailCaptureLabel}>Enter your email to continue</div>
-              <div className={styles.emailCaptureHint}>Your email is required to unlock the next steps and receive your personalised quote. We won't share it with anyone.</div>
-              <div className={styles.emailCaptureRow}>
-                <input
-                  type="email"
-                  className={styles.formInput}
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                />
-                <button
-                  type="button"
-                  className={styles.btnNext}
-                  disabled={!EMAIL_RE.test(email.trim()) || gateSubmitting}
-                  onClick={handleEmailCapture}
-                >
-                  {gateSubmitting ? <><span className={styles.spinner} />...</> : 'Continue'}
-                </button>
-              </div>
-              {gateError && <div className={`${styles.postcodeMsg} ${styles.postcodeBad}`}>{gateError}</div>}
-              <div className={styles.emailCaptureTrust}>No spam. We will email you a copy of your quote.</div>
-            </div>
-          )}
+          <div className={styles.btnRow}>
+            <button
+              type="button"
+              className={styles.btnNext}
+              disabled={!canProceedFromService}
+              onClick={() => (emailCaptured ? goNext() : (setGateError(''), setGateOpen(true)))}
+            >
+              Next
+            </button>
+          </div>
 
-          {emailCaptured && (
-            <div className={styles.btnRow}>
-              <button type="button" className={styles.btnNext} disabled={!canProceedFromService} onClick={goNext}>
-                Next
-              </button>
-            </div>
-          )}
+          {/* Email pop-up: asked once, then the quote carries on */}
+          {gateOpen && typeof document !== 'undefined'
+            ? createPortal(
+                <div className={styles.gateOverlay} role="dialog" aria-modal="true" aria-labelledby="quote-gate-title">
+                  <div className={styles.gateBackdrop} onClick={() => !gateSubmitting && setGateOpen(false)} />
+                  <form
+                    className={styles.gateCard}
+                    onSubmit={e => {
+                      e.preventDefault();
+                      void handleEmailCapture();
+                    }}
+                  >
+                    <button type="button" className={styles.gateClose} aria-label="Close" onClick={() => setGateOpen(false)} disabled={gateSubmitting}>
+                      ×
+                    </button>
+                    <div className={styles.gateIcon} aria-hidden>✉</div>
+                    <div id="quote-gate-title" className={styles.gateTitle}>Enter your email to continue</div>
+                    <div className={styles.gateHint}>
+                      Then finish the next few steps to get your price{selectedService ? ` for ${selectedService.name}` : ''}. When your quote is ready, we will email you a copy too.
+                    </div>
+                    <input
+                      ref={gateInputRef}
+                      type="email"
+                      className={styles.formInput}
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      inputMode="email"
+                    />
+                    {gateError && <div className={`${styles.postcodeMsg} ${styles.postcodeBad}`}>{gateError}</div>}
+                    <button type="submit" className={`${styles.btnNext} ${styles.gateSubmit}`} disabled={!EMAIL_RE.test(email.trim()) || gateSubmitting}>
+                      {gateSubmitting ? <><span className={styles.spinner} /> Please wait…</> : 'Continue to my quote'}
+                    </button>
+                    <div className={styles.emailCaptureTrust}>No spam and no obligation. We never share your email.</div>
+                  </form>
+                </div>,
+                document.body,
+              )
+            : null}
         </>
       )}
 
@@ -712,7 +753,7 @@ const QuoteWidget: React.FC<QuoteWidgetProps> = ({ onBookNow }) => {
             </div>
             <div className={styles.summaryRow}>
               <span>Duration</span>
-              <span>{Math.floor(calculatedDuration)}h {Math.round((calculatedDuration % 1) * 60) > 0 ? `${Math.round((calculatedDuration % 1) * 60)}m` : ''}</span>
+              <span>{Math.floor(calculatedDuration)}h {Math.round((calculatedDuration % 1) * 60) > 0 ? `${Math.round((calculatedDuration % 1) * 60)}min` : ''}</span>
             </div>
             {selectedExtras.length > 0 && (
               <div className={styles.summaryExtras}>

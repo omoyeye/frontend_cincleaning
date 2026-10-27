@@ -232,6 +232,73 @@ function authHeader(realm: AuthRealm): Record<string, string> {
     return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
+async function jsonOrError(res: Response, fallback: string) {
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((body as { error?: string }).error || fallback);
+    return body;
+}
+
+export type BroadcastEmailAudience = 'all' | 'customers' | 'marketing' | 'inactive' | 'staff' | 'specific';
+export type BroadcastAppAudience = 'all' | 'customers' | 'staff';
+export interface BroadcastRecord {
+    id: number;
+    channel: 'email' | 'push' | 'notification';
+    audience: string;
+    subject: string | null;
+    body: string;
+    recipients: number;
+    sent: number;
+    failed: number;
+    createdBy: string | null;
+    createdAt: string | null;
+}
+
+export type HolidayStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled';
+export interface StaffHoliday {
+    id: number;
+    staffId: number;
+    startDate: string;
+    endDate: string;
+    halfDay: boolean;
+    days: number;
+    holidayYear: number;
+    status: HolidayStatus;
+    note: string | null;
+    adminNote: string | null;
+    decidedAt: string | null;
+    payStatus: 'unpaid' | 'claimed' | 'paid';
+    payAmount: number | null;
+    staffInvoiceId: number | null;
+    createdAt: string | null;
+}
+export interface HolidayBalance { allowance: number; taken: number; confirmed: number; pending: number; remaining: number }
+export interface ClaimableHoliday { id: number; startDate: string; endDate: string; days: number; hours: number; hourlyRate: number; amount: number }
+export interface StaffHolidayYear {
+    staff: { id: number; name: string; contracted: boolean; allowance: number; hoursPerDay: number; hourlyRate: number; dailyPay: number };
+    year: number;
+    currentYear: number;
+    yearLabel: string;
+    yearStart: string;
+    yearEnd: string;
+    today: string;
+    balance: HolidayBalance;
+    holidays: StaffHoliday[];
+    claimable: ClaimableHoliday[];
+}
+export interface AdminHolidayRequest extends StaffHoliday {
+    staffName: string;
+    staffImage: string | null;
+    clashes: Array<{ id: number; ref: string | null; date: string; time: string | null; client: string; service: string }>;
+}
+export interface AdminHolidayYear {
+    year: number;
+    currentYear: number;
+    yearLabel: string;
+    today: string;
+    requests: AdminHolidayRequest[];
+    balances: Array<HolidayBalance & { staffId: number; name: string; imageUrl: string | null; onHolidayToday: boolean }>;
+}
+
 export interface PublicReviewsData {
     averageRating: number | null;
     reviewCount: number;
@@ -1099,24 +1166,47 @@ function createRealmApi(realm: AuthRealm) {
             }
         },
 
-        sendBulkEmail: async (data: unknown) => {
+        sendBulkEmail: async (data: {
+            subject: string;
+            body: string;
+            audience: BroadcastEmailAudience;
+            specificEmails?: string[];
+            test?: boolean;
+        }): Promise<{ sent: number; total: number; failed: number; errors?: string[] }> => {
             const res = await fetchWithNetworkHint(realm, `${API_URL}/admin/broadcast/email`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...H() },
                 body: JSON.stringify(data),
             });
-            if (!res.ok) throw new Error('Failed to send email');
-            return res.json();
+            return jsonOrError(res, 'Failed to send email');
         },
 
-        sendBulkNotification: async (data: unknown) => {
+        sendBulkNotification: async (data: { message: string; title?: string; audience: BroadcastAppAudience; push?: boolean }): Promise<{ sent: number }> => {
             const res = await fetchWithNetworkHint(realm, `${API_URL}/admin/broadcast/notification`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...H() },
                 body: JSON.stringify(data),
             });
-            if (!res.ok) throw new Error('Failed to send notification');
-            return res.json();
+            return jsonOrError(res, 'Failed to send notification');
+        },
+
+        getBroadcastAudiences: async (): Promise<{ email: Record<string, number>; app: Record<string, number> }> => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/admin/broadcast/audiences`, { headers: { ...H() } });
+            return jsonOrError(res, 'Could not count audiences');
+        },
+
+        previewBroadcastEmail: async (data: { subject: string; body: string }): Promise<{ subject: string; html: string }> => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/admin/broadcast/preview`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...H() },
+                body: JSON.stringify(data),
+            });
+            return jsonOrError(res, 'Could not build the preview');
+        },
+
+        getBroadcasts: async (): Promise<BroadcastRecord[]> => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/admin/broadcasts`, { headers: { ...H() } });
+            return jsonOrError(res, 'Could not load sent messages');
         },
 
         /** Upload image for broadcast HTML; returns public `url` for `<img src="…">`. */
@@ -1231,8 +1321,49 @@ function createRealmApi(realm: AuthRealm) {
                 headers: { 'Content-Type': 'application/json', ...H() },
                 body: JSON.stringify(data),
             });
-            if (!res.ok) throw new Error('Failed to submit invoice');
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error((err as { error?: string }).error || 'Failed to submit invoice');
+            }
             return res.json();
+        },
+
+        /** Paid holiday: one staff member's year (balance, requests, claimable holiday pay). */
+        getStaffHolidays: async (staffId: number, year?: number): Promise<StaffHolidayYear> => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/staff/${staffId}/holidays${year ? `?year=${year}` : ''}`, { headers: { ...H() } });
+            return jsonOrError(res, 'Could not load holiday');
+        },
+        createHoliday: async (staffId: number, body: { startDate: string; endDate: string; halfDay?: boolean; note?: string; status?: 'Approved' }) => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/staff/${staffId}/holidays`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...H() },
+                body: JSON.stringify(body),
+            });
+            return jsonOrError(res, 'Could not book holiday');
+        },
+        updateHoliday: async (id: number, body: { startDate?: string; endDate?: string; halfDay?: boolean; note?: string }) => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/holidays/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', ...H() },
+                body: JSON.stringify(body),
+            });
+            return jsonOrError(res, 'Could not update holiday');
+        },
+        cancelHoliday: async (id: number) => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/holidays/${id}`, { method: 'DELETE', headers: { ...H() } });
+            return jsonOrError(res, 'Could not cancel holiday');
+        },
+        getAdminHolidays: async (year?: number): Promise<AdminHolidayYear> => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/admin/holidays${year ? `?year=${year}` : ''}`, { headers: { ...H() } });
+            return jsonOrError(res, 'Could not load holidays');
+        },
+        decideHoliday: async (id: number, body: { status: 'Approved' | 'Rejected' | 'Pending'; adminNote?: string; days?: number }) => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/admin/holidays/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', ...H() },
+                body: JSON.stringify(body),
+            });
+            return jsonOrError(res, 'Could not update holiday');
         },
 
         getStaffInvoiceHistory: async (staffId: number) => {

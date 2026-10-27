@@ -1,4 +1,5 @@
 import React, { useMemo, useRef } from 'react';
+import { formatHoursMinutes } from '../src/utils/bookingHelpers';
 import { Download, Printer } from 'lucide-react';
 import BrandLogoMark from './BrandLogoMark';
 import { useFlyer } from './Flyer';
@@ -74,7 +75,7 @@ const StaffInvoiceDocument: React.FC<Props> = ({
 
   const invoiceLabel = useMemo(() => `STF-INV-${invoiceId}`, [invoiceId]);
   const issueDate = useMemo(
-    () => (createdAt ? new Date(createdAt).toLocaleDateString() : new Date().toLocaleDateString()),
+    () => (createdAt ? new Date(createdAt).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')),
     [createdAt]
   );
   const periodLabel = useMemo(() => {
@@ -158,7 +159,7 @@ const StaffInvoiceDocument: React.FC<Props> = ({
         </div>
         <div className="rounded-xl border border-slate-200 p-3">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Hours</p>
-          <p className="text-lg font-black text-slate-900">{Number(weekTotalHours || 0).toFixed(2)}</p>
+          <p className="text-lg font-black text-slate-900">{formatHoursMinutes(Number(weekTotalHours || 0))}</p>
         </div>
         <div className="rounded-xl border border-slate-200 p-3">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Jobs</p>
@@ -189,8 +190,8 @@ const StaffInvoiceDocument: React.FC<Props> = ({
                 <td className="p-3 font-mono text-xs">{j.id || '-'}</td>
                 <td className="p-3 font-bold">{j.date || '-'}</td>
                 <td className="p-3">{j.customer || '-'}</td>
-                <td className="p-3 text-right tabular-nums">{Number(j.bookedHours || 0).toFixed(2)}</td>
-                <td className="p-3 text-right tabular-nums">{Number(j.yourHours ?? j.hours ?? 0).toFixed(2)}</td>
+                <td className="p-3 text-right tabular-nums">{formatHoursMinutes(Number(j.bookedHours || 0))}</td>
+                <td className="p-3 text-right tabular-nums">{formatHoursMinutes(Number(j.yourHours ?? j.hours ?? 0))}</td>
                 <td className="p-3 text-right tabular-nums">£{Number(j.hourlyRate || 0).toFixed(2)}</td>
                 <td className="p-3 text-right font-black text-emerald-700">£{Number(j.yourShare || 0).toFixed(2)}</td>
               </tr>

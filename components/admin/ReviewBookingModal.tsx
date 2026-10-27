@@ -5,7 +5,8 @@ import { X, CheckCircle2, CreditCard, Send, FileText, AlertCircle, Camera, Downl
 import InvoiceView from '../InvoiceView';
 import { DurationBreakdownBlock } from '../DurationBreakdownBlock';
 import { useFlyer } from '../Flyer';
-import { formatBookedHoursLabel, getDurationBreakdown, getExtraDisplayLabel } from '../../src/utils/bookingHelpers';
+import { formatBookedHoursLabel,
+    formatHoursMinutes, getDurationBreakdown, getExtraDisplayLabel } from '../../src/utils/bookingHelpers';
 import { useBusinessSettings } from '../../src/context/BusinessSettingsContext';
 import { formatInvoiceBankDetailsPlainText, getPayoutBankDetailsForInvoice } from '../../src/utils/invoiceBankDetails';
 
@@ -332,7 +333,7 @@ const BookingReviewModal: React.FC<Props> = ({ booking, services, extras, onClos
                                                         </span>
                                                         {durationBreakdown.model === 'itemized' && line ? (
                                                             <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">
-                                                                {formatBookedHoursLabel(line.lineHours)}h booked
+                                                                {formatHoursMinutes(line.lineHours)} booked
                                                             </span>
                                                         ) : null}
                                                     </div>

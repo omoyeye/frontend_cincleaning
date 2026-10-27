@@ -1,23 +1,28 @@
 import React from 'react';
 import {
-    CheckCircle,
+    CalendarCheck,
+    CalendarPlus,
     CheckCircle2,
-    ShieldCheck,
-    Sparkles,
-    MapPin,
-    Briefcase,
-    Lock,
-    ChevronLeft,
-    User,
+    Clock,
+    Copy,
     CreditCard,
+    Download,
     ExternalLink,
     Landmark,
+    Mail,
+    MapPin,
+    Plus,
+    ShieldCheck,
+    Sparkles,
+    User,
+    UserCheck,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Booking, ServiceConfig, Extra } from '../types';
 import { useFlyer } from './Flyer';
 import {
-    formatBookedHoursLabel,
+    downloadBookingIcs,
+    formatHoursMinutes,
     getDurationBreakdown,
     getCallOutChargeGbp,
     getExtraDisplayLabel,
@@ -94,275 +99,345 @@ const BookingConfirmation: React.FC<Props> = ({
             ? depositPolicy.message.trim()
             : defaultDepositMessage;
 
-    return (
-        <div className={`mx-auto ${isModal ? 'p-0' : 'py-12 px-6'} text-center animate-in zoom-in-95 duration-500`}>
-            {!isModal && (
-                <>
-                    <div className="w-24 h-24 bg-gradient-to-br from-green-400 to-green-600 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-green-200 rotation-3 hover:scale-110 transition-transform">
-                        <CheckCircle className="w-12 h-12 text-white" />
-                    </div>
+    const reference = String(booking.bookingId ?? booking.id);
+    const firstName = String(booking.contact?.name || '').trim().split(/\s+/)[0];
+    const longDate = serviceDateLocal ? format(serviceDateLocal, 'EEEE d MMMM yyyy') : booking.date || 'N/A';
+    const bookedHours = Number(booking.duration ?? booking.propertyDetails?.duration);
+    const totalLabel = pay.stage === 'paid' ? 'Total paid' : 'Booking total';
 
-                    <h2 className="text-5xl font-black text-slate-900 mb-4 tracking-tight">You're All Set! 🎉</h2>
-                    <p className="text-slate-500 mb-2 text-xl font-medium">Get ready for a sparkling clean home!</p>
+    const copyReference = async () => {
+        try {
+            await navigator.clipboard.writeText(reference);
+            showFlyer('Booking reference copied.', 'success');
+        } catch {
+            showFlyer(reference, 'info');
+        }
+    };
 
-                    <div className="inline-block bg-blue-50 py-3 px-6 rounded-full mb-12 border border-blue-100">
-                        <p className="text-blue-700 font-bold text-sm flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                            Confirmation sent to {booking.contact.email}
-                        </p>
-                    </div>
-                    {conflictWarningText ? (
-                        <div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-left">
-                            <p className="text-xs font-black uppercase tracking-widest text-amber-700">Scheduling note</p>
-                            <p className="mt-1 text-sm font-bold text-amber-900">{conflictWarningText}</p>
-                        </div>
-                    ) : null}
-                </>
-            )}
+    const printReceipt = () => {
+        const el = receiptPrintRef.current;
+        if (!el) {
+            showFlyer('Could not open print view. Please try again.', 'error');
+            return;
+        }
+        printInvoiceElement(el, () =>
+            showFlyer('Print dialog opened. Choose Save as PDF in the print window to download your receipt.', 'success')
+        );
+    };
 
-            <div
-                ref={receiptPrintRef}
-                className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden text-left relative"
-            >
-                {/* Header */}
-                <div className="bg-slate-900 p-8 text-white relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-10 opacity-5 rotate-12 scale-150">
-                        <Sparkles className="w-40 h-40" />
-                    </div>
-                    <div className="relative z-10 flex justify-between items-start gap-4">
-                        <div className="flex items-start gap-4 min-w-0">
-                            <div className="shrink-0 rounded-xl bg-white/95 p-3 shadow-sm ring-1 ring-white/20">
-                                <BrandLogoMark className="h-[5.5rem] w-auto max-w-[280px] object-contain object-left" />
-                            </div>
+    const nextSteps: Array<{ title: string; body: string; done?: boolean; icon: React.ReactNode }> = [
+        { title: 'Booking submitted', body: `We have your request and emailed a copy to ${booking.contact.email}. It stays pending until we confirm it.`, done: true, icon: <CheckCircle2 className="h-4 w-4" /> },
+        { title: 'We confirm your booking', body: 'Our team checks the rota, confirms your time and lets you know who is coming.', icon: <UserCheck className="h-4 w-4" /> },
+        {
+            title: pay.stage === 'paid' ? 'Payment complete' : pay.choice === 'full' ? 'Pay in full' : `Pay your ${depositPercent}% deposit`,
+            body:
+                pay.stage === 'paid'
+                    ? 'Thank you, nothing more to pay.'
+                    : booking.stripePaymentLink
+                        ? 'Use the secure card link below, or pay by bank transfer.'
+                        : 'A secure card link is emailed once we confirm, or pay by bank transfer.',
+            done: pay.stage === 'paid' || pay.stage === 'deposit_paid',
+            icon: <CreditCard className="h-4 w-4" />,
+        },
+        { title: 'Your clean', body: `${longDate} at ${booking.time}.`, icon: <Sparkles className="h-4 w-4" /> },
+    ];
+
+    const receipt = (
+        <div ref={receiptPrintRef} className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_32px_-16px_rgba(15,23,42,0.14)]">
+            {/* Header */}
+            <div className="flex flex-col gap-4 border-b border-slate-100 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+                <BrandLogoMark className="h-14 w-auto max-w-[220px] object-contain object-left" />
+                <div className="sm:text-right">
+                    <p className="text-xs font-medium text-slate-500">Booking reference</p>
+                    <p className="text-xl font-semibold tracking-tight text-slate-900">#{reference}</p>
+                    <span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${pay.stage === 'paid' ? 'bg-emerald-50 text-emerald-700' : pay.stage === 'deposit_paid' ? 'bg-sky-50 text-sky-700' : 'bg-amber-50 text-amber-800'}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${pay.stage === 'paid' ? 'bg-emerald-500' : pay.stage === 'deposit_paid' ? 'bg-sky-500' : 'bg-amber-500'}`} />
+                        {pay.stage === 'paid' ? 'Paid in full' : pay.stage === 'deposit_paid' ? 'Deposit paid' : 'Awaiting payment'}
+                    </span>
+                </div>
+            </div>
+
+            <div className="space-y-6 p-6 sm:p-7">
+                {/* Key details */}
+                <div className="grid gap-3 sm:grid-cols-2">
+                    {[
+                        { icon: <Sparkles className="h-4 w-4" />, label: 'Service', value: serviceName, sub: [booking.frequency, Number.isFinite(bookedHours) && bookedHours > 0 ? formatHoursMinutes(bookedHours) : ''].filter(Boolean).join(' · ') },
+                        { icon: <CalendarCheck className="h-4 w-4" />, label: 'Date and time', value: longDate, sub: `Starting at ${booking.time}` },
+                        { icon: <MapPin className="h-4 w-4" />, label: 'Address', value: booking.address.line1, sub: [booking.address.city, booking.address.postcode].filter(Boolean).join(', ') },
+                        { icon: <User className="h-4 w-4" />, label: 'Contact', value: booking.contact.name || 'N/A', sub: [booking.contact.email, booking.contact.phone].filter(Boolean).join(' · ') },
+                    ].map((d) => (
+                        <div key={d.label} className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-primary shadow-sm ring-1 ring-slate-200/70">{d.icon}</span>
                             <div className="min-w-0">
-                                <span className="text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] text-blue-400 mb-2 block">Booking Reference</span>
-                                <h3 className="text-3xl font-black text-white">#{booking.bookingId ?? booking.id}</h3>
+                                <p className="text-xs font-medium text-slate-500">{d.label}</p>
+                                <p className="break-words font-semibold text-slate-900">{d.value}</p>
+                                {d.sub ? <p className="break-words text-sm text-slate-500">{d.sub}</p> : null}
                             </div>
                         </div>
-                        <div className="bg-white/10 backdrop-blur-md p-3 rounded-xl border border-white/10 shrink-0">
-                            <ShieldCheck className="w-8 h-8 text-green-400" />
-                        </div>
-                    </div>
+                    ))}
                 </div>
 
-                {/* Details Body */}
-                <div className="p-8 space-y-6 bg-slate-50/50">
-                    {/* Service & Time */}
-                    <div className="flex justify-between items-center pb-6 border-b border-slate-200 border-dashed">
-                        <div>
-                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Service</div>
-                            <div className="text-xl font-black text-slate-900">{serviceName}</div>
-                        </div>
-                        <div className="text-right">
-                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Date & Time</div>
-                            <div className="text-xl font-black text-slate-900">
-                                {serviceDateLocal ? format(serviceDateLocal, 'MMM do') : booking.date || 'N/A'} @ {booking.time}
-                            </div>
-                        </div>
-                    </div>
+                <DurationBreakdownBlock breakdown={durationBreakdown} />
 
-                    {/* Client Details */}
-                    <div className="pb-6 border-b border-slate-200 border-dashed">
-                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Client Details</div>
-                        <div className="flex items-start gap-3">
-                            <div className="p-2 bg-purple-100 rounded-lg text-purple-600 mt-1">
-                                <User className="w-4 h-4" />
-                            </div>
-                            <div>
-                                <div className="font-bold text-slate-800">{booking.contact.name || 'N/A'}</div>
-                                <div className="text-sm font-medium text-slate-500">{booking.contact.email}</div>
-                                {booking.contact.phone && <div className="text-sm font-medium text-slate-500">{booking.contact.phone}</div>}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Location */}
-                    <div className="pb-6 border-b border-slate-200 border-dashed">
-                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Location</div>
-                        <div className="flex items-start gap-3">
-                            <div className="p-2 bg-blue-100 rounded-lg text-blue-600 mt-1">
-                                <MapPin className="w-4 h-4" />
-                            </div>
-                            <div>
-                                <div className="font-bold text-slate-800">{booking.address.line1}</div>
-                                <div className="text-sm font-medium text-slate-500">{booking.address.city}, {booking.address.postcode}</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <DurationBreakdownBlock breakdown={durationBreakdown} className="mb-2" />
-
-                    {/* Summary Breakdown */}
-                    <div className="bg-white p-6 rounded-2xl border border-slate-100 space-y-4 shadow-sm">
-                        <h4 className="font-black text-slate-800 flex items-center gap-2">
-                            <Briefcase className="w-4 h-4 text-slate-400" />
-                            Booking Summary
-                        </h4>
-
+                {/* Price summary */}
+                <div className="rounded-2xl border border-slate-200/80">
+                    <p className="border-b border-slate-100 px-5 py-3 text-sm font-semibold text-slate-900">Price summary</p>
+                    <div className="space-y-2 px-5 py-4 text-sm">
                         {callOutCharge > 0 && (
-                            <div className="flex justify-between text-sm font-bold text-slate-800 gap-3 pb-2 border-b border-dashed border-slate-100">
-                                <span>Call-out charge</span>
-                                <span className="shrink-0">£{callOutCharge.toFixed(2)}</span>
+                            <div className="flex justify-between gap-3">
+                                <span className="text-slate-600">Call-out charge</span>
+                                <span className="shrink-0 font-medium text-slate-900">£{callOutCharge.toFixed(2)}</span>
                             </div>
                         )}
                         {durationBreakdown.model === 'itemized' && (
-                            <div className="flex justify-between text-sm font-bold text-slate-800 gap-3 pb-2 border-b border-dashed border-slate-100">
-                                <span>
-                                    Minimum duration ({formatBookedHoursLabel(durationBreakdown.baseHours)}h, instruction only)
-                                </span>
-                                <span className="shrink-0">£0.00</span>
+                            <div className="flex justify-between gap-3">
+                                <span className="text-slate-600">Minimum duration ({formatHoursMinutes(durationBreakdown.baseHours)}, instruction only)</span>
+                                <span className="shrink-0 font-medium text-slate-900">£0.00</span>
                             </div>
                         )}
-
-                        {/* Breakout Extras/Property Details */}
-                        <div className="space-y-2 pl-2 border-l-2 border-slate-100">
-                            {selectedExtras.length > 0 ? selectedExtras.map(item => {
-                                const extra = extrasList.find(e => String(e.id) === String(item.id));
+                        {selectedExtras.length > 0 ? (
+                            selectedExtras.map((item) => {
+                                const extra = extrasList.find((e) => String(e.id) === String(item.id));
                                 if (!extra) return null;
                                 const timeLine = durationBreakdown.lines.find((l) => l.extraId === String(item.id));
                                 return (
-                                    <div key={item.id} className="flex justify-between text-sm text-slate-600 font-medium gap-3">
-                                        <span>{item.quantity}x {getExtraDisplayLabel(extra.name)}</span>
-                                        <span className="text-right shrink-0">
+                                    <div key={item.id} className="flex justify-between gap-3">
+                                        <span className="text-slate-600">
+                                            {item.quantity} × {getExtraDisplayLabel(extra.name)}
+                                        </span>
+                                        <span className="shrink-0 text-right">
                                             {durationBreakdown.model === 'itemized' && timeLine ? (
-                                                <span className="text-slate-400 font-bold mr-2">{formatBookedHoursLabel(timeLine.lineHours)}h</span>
+                                                <span className="mr-2 text-xs text-slate-400">{formatHoursMinutes(timeLine.lineHours)}</span>
                                             ) : null}
-                                            <span>£{(Number(extra.price) * item.quantity).toFixed(0)}</span>
+                                            <span className="font-medium text-slate-900">£{(Number(extra.price) * item.quantity).toFixed(2)}</span>
                                         </span>
                                     </div>
                                 );
-                            }) : <span className="text-sm text-slate-400 italic">Standard service only</span>}
-                        </div>
-
-                        <div className="pt-4 border-t border-slate-100 mt-2 flex justify-between items-center">
-                            <span className="text-lg font-bold text-slate-600">Total Paid</span>
-                            <span className="text-3xl font-black text-green-600">£{Number(booking.totalPrice).toFixed(2)}</span>
-                        </div>
-                    </div>
-
-                    <div className="bg-green-50 p-6 rounded-2xl border border-green-100 text-center shadow-inner mt-4">
-                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm">
-                            <Sparkles className="w-6 h-6 text-green-500" />
-                        </div>
-                        <h4 className="text-green-800 font-black text-lg mb-2 tracking-tight">Welcome to the {brandName} family! ✨</h4>
-                        <p className="text-green-700 text-sm font-medium leading-relaxed mb-4">
-                            Your trust means everything to us. Our professionals are already preparing to deliver a meticulous clean that will leave your space feeling entirely renewed. We don't just clean - we care for your home.
-                        </p>
-                        <div className="pt-4 border-t border-green-200/50 flex flex-col items-center justify-center space-y-1">
-                            <span className="text-green-900 font-extrabold uppercase tracking-widest text-xs">{brandName}</span>
-                            <span className="text-green-600/80 font-bold text-[11px] sm:text-xs uppercase tracking-wider text-center leading-relaxed">
-                                {[companyAddress, companyEmail, companyPhone].filter(Boolean).join(' · ') || 'Thank you for your business.'}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 shadow-inner mt-4 text-left space-y-4">
-                        <h4 className="text-blue-900 font-black text-lg mb-2 tracking-tight">Payment Details</h4>
-                        {pay.stage === 'deposit_paid' ? (
-                            <p className="text-blue-900 text-sm font-black">
-                                Paid so far £{pay.amountPaid.toFixed(2)} · Balance due after your clean £{pay.balanceDue.toFixed(2)}
-                            </p>
-                        ) : pay.choice === 'full' && pay.stage === 'unpaid' ? (
-                            <p className="text-blue-900 text-sm font-black">
-                                You chose to pay in full: £{totalAmount.toFixed(2)}. Nothing more to pay after your clean.
-                            </p>
-                        ) : pay.stage === 'unpaid' ? (
-                            <>
-                                <p className="text-blue-800 text-sm font-semibold leading-relaxed">{depositMessage}</p>
-                                <p className="text-blue-900 text-sm font-black">
-                                    Deposit required now: £{depositAmount.toFixed(2)} ({depositPercent}% of £{totalAmount.toFixed(2)})
-                                </p>
-                                <p className="text-blue-800 text-xs font-semibold">
-                                    Balance of £{(totalAmount - depositAmount).toFixed(2)} due after your clean. You can pay in full on the payment page instead.
-                                </p>
-                            </>
-                        ) : null}
-
-                        {booking.stripePaymentLink && pay.stage !== 'paid' ? (
-                            <a
-                                href={booking.stripePaymentLink}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex items-center justify-center gap-3 w-full py-4 bg-emerald-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-emerald-200 hover:bg-emerald-700 hover:shadow-xl active:scale-[0.98] transition-all no-print"
-                            >
-                                <CreditCard className="w-5 h-5" />
-                                {pay.payNowLabel || 'Pay now'}
-                                <ExternalLink className="w-4 h-4 opacity-70" />
-                            </a>
-                        ) : pay.stage === 'paid' ? (
-                            <div className="flex items-center gap-3 p-4 bg-green-100 rounded-2xl border border-green-200">
-                                <CheckCircle2 className="w-6 h-6 text-green-600 shrink-0" />
-                                <div>
-                                    <p className="text-sm font-black text-green-900">Paid in full</p>
-                                    <p className="text-xs font-medium text-green-700">Payment confirmed, thank you!</p>
-                                </div>
-                            </div>
-                        ) : pay.stage === 'deposit_paid' ? null : (
-                            <p className="text-blue-700 text-sm font-medium">
-                                A secure payment link will be sent to your email once your booking is confirmed by our team.
-                            </p>
+                            })
+                        ) : (
+                            <p className="text-slate-500">Standard service, no extras added.</p>
                         )}
-
-                        <div className="pt-4 mt-2 border-t border-blue-200/60">
-                            <div className="flex items-center gap-2 mb-3">
-                                <Landmark className="w-4 h-4 text-blue-700" />
-                                <p className="text-sm font-black text-blue-900 uppercase tracking-wider">Or pay by bank transfer</p>
-                            </div>
-                            <div className="space-y-3">
-                                {payoutBankDetails.map((bank) => (
-                                    <div key={bank.id || bank.accountNumber} className="bg-white rounded-xl border border-blue-200 p-4">
-                                        <p className="text-sm font-black text-slate-900">{bank.accountName || 'Account'}</p>
-                                        {bank.bankName?.trim() && <p className="text-xs font-semibold text-slate-500 mt-0.5">{bank.bankName}</p>}
-                                        <div className="mt-2 space-y-1">
-                                            <p className="text-sm font-semibold text-slate-700">Account number: <span className="font-black">{bank.accountNumber}</span></p>
-                                            <p className="text-sm font-semibold text-slate-700">Sort code: <span className="font-black">{bank.sortCode}</span></p>
-                                        </div>
-                                        {bank.notes?.trim() && <p className="text-xs text-slate-500 mt-2">{bank.notes}</p>}
-                                    </div>
-                                ))}
-                            </div>
-                            <p className="text-xs font-medium text-blue-600 mt-3">
-                                Please use your booking reference <span className="font-black">#{booking.bookingId ?? booking.id}</span> as the payment reference.
-                            </p>
-                        </div>
-
-                        {depositConsent ? <InvoiceBankConsentFooter depositConsent={depositConsent} /> : null}
+                    </div>
+                    <div className="flex items-center justify-between gap-3 rounded-b-2xl bg-slate-900 px-5 py-4 text-white">
+                        <span className="text-sm font-medium text-white/80">{totalLabel}</span>
+                        <span className="text-2xl font-semibold tabular-nums">£{totalAmount.toFixed(2)}</span>
                     </div>
                 </div>
 
-                <div className="no-print p-6 bg-white border-t border-slate-100">
+                {/* Payment */}
+                <div className="space-y-4 rounded-2xl border border-slate-200/80 p-5">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <CreditCard className="h-4 w-4 text-primary" /> Payment
+                    </p>
+                    {pay.stage === 'deposit_paid' ? (
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div className="rounded-xl bg-emerald-50 p-3">
+                                <p className="text-xs text-emerald-700">Paid so far</p>
+                                <p className="text-lg font-semibold text-emerald-900">£{pay.amountPaid.toFixed(2)}</p>
+                            </div>
+                            <div className="rounded-xl bg-slate-50 p-3">
+                                <p className="text-xs text-slate-500">Due after your clean</p>
+                                <p className="text-lg font-semibold text-slate-900">£{pay.balanceDue.toFixed(2)}</p>
+                            </div>
+                        </div>
+                    ) : pay.choice === 'full' && pay.stage === 'unpaid' ? (
+                        <p className="text-sm text-slate-700">
+                            You chose to pay in full: <strong>£{totalAmount.toFixed(2)}</strong>. Nothing more to pay after your clean.
+                        </p>
+                    ) : pay.stage === 'unpaid' ? (
+                        <>
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                                <div className="rounded-xl bg-primary/[0.06] p-3 ring-1 ring-inset ring-primary/15">
+                                    <p className="text-xs text-slate-600">Deposit now ({depositPercent}%)</p>
+                                    <p className="text-lg font-semibold text-slate-900">£{depositAmount.toFixed(2)}</p>
+                                </div>
+                                <div className="rounded-xl bg-slate-50 p-3">
+                                    <p className="text-xs text-slate-500">Balance after your clean</p>
+                                    <p className="text-lg font-semibold text-slate-900">£{(totalAmount - depositAmount).toFixed(2)}</p>
+                                </div>
+                            </div>
+                            <p className="text-xs leading-relaxed text-slate-500">{depositMessage} You can pay in full on the payment page instead.</p>
+                        </>
+                    ) : null}
+
+                    {booking.stripePaymentLink && pay.stage !== 'paid' ? (
+                        <a
+                            href={booking.stripePaymentLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="no-print flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/25 transition hover:bg-emerald-700 active:scale-[0.99]"
+                        >
+                            <CreditCard className="h-4 w-4" />
+                            {pay.payNowLabel || 'Pay now'}
+                            <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+                        </a>
+                    ) : pay.stage === 'paid' ? (
+                        <div className="flex items-center gap-3 rounded-xl bg-emerald-50 p-4">
+                            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+                            <div>
+                                <p className="text-sm font-semibold text-emerald-900">Paid in full</p>
+                                <p className="text-xs text-emerald-700">Payment confirmed, thank you!</p>
+                            </div>
+                        </div>
+                    ) : pay.stage === 'deposit_paid' ? null : (
+                        <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                            A secure payment link will be sent to your email once your booking is confirmed by our team.
+                        </p>
+                    )}
+
+                    <div className="border-t border-slate-100 pt-4">
+                        <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                            <Landmark className="h-4 w-4 text-slate-400" /> Or pay by bank transfer
+                        </p>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            {payoutBankDetails.map((bank) => (
+                                <div key={bank.id || bank.accountNumber} className="rounded-xl bg-slate-50 p-4 text-sm">
+                                    <p className="font-semibold text-slate-900">{bank.accountName || 'Account'}</p>
+                                    {bank.bankName?.trim() && <p className="text-xs text-slate-500">{bank.bankName}</p>}
+                                    <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                                        <dt className="text-slate-500">Account</dt>
+                                        <dd className="font-semibold tabular-nums text-slate-900">{bank.accountNumber}</dd>
+                                        <dt className="text-slate-500">Sort code</dt>
+                                        <dd className="font-semibold tabular-nums text-slate-900">{bank.sortCode}</dd>
+                                    </dl>
+                                    {bank.notes?.trim() && <p className="mt-2 text-xs text-slate-500">{bank.notes}</p>}
+                                </div>
+                            ))}
+                        </div>
+                        <p className="mt-3 text-xs text-slate-500">
+                            Please use <strong className="text-slate-700">#{reference}</strong> as the payment reference.
+                        </p>
+                    </div>
+
+                    {depositConsent ? <InvoiceBankConsentFooter depositConsent={depositConsent} /> : null}
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 px-5 py-4 text-center">
+                    <p className="text-sm font-semibold text-slate-900">Thank you for choosing {brandName}</p>
+                    <p className="mt-1 text-xs text-slate-500">{[companyAddress, companyEmail, companyPhone].filter(Boolean).join(' · ') || 'Thank you for your business.'}</p>
+                </div>
+            </div>
+
+            <div className="no-print border-t border-slate-100 bg-slate-50/60 p-4 sm:p-5">
+                <button
+                    type="button"
+                    onClick={printReceipt}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-inset ring-slate-200 transition hover:bg-slate-50"
+                >
+                    <Download className="h-4 w-4" /> Download receipt (PDF)
+                </button>
+            </div>
+        </div>
+    );
+
+    if (isModal) return <div className="mx-auto animate-in fade-in duration-300">{receipt}</div>;
+
+    return (
+        <div className="mx-auto max-w-6xl px-4 py-8 animate-in fade-in duration-500 sm:px-6 sm:py-12">
+            {/* Success hero */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 p-6 text-white shadow-lg shadow-emerald-600/20 sm:p-10">
+                <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10" aria-hidden />
+                <div className="pointer-events-none absolute -bottom-24 right-32 h-48 w-48 rounded-full bg-white/5" aria-hidden />
+                <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-4">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-600 shadow-lg">
+                            <CheckCircle2 className="h-8 w-8" />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                                {firstName ? `Thank you, ${firstName}!` : 'Thank you!'} Your booking has been submitted.
+                            </h2>
+                            <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
+                                <Clock className="h-3.5 w-3.5" /> Pending, waiting for our confirmation
+                            </p>
+                            <p className="mt-2 flex items-center gap-1.5 text-sm text-white/90 sm:text-base">
+                                <Mail className="h-4 w-4 shrink-0" /> We have emailed a copy to {booking.contact.email}
+                            </p>
+                        </div>
+                    </div>
                     <button
                         type="button"
-                        className="w-full flex items-center justify-center space-x-3 bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all active:scale-95 shadow-xl shadow-slate-200"
-                        onClick={() => {
-                            const el = receiptPrintRef.current;
-                            if (!el) {
-                                showFlyer('Could not open print view. Please try again.', 'error');
-                                return;
-                            }
-                            printInvoiceElement(el, () =>
-                                showFlyer(
-                                    'Print dialog opened — choose Save as PDF in the print window to download your receipt.',
-                                    'success'
-                                )
-                            );
-                        }}
+                        onClick={() => void copyReference()}
+                        className="group inline-flex shrink-0 items-center gap-3 self-start rounded-2xl bg-white/15 px-4 py-3 text-left transition hover:bg-white/25 sm:self-auto"
+                        title="Copy booking reference"
                     >
-                        <Lock className="w-5 h-5 text-slate-400" />
-                        <span>Download Official Receipt</span>
+                        <span>
+                            <span className="block text-xs text-white/80">Booking reference</span>
+                            <span className="block whitespace-nowrap text-lg font-semibold tracking-wide">#{reference}</span>
+                        </span>
+                        <Copy className="h-4 w-4 opacity-80 group-hover:opacity-100" />
                     </button>
                 </div>
             </div>
 
-            {!isModal && onBookAnother && (
-                <button
-                    onClick={onBookAnother}
-                    className="mt-8 text-slate-400 font-bold hover:text-blue-600 transition-colors flex items-center justify-center gap-2 mx-auto group"
-                >
-                    <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                    Book Another Service
-                </button>
-            )}
+            {conflictWarningText ? (
+                <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-left">
+                    <Clock className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                    <div>
+                        <p className="text-sm font-semibold text-amber-900">A note about your time slot</p>
+                        <p className="mt-0.5 text-sm text-amber-900">{conflictWarningText}</p>
+                    </div>
+                </div>
+            ) : null}
+
+            <div className="mt-6 grid gap-6 lg:grid-cols-12">
+                <div className="min-w-0 lg:col-span-8">{receipt}</div>
+
+                <div className="min-w-0 space-y-4 lg:col-span-4">
+                    <div className="rounded-3xl border border-slate-200/80 bg-white p-5 sm:p-6 lg:sticky lg:top-28">
+                        <p className="text-sm font-semibold text-slate-900">What happens next</p>
+                        <ol className="mt-4 space-y-0">
+                            {nextSteps.map((s, i) => (
+                                <li key={s.title} className="relative flex gap-3 pb-5 last:pb-0">
+                                    {i < nextSteps.length - 1 ? <span className="absolute left-[15px] top-8 h-[calc(100%-1.5rem)] w-px bg-slate-200" aria-hidden /> : null}
+                                    <span className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${s.done ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                        {s.done ? <CheckCircle2 className="h-4 w-4" /> : s.icon}
+                                    </span>
+                                    <div className="min-w-0 pt-1">
+                                        <p className={`text-sm font-semibold ${s.done ? 'text-emerald-700' : 'text-slate-900'}`}>{s.title}</p>
+                                        <p className="text-xs leading-relaxed text-slate-500">{s.body}</p>
+                                    </div>
+                                </li>
+                            ))}
+                        </ol>
+
+                        <div className="mt-6 space-y-2 border-t border-slate-100 pt-5">
+                            <button
+                                type="button"
+                                onClick={() => downloadBookingIcs(booking, brandName)}
+                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-sm shadow-primary/25 transition hover:opacity-90"
+                            >
+                                <CalendarPlus className="h-4 w-4" /> Add to my calendar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={printReceipt}
+                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3 text-sm font-semibold text-slate-700 ring-1 ring-inset ring-slate-200 transition hover:bg-slate-50"
+                            >
+                                <Download className="h-4 w-4" /> Download receipt
+                            </button>
+                            {onBookAnother && (
+                                <button
+                                    type="button"
+                                    onClick={onBookAnother}
+                                    className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-primary"
+                                >
+                                    <Plus className="h-4 w-4" /> Book another clean
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="rounded-3xl border border-slate-200/80 bg-white p-5">
+                        <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                            <ShieldCheck className="h-4 w-4 text-primary" /> Need to change something?
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                            Sign in to your account to move or cancel your booking, or contact us{companyPhone ? ` on ${companyPhone}` : ''}{companyEmail ? `${companyPhone ? ' or ' : ' at '}${companyEmail}` : ''}.
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { formatHoursMinutes } from '../src/utils/bookingHelpers';
 import {
   ChevronLeft,
   ChevronRight,
@@ -105,6 +106,33 @@ const WIZARD_TIME_SLOTS = (() => {
   }
   return slots;
 })();
+
+/** Friendly titles and hints for each step (display only). */
+const STEP_COPY: Record<string, { title: string; short: string; hint: string }> = {
+  Service: { title: 'Choose your clean', short: 'Service', hint: 'Pick the type of clean and how often you would like it.' },
+  Details: { title: 'About your home', short: 'Your home', hint: 'This sets the time we need and your price.' },
+  Extras: { title: 'Add extras', short: 'Extras', hint: 'Optional jobs we can do while we are there.' },
+  Schedule: { title: 'Pick a date and time', short: 'Date', hint: 'Choose when you would like your cleaner to arrive.' },
+  Location: { title: 'Your details and address', short: 'Address', hint: 'So we know where to go and how to reach you.' },
+  Requirements: { title: 'Anything else?', short: 'Notes', hint: 'Access, parking, pets or anything your cleaner should know.' },
+  Invoice: { title: 'Check your price', short: 'Price', hint: 'Add a promo code or tip, then review the breakdown and agree to the terms.' },
+  Review: { title: 'Review and book', short: 'Review', hint: 'One last look before you send your booking request.' },
+};
+
+const FREQUENCY_HINT: Record<string, string> = {
+  'One-time': 'A single visit',
+  Weekly: 'Every week',
+  Fortnightly: 'Every two weeks',
+  Monthly: 'Once a month',
+};
+
+/** Groups the half-hour slots on the schedule step (display only). */
+const TIME_GROUPS = [
+  { label: 'Morning', from: 6, to: 12 },
+  { label: 'Afternoon', from: 12, to: 17 },
+  { label: 'Evening', from: 17, to: 24 },
+  { label: 'Early hours', from: 0, to: 6 },
+];
 
 function resolveAirbnbDurationFromBedrooms(bedrooms: number): number {
   if (!Number.isFinite(bedrooms) || bedrooms < 1) return 0;
@@ -881,7 +909,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
       const warning = res.conflictWarning;
       setBookingConflictWarning(
         warning
-          ? `${warning.message}${warning.conflictCount > 0 ? ` (${warning.conflictCount} possible overlap${warning.conflictCount === 1 ? '' : 's'})` : ''}`
+          ? 'Your booking has been submitted and is pending confirmation. The time you chose may overlap with another booking, so our team will check it and confirm with you shortly.'
           : null
       );
       const fullBooking: Booking = {
@@ -958,23 +986,19 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
 
   if (loadingError) {
     return (
-      <div className="relative mx-auto w-full max-w-4xl overflow-hidden rounded-[2.5rem] border border-red-100/80 bg-gradient-to-br from-white via-red-50/30 to-white p-6 shadow-[0_24px_60px_-20px_rgba(220,38,38,0.12)] sm:rounded-[3rem] sm:p-12 md:p-20">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-red-200/30 blur-3xl" />
-        <div className="relative flex min-h-[400px] flex-col items-center justify-center space-y-6">
-          <div className="relative flex h-28 w-28 items-center justify-center rounded-[2rem] bg-gradient-to-br from-red-50 to-rose-100 text-red-600 shadow-inner ring-4 ring-white/80">
-            <div className="absolute inset-0 animate-pulse rounded-[2rem] bg-red-400/10" />
-            <Trash2 className="relative h-12 w-12" />
+      <div className="mx-auto w-full max-w-xl px-4">
+        <div className="rounded-3xl border border-red-100 bg-white p-8 text-center shadow-sm sm:p-12">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+            <Trash2 className="h-7 w-7" />
           </div>
-          <div className="space-y-2 text-center">
-            <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Service Unavailable</h3>
-            <p className="mb-6 text-[11px] sm:text-xs font-bold uppercase tracking-widest text-slate-400">{loadingError}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="rounded-2xl bg-gradient-to-r from-slate-800 to-slate-900 px-10 py-5 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-slate-900/20 transition-all hover:brightness-110 active:scale-[0.98]"
-            >
-              Retry Connection
-            </button>
-          </div>
+          <h3 className="mt-5 text-xl font-semibold text-slate-900">We could not load the booking form</h3>
+          <p className="mt-2 text-sm text-slate-500">{loadingError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+          >
+            <RotateCcw className="h-4 w-4" /> Try again
+          </button>
         </div>
       </div>
     );
@@ -982,155 +1006,174 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
 
   if (loading) {
     return (
-      <div className="relative mx-auto w-full max-w-4xl overflow-hidden rounded-[2.5rem] border border-sky-100/80 bg-gradient-to-br from-white via-sky-50/40 to-indigo-50/30 p-6 shadow-[0_24px_60px_-20px_rgba(37,99,235,0.12)] sm:rounded-[3rem] sm:p-12 md:p-20">
-        <div className="pointer-events-none absolute left-1/4 top-0 h-56 w-56 -translate-x-1/2 rounded-full bg-sky-200/40 blur-3xl" />
-        <div className="relative flex min-h-[600px] flex-col items-center justify-center space-y-6">
-          <div className="relative flex h-28 w-28 items-center justify-center rounded-[2rem] bg-gradient-to-br from-sky-100 to-indigo-100 text-indigo-600 shadow-inner ring-4 ring-white/90">
-            <Loader2 className="h-12 w-12 animate-spin" />
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
+        <div className="grid gap-6 lg:grid-cols-12">
+          <div className="space-y-4 rounded-3xl border border-slate-200/80 bg-white p-6 lg:col-span-8 sm:p-8">
+            <div className="h-4 w-40 animate-pulse rounded bg-slate-200" />
+            <div className="h-8 w-64 animate-pulse rounded bg-slate-200" />
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-24 animate-pulse rounded-2xl bg-slate-100" />
+              ))}
+            </div>
+            <p className="flex items-center gap-2 pt-2 text-sm text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading services and prices…
+            </p>
           </div>
-          <div className="space-y-2 text-center">
-            <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">Initialising Secure Portal</h3>
-            <p className="text-[11px] sm:text-xs font-bold uppercase tracking-widest text-slate-400">Preparing your bespoke clean configuration...</p>
-          </div>
+          <div className="hidden h-80 animate-pulse rounded-3xl bg-white ring-1 ring-slate-200/80 lg:col-span-4 lg:block" />
         </div>
       </div>
     );
   }
 
+  const trigNow = getServiceTrigger(selectedService);
+  const isQuoteOnly = trigNow === 'commercial' || trigNow === 'jet_washing';
+  const stepName = STEPS[currentStep];
+  const stepCopy = STEP_COPY[stepName] || { title: stepName, hint: '' };
+  const stepPos = displayStepNumber(currentStep);
+  const durationLabel = formatHoursMinutes(calculatedDuration);
+  const prettyDate = date
+    ? new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
+  const servicePriceHint = (svc: ServiceConfig) => {
+    const t = getServiceTrigger(svc);
+    if (t === 'commercial' || t === 'jet_washing') return 'Quote based';
+    if (t === 'deep' || t === 'end_of_tenancy') return `From £${resolveDeepEotCallOutChargeGbp(svc)}`;
+    const london = t === 'standard' ? londonRateOf(svc) : null;
+    return london !== null ? `£${Number(svc.baseRate).toFixed(0)}/hr · London £${london.toFixed(0)}/hr` : `£${Number(svc.baseRate).toFixed(0)}/hr`;
+  };
+  const labelCls = 'text-sm font-semibold text-slate-800';
+  const selectCls =
+    'w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 pr-10 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10';
+  const textareaCls =
+    'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10';
+  const infoBox = (icon: React.ReactNode, title: React.ReactNode, body: React.ReactNode) => (
+    <div className="flex items-start gap-3 rounded-2xl border border-primary/15 bg-primary/[0.04] p-4">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-primary shadow-sm ring-1 ring-primary/10">{icon}</div>
+      <div className="min-w-0 text-sm">
+        <p className="font-semibold text-slate-900">{title}</p>
+        <div className="mt-0.5 leading-relaxed text-slate-600">{body}</div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="relative isolate mx-auto max-w-6xl px-4 sm:px-6">
-      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute -left-20 top-20 h-72 w-72 rounded-full bg-sky-200/35 blur-3xl" />
-        <div className="absolute -right-10 bottom-10 h-80 w-80 rounded-full bg-indigo-200/30 blur-3xl" />
-        <div className="absolute left-1/2 top-0 h-64 w-[min(100%,48rem)] -translate-x-1/2 rounded-[100%] bg-gradient-to-b from-sky-100/50 to-transparent blur-2xl" />
+    <div className="relative isolate mx-auto max-w-6xl px-4 pb-28 sm:px-6 lg:pb-0">
+      <div className="mb-6 sm:mb-8">
+        <p className="text-sm font-medium text-primary">Book a clean</p>
+        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">Your price updates as you go</h2>
+        <p className="mt-1 text-sm text-slate-500">It takes about two minutes. You will not be asked for card details on this form.</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-      <div className="space-y-6 lg:col-span-8">
-        <div className="relative overflow-hidden rounded-[2.5rem] border border-white/60 bg-white/85 shadow-[0_30px_60px_-15px_rgba(15,23,42,0.12),0_0_0_1px_rgba(255,255,255,0.9)] ring-1 ring-slate-200/40 backdrop-blur-xl sm:rounded-[3rem]">
-          <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-gradient-to-br from-sky-100/80 to-indigo-100/40 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-16 left-0 h-56 w-56 rounded-full bg-violet-100/40 blur-3xl" />
-
-          <div className="relative z-10 border-b border-slate-200/70 bg-gradient-to-br from-slate-50/90 via-white to-sky-50/25 px-6 pb-6 pt-8 backdrop-blur-md md:px-10 md:pb-8 md:pt-10">
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div className="min-w-0 space-y-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-gradient-to-r from-sky-50 to-indigo-50 px-3 py-1.5 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] text-sky-800 shadow-sm shadow-sky-100/40">
-                    Step {displayStepNumber(currentStep)} of {activeSteps.length}
-                  </span>
-                  {currentStep > 0 && (
-                    <button
-                      onClick={handleReset}
-                      className="flex items-center gap-1 border-l border-slate-200/80 pl-3 text-xs font-bold text-slate-400 transition-colors hover:text-red-500"
-                      title="Reset Form"
-                    >
-                      <RotateCcw className="h-3 w-3" /> Reset
-                    </button>
-                  )}
-                </div>
-                <h2 className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-600 bg-clip-text text-2xl font-black tracking-tight text-transparent sm:text-3xl">
-                  {STEPS[currentStep]}
-                </h2>
-                {error && (
-                  <div ref={errorRef} className="flex animate-in slide-in-from-top-2 items-center gap-2 rounded-xl border border-red-100 bg-red-50/95 py-2.5 pl-3 pr-4 text-sm font-bold text-red-700 shadow-sm shadow-red-100/50">
-                    <span className="text-lg leading-none">!</span> {error}
-                  </div>
-                )}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
+      <div className="min-w-0 space-y-6 lg:col-span-8">
+        <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_32px_-16px_rgba(15,23,42,0.12)]">
+          {/* Stepper */}
+          <div className="border-b border-slate-100 px-5 pb-5 pt-5 sm:px-8 sm:pt-7">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold text-slate-500">
+                Step {stepPos} of {activeSteps.length}
+              </p>
+              {currentStep > 0 && (
+                <button
+                  onClick={handleReset}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                  title="Start over"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Start over
+                </button>
+              )}
+            </div>
+            <ol className="mt-3 flex gap-1.5" aria-label="Booking steps">
+              {activeSteps.map((s, i) => {
+                const done = i < stepPos - 1;
+                const current = i === stepPos - 1;
+                return (
+                  <li key={s} className="min-w-0 flex-1">
+                    <div className={`h-1.5 rounded-full transition-colors ${done ? 'bg-primary' : current ? 'bg-primary/60' : 'bg-slate-200'}`} />
+                    <p className={`mt-1.5 hidden truncate text-[11px] font-medium sm:block ${current ? 'text-primary' : done ? 'text-slate-600' : 'text-slate-400'}`}>
+                      {done ? '✓ ' : ''}
+                      {STEP_COPY[s]?.short || s}
+                    </p>
+                  </li>
+                );
+              })}
+            </ol>
+            <h3 className="mt-5 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{stepCopy.title}</h3>
+            {stepCopy.hint ? <p className="mt-1 text-sm text-slate-500">{stepCopy.hint}</p> : null}
+            {error && (
+              <div ref={errorRef} className="mt-4 flex animate-in slide-in-from-top-2 items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
+                <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white">!</span>
+                {error}
               </div>
-              <span className="select-none bg-gradient-to-br from-slate-200/90 to-slate-300/40 bg-clip-text text-4xl font-black tabular-nums text-transparent sm:text-5xl">
-                0{displayStepNumber(currentStep)}
-              </span>
-            </div>
-
-            <div className="mb-6 h-2.5 w-full overflow-hidden rounded-full bg-slate-200/90 shadow-inner ring-1 ring-slate-300/20">
-              <div
-                className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 shadow-[0_0_24px_rgba(37,99,235,0.35)] transition-[width] duration-500 ease-out"
-                style={{ width: `${(displayStepNumber(currentStep) / activeSteps.length) * 100}%` }}
-              >
-                <div className="animate-wizard-shimmer absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-              </div>
-            </div>
-
-            <div className="mb-1 flex justify-between text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">
-              <span>Start</span>
-              <span className="hidden sm:inline">Progress</span>
-              <span>Complete</span>
-            </div>
+            )}
           </div>
 
-          <div
-            className={`p-6 md:p-8 ${currentStep === 6 ? 'min-h-0' : 'min-h-[400px]'}`}
-          >
+          <div className={`p-5 sm:p-8 ${currentStep === 6 ? 'min-h-0' : 'min-h-[360px]'}`}>
             {currentStep === 0 && (
-              <div className="space-y-8 animate-in slide-in-from-right-8 duration-500">
-                <div className="space-y-4">
-                  <label className="text-sm font-black uppercase text-slate-400 tracking-wider">Select a Service</label>
-                  <div className="relative">
-                    <select
-                      value={serviceId || ''}
-                      onChange={(e) => handleServiceTypeSelect(e.target.value)}
-                      className="w-full cursor-pointer appearance-none rounded-2xl border-2 border-slate-200/90 bg-white/90 p-5 pr-12 text-lg font-black text-foreground shadow-sm outline-none ring-slate-200/50 transition-all hover:border-sky-300/80 hover:shadow-md focus:border-primary focus:ring-4 focus:ring-primary/15"
-                    >
-                      <option value="" disabled>Choose a service type...</option>
-                      {availableServices.map(s => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} {(s.id === 'deep' || s.id === 'end_of_tenancy') ? '(Popular)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                      <ChevronRight className="w-5 h-5 rotate-90" />
-                    </div>
+              <div className="space-y-8 animate-in fade-in duration-300">
+                <div className="space-y-3">
+                  <p className={labelCls}>Which clean do you need?</p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Service">
+                    {availableServices.map((s) => {
+                      const on = String(serviceId) === String(s.id);
+                      const popular = s.id === 'deep' || s.id === 'end_of_tenancy';
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={on}
+                          onClick={() => handleServiceTypeSelect(String(s.id))}
+                          className={`group relative flex items-start gap-3 rounded-2xl border p-4 text-left transition ${
+                            on ? 'border-primary bg-primary/[0.05] ring-2 ring-primary/20' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                          }`}
+                        >
+                          <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition ${on ? 'bg-primary text-primary-foreground' : 'bg-slate-100 text-slate-500 group-hover:text-primary'}`}>
+                            {renderIcon(s.icon)}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-2">
+                              <span className="font-semibold text-slate-900">{s.name}</span>
+                              {popular ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Popular</span> : null}
+                            </span>
+                            <span className="mt-0.5 block text-sm font-semibold text-primary">{servicePriceHint(s)}</span>
+                            {s.description ? <span className="mt-1 line-clamp-2 block text-xs leading-relaxed text-slate-500">{s.description}</span> : null}
+                          </span>
+                          <span className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${on ? 'border-primary bg-primary' : 'border-slate-300'}`}>
+                            {on ? <CheckCircle className="h-3.5 w-3.5 text-white" /> : null}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {selectedService && (
-                  <div className="flex animate-in fade-in slide-in-from-top-4 items-start space-x-4 rounded-2xl border border-sky-100/90 bg-gradient-to-br from-sky-50/90 via-white to-indigo-50/40 p-6 shadow-sm shadow-sky-100/50 ring-1 ring-white/80">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-white to-sky-50 text-blue-600 shadow-inner ring-1 ring-sky-100/80">
-                      {renderIcon(selectedService.icon)}
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="mb-1 font-bold text-slate-900">{selectedService.name}</h4>
-                      <p className="text-sm leading-relaxed text-slate-600">{selectedService.description}</p>
-                    </div>
+                <div className="space-y-3">
+                  <p className={labelCls}>How often?</p>
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    {(['One-time', 'Weekly', 'Fortnightly', 'Monthly'] as const).map((freq) => {
+                      const on = frequency === freq;
+                      return (
+                        <button
+                          key={freq}
+                          type="button"
+                          onClick={() => setFrequency(freq as any)}
+                          className={`rounded-2xl border px-4 py-3 text-left transition ${on ? 'border-primary bg-primary/[0.05] ring-2 ring-primary/20' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                        >
+                          <span className={`block text-sm font-semibold ${on ? 'text-primary' : 'text-slate-900'}`}>{freq}</span>
+                          <span className="block text-xs text-slate-500">{FREQUENCY_HINT[freq]}</span>
+                        </button>
+                      );
+                    })}
                   </div>
-                )}
-
-                {/* Frequency Dropdown */}
-                <div className="space-y-4 mt-8 animate-in slide-in-from-right-4 duration-500 delay-100">
-                  <label className="text-sm font-black uppercase text-slate-400 tracking-wider">How Often?</label>
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {['One-time', 'Weekly', 'Fortnightly', 'Monthly'].map((freq) => (
-                      <button
-                        key={freq}
-                        type="button"
-                        onClick={() => setFrequency(freq as any)}
-                        className={`rounded-2xl border-2 py-4 font-black shadow-sm transition-all ${frequency === freq ? 'scale-[1.02] border-indigo-500 bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-300/40' : 'border-slate-100/90 bg-white/90 text-slate-500 hover:border-sky-200 hover:bg-sky-50/50 hover:shadow-md'}`}
-                      >
-                        {freq}
-                      </button>
-                    ))}
-                  </div>
+                  <p className="text-xs text-slate-500">Booked a regular clean? You can move or cancel any visit from your account.</p>
                 </div>
               </div>
             )}
 
             {currentStep === 1 && (
-              <div className="space-y-8 animate-in slide-in-from-right-8 duration-500">
-                <div className="flex items-center space-x-4 mb-2">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-900 text-lg font-bold text-white">
-                    {displayStepNumber(currentStep)}
-                  </div>
-                  <h3 className="text-2xl font-bold text-green-900">
-                    {(() => {
-                      const trig = getServiceTrigger(selectedService);
-                      const isHourly = trig === 'standard' || trig === 'airbnb' || trig === 'commercial';
-                      return isHourly ? 'Select Time Duration' : 'Property Details';
-                    })()}
-                  </h3>
-                </div>
-
-                {/* Conditional Rendering based on Service Type */}
+              <div className="space-y-6 animate-in fade-in duration-300">
                 {(() => {
                   const trig = getServiceTrigger(selectedService);
                   const isAirBnB = trig === 'airbnb';
@@ -1138,96 +1181,83 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                   const isGeneral = trig === 'standard' || trig === 'custom';
 
                   if (isAirBnB) {
-                    // AirBnB Logic: Bedroom Quantity -> Fixed Duration
                     return (
-                      <div className="space-y-6">
-                        <label className="text-sm font-black uppercase text-slate-400 tracking-wider">Number of Bedrooms</label>
-                        <div className="relative">
-                          <select
-                            value={Number(propertyDetails.bedrooms) > 0 ? String(propertyDetails.bedrooms) : ''}
-                            onChange={(e) => {
-                              const count = Number(e.target.value);
-                              setPropertyDetails(prev => ({ ...prev, bedrooms: count }));
-                              setDuration(resolveAirbnbDurationFromBedrooms(count));
-                            }}
-                            className="w-full appearance-none bg-primary/8 border-2 border-input focus:border-primary rounded-2xl px-6 py-4 pr-12 text-xl font-black text-foreground outline-none shadow-sm transition-all"
-                          >
-                            <option value="" disabled>Select number of bedroom</option>
-                            {[1, 2, 3, 4, 5].map(n => (
-                              <option key={n} value={n}>{n} Bedroom{n > 1 ? 's' : ''}</option>
-                            ))}
-                          </select>
-                          <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                            <ChevronRight className="w-5 h-5 rotate-90" />
+                      <div className="space-y-5">
+                        <div className="space-y-2">
+                          <label className={labelCls}>Number of bedrooms</label>
+                          <div className="grid grid-cols-5 gap-2">
+                            {[1, 2, 3, 4, 5].map((n) => {
+                              const on = Number(propertyDetails.bedrooms) === n;
+                              return (
+                                <button
+                                  key={n}
+                                  type="button"
+                                  onClick={() => {
+                                    setPropertyDetails((prev) => ({ ...prev, bedrooms: n }));
+                                    setDuration(resolveAirbnbDurationFromBedrooms(n));
+                                  }}
+                                  className={`rounded-xl border py-3 text-center transition ${on ? 'border-primary bg-primary text-primary-foreground shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}
+                                >
+                                  <span className="block text-lg font-semibold">{n}</span>
+                                  <span className={`block text-[11px] ${on ? 'text-white/80' : 'text-slate-500'}`}>bed{n > 1 ? 's' : ''}</span>
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
-
-                        <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 flex items-start space-x-4 mt-8">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 shrink-0">
-                            <Clock className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-blue-900 mb-1">Fixed Duration Applied</h4>
-                            <p className="text-sm text-blue-700/80">
-                              {Number(propertyDetails.bedrooms) > 0 ? (
-                                <>The clean is set for <strong>{resolveAirbnbDurationFromBedrooms(Number(propertyDetails.bedrooms))} hours</strong>.</>
-                              ) : (
-                                <>Select number of bedroom(s) to set the clean duration.</>
-                              )}
-                            </p>
-                          </div>
-                        </div>
+                        {infoBox(
+                          <Clock className="h-4 w-4" />,
+                          'Fixed duration',
+                          Number(propertyDetails.bedrooms) > 0 ? (
+                            <>
+                              Your turnaround clean is set for <strong>{resolveAirbnbDurationFromBedrooms(Number(propertyDetails.bedrooms))} hours</strong>, based on the number of bedrooms.
+                            </>
+                          ) : (
+                            <>Choose the number of bedrooms to set the clean length.</>
+                          ),
+                        )}
                       </div>
                     );
                   } else if (isCommercialOrJet) {
                     const isJet = trig === 'jet_washing';
-                    const label = isJet ? "Surface Details" : "Commercial Property Details";
+                    const label = isJet ? 'Tell us about the surfaces' : 'Tell us about your premises';
                     const placeholder = isJet
-                      ? "Please describe the surfaces to be cleaned (driveway, patio, deck, etc.) and any specific requirements..."
-                      : "Please describe your commercial property (office space, retail store, etc.) and cleaning requirements...";
-
+                      ? 'Please describe the surfaces to be cleaned (driveway, patio, deck, etc.) and any specific requirements...'
+                      : 'Please describe your commercial property (office space, retail store, etc.) and cleaning requirements...';
+                    const enough = commercialDetails.trim().length >= COMMERCIAL_OR_JET_DETAILS_MIN_CHARS;
                     return (
-                      <div className="space-y-6">
-                        <label className="text-sm font-black uppercase text-slate-400 tracking-wider">{label}</label>
-                        <textarea
-                          className="w-full h-40 bg-card rounded-2xl p-6 border-2 border-input outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 font-medium text-foreground"
-                          placeholder={placeholder}
-                          value={commercialDetails}
-                          onChange={(e) => setCommercialDetails(e.target.value)}
-                        />
-                        <p
-                          className={`text-[11px] sm:text-xs font-black uppercase tracking-widest ${
-                            commercialDetails.trim().length >= COMMERCIAL_OR_JET_DETAILS_MIN_CHARS
-                              ? 'text-emerald-600'
-                              : 'text-amber-700'
-                          }`}
-                        >
-                          {commercialDetails.trim().length} / {COMMERCIAL_OR_JET_DETAILS_MIN_CHARS} characters minimum
-                          for an accurate quote
-                        </p>
-                        <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 flex items-start space-x-4">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 shrink-0">
-                            <Briefcase className="w-5 h-5" />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-blue-900 mb-1">Quote-Based Service</h4>
-                            <p className="text-sm text-blue-700/80">
-                              This is a bespoke service. Please provide as much detail as possible so we can give you an accurate quote.
-                            </p>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className={labelCls}>{label}</label>
+                          <textarea className={`${textareaCls} h-40`} placeholder={placeholder} value={commercialDetails} onChange={(e) => setCommercialDetails(e.target.value)} />
+                          <div className="flex items-center gap-3">
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                              <div
+                                className={`h-full rounded-full transition-all ${enough ? 'bg-emerald-500' : 'bg-amber-400'}`}
+                                style={{ width: `${Math.min(100, (commercialDetails.trim().length / COMMERCIAL_OR_JET_DETAILS_MIN_CHARS) * 100)}%` }}
+                              />
+                            </div>
+                            <span className={`text-xs font-medium ${enough ? 'text-emerald-600' : 'text-amber-700'}`}>
+                              {commercialDetails.trim().length} / {COMMERCIAL_OR_JET_DETAILS_MIN_CHARS} characters minimum for an accurate quote
+                            </span>
                           </div>
                         </div>
+                        {infoBox(
+                          <Briefcase className="h-4 w-4" />,
+                          'We will send you a tailored quote',
+                          'This is a bespoke service. The more detail you give (size, rooms, how often, access times), the more accurate your quote.',
+                        )}
                       </div>
                     );
                   } else if (isGeneral) {
-                    // General Service
                     const currentHours = Math.floor(duration);
                     const currentMinutes = Math.round((duration - currentHours) * 60);
-
                     return (
                       <div className="space-y-6">
                         {usesRegionalRate && (
-                          <div className="space-y-2">
-                            <label className="text-sm font-black uppercase text-slate-400 tracking-wider">Property postcode</label>
+                          <div className="space-y-2 rounded-2xl bg-slate-50 p-4">
+                            <label className={labelCls}>Property postcode</label>
+                            <p className="text-xs text-slate-500">London postcodes have a different hourly rate, so we check it first.</p>
                             <input
                               type="text"
                               value={address.postcode}
@@ -1237,71 +1267,74 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                               }}
                               placeholder="e.g. E2 7NX or M3 2BW"
                               autoComplete="postal-code"
-                              className="w-full rounded-2xl border-2 border-slate-200 bg-white p-4 text-lg font-black text-slate-900 outline-none transition-colors focus:border-blue-500"
+                              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold uppercase tracking-wide text-slate-900 shadow-sm outline-none transition placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10"
                             />
                             {regionNote}
                           </div>
                         )}
 
                         <DropdownField
-                          label="Property Size (Informational)"
+                          label="Property size (helps us plan)"
                           value={propertyDetails.size || 'Studio'}
                           options={['Studio', '1 Bedroom', '2 Bedroom', '3 Bedroom', '4 Bedroom', '5 Bedroom', 'House', 'Flat']}
-                          onChange={(val) => setPropertyDetails(prev => ({ ...prev, size: String(val) }))}
+                          onChange={(val) => setPropertyDetails((prev) => ({ ...prev, size: String(val) }))}
                           isString
                         />
 
-                        <div className="pt-4">
-                          <label className="text-sm font-black uppercase text-slate-400 tracking-wider">Duration</label>
-                          <div className="flex items-center gap-4 mt-2 mb-6">
+                        <div className="space-y-2">
+                          <label className={labelCls}>How long should we stay?</label>
+                          <div className="flex flex-wrap items-center gap-3">
                             <div className="relative">
                               <select
                                 value={currentHours}
                                 onChange={(e) => {
                                   const newHours = Number(e.target.value);
-                                  setDuration(newHours + (currentMinutes / 60));
+                                  setDuration(newHours + currentMinutes / 60);
                                 }}
-                                className="appearance-none bg-white border-2 border-slate-200 rounded-xl px-6 py-4 pr-12 text-xl font-black text-slate-900 outline-none focus:border-blue-500 transition-colors w-32"
+                                className={`${selectCls} w-28 text-base font-semibold`}
+                                aria-label="Hours"
                               >
-                                {[2, 3, 4, 5, 6, 7, 8].map(h => (
-                                  <option key={h} value={h}>{h}</option>
+                                {[2, 3, 4, 5, 6, 7, 8].map((h) => (
+                                  <option key={h} value={h}>
+                                    {h}
+                                  </option>
                                 ))}
                               </select>
-                              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                <ChevronRight className="w-5 h-5 rotate-90" />
-                              </div>
+                              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                             </div>
-                            <span className="text-lg font-bold text-slate-500">hours</span>
-
+                            <span className="text-sm font-medium text-slate-500">hours</span>
                             <div className="relative">
                               <select
                                 value={currentMinutes}
                                 onChange={(e) => {
                                   const newMinutes = Number(e.target.value);
-                                  setDuration(currentHours + (newMinutes / 60));
+                                  setDuration(currentHours + newMinutes / 60);
                                 }}
-                                className="appearance-none bg-white border-2 border-slate-200 rounded-xl px-6 py-4 pr-12 text-xl font-black text-slate-900 outline-none focus:border-blue-500 transition-colors w-32"
+                                className={`${selectCls} w-28 text-base font-semibold`}
+                                aria-label="Minutes"
                               >
                                 <option value={0}>00</option>
                                 <option value={30}>30</option>
                               </select>
-                              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                <ChevronRight className="w-5 h-5 rotate-90" />
-                              </div>
+                              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                             </div>
-                            <span className="text-lg font-bold text-slate-500">minutes</span>
+                            <span className="text-sm font-medium text-slate-500">minutes</span>
                           </div>
-
-                          <label className="flex items-center space-x-3 p-4 bg-slate-50 rounded-2xl cursor-pointer hover:bg-slate-100 transition-colors">
-                            <input
-                              type="checkbox"
-                              checked={notifyIfMoreTimeNeeded}
-                              onChange={(e) => setNotifyIfMoreTimeNeeded(e.target.checked)}
-                              className="w-5 h-5 rounded-lg text-blue-600 focus:ring-blue-500 border-gray-300"
-                            />
-                            <span className="font-bold text-slate-700 text-sm">Notify me if the job requires more time</span>
-                          </label>
+                          {effectiveHourlyRate > 0 ? <p className="text-xs text-slate-500">Each hour is £{effectiveHourlyRate.toFixed(2)}. Your total updates as you change the time.</p> : null}
                         </div>
+
+                        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={notifyIfMoreTimeNeeded}
+                            onChange={(e) => setNotifyIfMoreTimeNeeded(e.target.checked)}
+                            className="mt-0.5 h-4 w-4 rounded accent-primary"
+                          />
+                          <span>
+                            <span className="block text-sm font-semibold text-slate-900">Tell me if the job needs more time</span>
+                            <span className="block text-xs text-slate-500">We will let you know if your home needs longer than the time you booked.</span>
+                          </span>
+                        </label>
                       </div>
                     );
                   } else {
@@ -1350,134 +1383,94 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                         clockRoomToilets: count,
                       }));
                     };
+                    const priceOf = (key: string) => {
+                      const ex = getExtra(key);
+                      return ex ? `£${Number(ex.price).toFixed(0)} each` : undefined;
+                    };
 
                     return (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* Bedrooms */}
-                        <DropdownField
-                          label="Bedrooms"
-                          value={getQty('bedroom')}
-                          options={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
-                          onChange={(val) => updateQty('bedroom', val, (prev, count) => ({ ...prev, bedrooms: count }))}
-                        />
-
-                        {/* Reception Room */}
-                        <DropdownField
-                          label="Reception Room"
-                          value={getQty('reception')}
-                          options={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
-                          onChange={(val) => updateQty('reception', val, (prev, count) => ({ ...prev, receptionRooms: count }))}
-                        />
-
-                        {/* Bathrooms */}
-                        <DropdownField
-                          label="Bathrooms"
-                          value={getQty('bathroom')}
-                          options={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
-                          onChange={(val) => updateQty('bathroom', val, (prev, count) => ({ ...prev, bathrooms: count }))}
-                        />
-
-                        {/* Utility Room */}
-                        <DropdownField
-                          label="Utility Room"
-                          value={getQty('utility')}
-                          options={[0, 1, 2, 3, 4, 5]}
-                          onChange={(val) => updateQty('utility', val, (prev, count) => ({ ...prev, utilityRooms: count }))}
-                        />
-
-                        {/* Clockroom Toilet - dedicated WC add-on; must not match Bathroom & Toilet */}
-                        <DropdownField
-                          label="Clockroom Toilet"
-                          value={getToiletQty()}
-                          options={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
-                          onChange={(val) => updateToiletQty(val)}
-                        />
-
-                        {/* Square Footage */}
-                        <DropdownField
-                          label="Square Footage"
-                          value={propertyDetails.sqftRange || "1 - 1,200 Sq Ft"}
-                          options={["1 - 1,200 Sq Ft", "1,201 - 2,000 Sq Ft", "2,001 - 3,000 Sq Ft", "3,001 - 4,000 Sq Ft", "4,001 - 5,000 Sq Ft", "5,001+ Sq Ft"]}
-                          onChange={(val) => setPropertyDetails(prev => ({ ...prev, sqftRange: String(val) }))}
-                          isString
-                        />
-
-                        {/* Kitchen */}
-                        <DropdownField
-                          label="Kitchen"
-                          value={getQty('kitchen')}
-                          options={[0, 1, 2, 3, 4, 5]}
-                          onChange={(val) => updateQty('kitchen', val, (prev, count) => ({ ...prev, kitchens: count }))}
-                        />
-
-                        {/* Carpet Steam Cleaning */}
-                        <DropdownField
-                          label="Carpet Steam Cleaning"
-                          value={getQty('carpet')}
-                          options={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
-                          onChange={(val) => updateQty('carpet', val, (prev, count) => ({ ...prev, carpetSteamCleaning: count }))}
-                        />
+                      <div className="space-y-5">
+                        {infoBox(
+                          <Sparkles className="h-4 w-4" />,
+                          'Priced by room',
+                          'Tell us what needs cleaning. Each room has its own price, and your total updates on the right as you go.',
+                        )}
+                        <div className="grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-2">
+                          <DropdownField label="Bedrooms" hint={priceOf('bedroom')} value={getQty('bedroom')} options={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} onChange={(val) => updateQty('bedroom', val, (prev, count) => ({ ...prev, bedrooms: count }))} />
+                          <DropdownField label="Reception rooms" hint={priceOf('reception')} value={getQty('reception')} options={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} onChange={(val) => updateQty('reception', val, (prev, count) => ({ ...prev, receptionRooms: count }))} />
+                          <DropdownField label="Bathrooms" hint={priceOf('bathroom')} value={getQty('bathroom')} options={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} onChange={(val) => updateQty('bathroom', val, (prev, count) => ({ ...prev, bathrooms: count }))} />
+                          <DropdownField label="Utility rooms" hint={priceOf('utility')} value={getQty('utility')} options={[0, 1, 2, 3, 4, 5]} onChange={(val) => updateQty('utility', val, (prev, count) => ({ ...prev, utilityRooms: count }))} />
+                          <DropdownField label="Cloakroom toilets" hint={toiletExtra ? `£${Number(toiletExtra.price).toFixed(0)} each` : undefined} value={getToiletQty()} options={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} onChange={(val) => updateToiletQty(val)} />
+                          <DropdownField
+                            label="Property size"
+                            value={propertyDetails.sqftRange || '1 - 1,200 Sq Ft'}
+                            options={['1 - 1,200 Sq Ft', '1,201 - 2,000 Sq Ft', '2,001 - 3,000 Sq Ft', '3,001 - 4,000 Sq Ft', '4,001 - 5,000 Sq Ft', '5,001+ Sq Ft']}
+                            onChange={(val) => setPropertyDetails((prev) => ({ ...prev, sqftRange: String(val) }))}
+                            isString
+                          />
+                          <DropdownField label="Kitchens" hint={priceOf('kitchen')} value={getQty('kitchen')} options={[0, 1, 2, 3, 4, 5]} onChange={(val) => updateQty('kitchen', val, (prev, count) => ({ ...prev, kitchens: count }))} />
+                          <DropdownField label="Carpet steam cleaning (rooms)" hint={priceOf('carpet')} value={getQty('carpet')} options={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} onChange={(val) => updateQty('carpet', val, (prev, count) => ({ ...prev, carpetSteamCleaning: count }))} />
+                        </div>
                       </div>
                     );
                   }
-
                 })()}
               </div>
             )}
 
             {currentStep === 2 && (
-              <div className="space-y-6 animate-in slide-in-from-right-8 duration-500">
-                <div className="flex items-center space-x-4 mb-6">
-                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-lg shadow-lg shadow-blue-200">{displayStepNumber(currentStep)}</div>
-                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
-                    Additional Services
-                  </h3>
-                </div>
-
-                <div className="flex flex-col gap-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-4 animate-in fade-in duration-300">
+                <p className="text-sm text-slate-500">Optional. Add anything you would like done on top of your clean.</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {extras
-                    .filter(e => {
+                    .filter((e) => {
                       const name = e.name.toLowerCase();
                       return !(name.includes('bedroom') || name.includes('reception') || name.includes('bathroom') || name.includes('utility') || name.includes('cloakroom') || name.includes('clock') || name.includes('kitchen') || name.includes('carpet'));
                     })
-                    .map(extra => {
-                      const selected = selectedExtras.find(e => e.id === extra.id);
+                    .map((extra) => {
+                      const selected = selectedExtras.find((e) => e.id === extra.id);
                       const quantity = selected ? selected.quantity : 0;
-
                       return (
                         <div
                           key={extra.id}
-                          className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-sm ring-1 ring-slate-100/50 transition-all hover:border-sky-200/80 hover:shadow-md"
+                          className={`flex items-center justify-between gap-3 rounded-2xl border p-4 transition ${quantity > 0 ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/15' : 'border-slate-200 bg-white hover:border-slate-300'}`}
                         >
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-900 text-base">{extra.name}</span>
-                            <span className="text-slate-500 text-sm font-medium">£{Number(extra.price).toFixed(0)}</span>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-900">{extra.name}</p>
+                            <p className="text-sm text-slate-500">
+                              £{Number(extra.price).toFixed(0)}
+                              {quantity > 0 ? <span className="font-semibold text-primary"> · £{(Number(extra.price) * quantity).toFixed(0)} added</span> : null}
+                            </p>
                           </div>
-
-                          <div className="flex items-center space-x-3">
+                          <div className="flex shrink-0 items-center gap-1 rounded-xl bg-slate-100 p-1">
                             <button
+                              type="button"
+                              aria-label={`Remove one ${extra.name}`}
                               onClick={() => {
                                 if (quantity <= 0) return;
                                 if (quantity === 1) {
-                                  setSelectedExtras(prev => prev.filter(e => e.id !== extra.id));
+                                  setSelectedExtras((prev) => prev.filter((e) => e.id !== extra.id));
                                 } else {
-                                  setSelectedExtras(prev => prev.map(e => e.id === extra.id ? { ...e, quantity: e.quantity - 1 } : e));
+                                  setSelectedExtras((prev) => prev.map((e) => (e.id === extra.id ? { ...e, quantity: e.quantity - 1 } : e)));
                                 }
                               }}
-                              className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-lg font-semibold text-slate-600 transition hover:bg-white disabled:opacity-30"
+                              disabled={quantity <= 0}
                             >
-                              -
+                              −
                             </button>
-                            <span className="w-6 text-center font-bold text-slate-700">{quantity}</span>
+                            <span className="w-7 text-center text-sm font-semibold tabular-nums text-slate-900">{quantity}</span>
                             <button
+                              type="button"
+                              aria-label={`Add one ${extra.name}`}
                               onClick={() => {
                                 if (quantity === 0) {
-                                  setSelectedExtras(prev => [...prev, { id: extra.id, quantity: 1 }]);
+                                  setSelectedExtras((prev) => [...prev, { id: extra.id, quantity: 1 }]);
                                 } else {
-                                  setSelectedExtras(prev => prev.map(e => e.id === extra.id ? { ...e, quantity: e.quantity + 1 } : e));
+                                  setSelectedExtras((prev) => prev.map((e) => (e.id === extra.id ? { ...e, quantity: e.quantity + 1 } : e)));
                                 }
                               }}
-                              className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
+                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-lg font-semibold text-primary shadow-sm transition hover:bg-primary hover:text-primary-foreground"
                             >
                               +
                             </button>
@@ -1490,103 +1483,108 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
             )}
 
             {currentStep === 3 && (
-              <div className="space-y-6 animate-in slide-in-from-right-8">
-                <div className="flex items-center space-x-4 mb-6">
-                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-lg shadow-lg shadow-blue-200">{displayStepNumber(currentStep)}</div>
-                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Schedule Your Clean</h3>
-                </div>
-                <div className="mb-6 flex items-start gap-3 rounded-2xl border border-sky-100/90 bg-gradient-to-r from-sky-50/90 to-indigo-50/50 p-5 shadow-sm ring-1 ring-white/60">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/90 text-sky-600 shadow-sm">
-                    <Clock className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-sky-900">We are available 24/7 for your convenience.</p>
-                    <p className="mt-2 text-xs font-semibold leading-relaxed text-sky-900/85">
-                      Choose any slot you prefer. If it overlaps another booking, we will contact you after you submit to confirm or adjust.
-                    </p>
-                  </div>
-                </div>
-                <InputField label="Date" value={date} onChange={setDate} type="date" icon={<Calendar className="w-4 h-4" />} />
+              <div className="space-y-6 animate-in fade-in duration-300">
+                {infoBox(
+                  <Clock className="h-4 w-4" />,
+                  'Pick any day and time, 24/7',
+                  'If your slot overlaps another booking, we will contact you after you submit to confirm or adjust.',
+                )}
+                <InputField label="Date" value={date} onChange={setDate} type="date" icon={<Calendar className="h-4 w-4" />} />
 
-                <div className="space-y-3">
-                  <label className="text-sm font-black uppercase text-slate-400 tracking-wider">Select Time Slot</label>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-3">
-                    {WIZARD_TIME_SLOTS.map((timeSlot) => {
-                      const isSelected = time === timeSlot;
-                      return (
-                        <button
-                          key={timeSlot}
-                          type="button"
-                          onClick={() => setTime(timeSlot)}
-                          className={`rounded-xl border-2 py-2.5 text-xs font-bold transition-all sm:py-3 sm:text-sm ${isSelected
-                            ? 'scale-105 border-indigo-500 bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-300/30'
-                            : 'border-slate-100 bg-white/90 text-slate-600 hover:border-sky-200 hover:bg-sky-50/50 hover:shadow-sm'
-                            }`}
-                        >
-                          {timeSlot}
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div className="space-y-4">
+                  <label className={labelCls}>Start time</label>
+                  {TIME_GROUPS.map((g) => (
+                    <div key={g.label}>
+                      <p className="mb-2 text-xs font-medium text-slate-500">{g.label}</p>
+                      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                        {WIZARD_TIME_SLOTS.filter((t) => {
+                          const h = Number(t.slice(0, 2));
+                          return h >= g.from && h < g.to;
+                        }).map((timeSlot) => {
+                          const isSelected = time === timeSlot;
+                          return (
+                            <button
+                              key={timeSlot}
+                              type="button"
+                              onClick={() => setTime(timeSlot)}
+                              className={`rounded-xl border py-2.5 text-sm font-semibold tabular-nums transition ${
+                                isSelected ? 'border-primary bg-primary text-primary-foreground shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-primary/40 hover:text-primary'
+                              }`}
+                            >
+                              {timeSlot}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
+                {date && time ? (
+                  <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900 ring-1 ring-inset ring-emerald-100">
+                    <CheckCircle className="h-5 w-5 shrink-0 text-emerald-600" />
+                    <span>
+                      <strong>{prettyDate}</strong> at <strong>{time}</strong>
+                      {calculatedDuration > 0 ? ` · about ${durationLabel}` : ''}
+                    </span>
+                  </div>
+                ) : null}
               </div>
             )}
 
             {currentStep === 4 && (
-              <div className="space-y-6 animate-in slide-in-from-right-8">
-                <div className="flex items-center space-x-4 mb-6">
-                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-lg shadow-lg shadow-blue-200">{displayStepNumber(currentStep)}</div>
-                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Location & Contact</h3>
-                </div>
-                <div className="mb-6 rounded-2xl border border-slate-200/70 bg-white/95 p-6 shadow-sm ring-1 ring-slate-100/60">
-                  <h4 className="mb-4 border-b border-slate-100 pb-2 text-sm font-black uppercase tracking-wider text-slate-800">Contact details</h4>
-                  <div className="grid grid-cols-1 gap-4">
-                    <InputField label="Full Name" value={customer.name} onChange={(v) => setCustomer({ ...customer, name: v })} placeholder="John Doe" icon={<User className="w-4 h-4" />} />
-                    <InputField label="Email Address" value={customer.email} onChange={(v) => setCustomer({ ...customer, email: v })} placeholder="john@example.com" icon={<ShieldCheck className="w-4 h-4" />} />
-                    <InputField label="Phone Number" value={customer.phone} onChange={(v) => setCustomer({ ...customer, phone: v })} placeholder="07700 900123" />
-                    <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500">
-                      Required: UK mobile or landline (at least 10 digits) for day-of contact.
-                    </p>
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="space-y-4">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <User className="h-4 w-4 text-primary" /> Your contact details
+                  </p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <InputField label="Full name" value={customer.name} onChange={(v) => setCustomer({ ...customer, name: v })} placeholder="John Doe" icon={<User className="h-4 w-4" />} />
+                    </div>
+                    <InputField label="Email address" value={customer.email} onChange={(v) => setCustomer({ ...customer, email: v })} placeholder="john@example.com" icon={<ShieldCheck className="h-4 w-4" />} type="email" />
+                    <InputField label="Phone number" value={customer.phone} onChange={(v) => setCustomer({ ...customer, phone: v })} placeholder="07700 900123" type="tel" />
                   </div>
+                  <p className="text-xs text-slate-500">We send your confirmation by email, and we may call on the day (UK number, at least 10 digits).</p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200/70 bg-white/95 p-6 shadow-sm ring-1 ring-slate-100/60">
-                  <h4 className="mb-4 border-b border-slate-100 pb-2 text-sm font-black uppercase tracking-wider text-slate-800">Service address</h4>
-                  <div className="grid grid-cols-1 gap-4">
-                    <InputField label="Address Line 1" value={address.line1} onChange={(v) => setAddress({ ...address, line1: v })} placeholder="123 Neat Street" icon={<MapPin className="w-4 h-4" />} />
-                    <InputField label="Address Line 2 (Optional)" value={address.line2 || ''} onChange={(v) => setAddress({ ...address, line2: v })} placeholder="Apartment, Studio, or Floor" />
-                    <div className="grid grid-cols-2 gap-4">
-                      <InputField label="City" value={address.city} onChange={(v) => setAddress({ ...address, city: v })} placeholder="London" />
-                      <div className="space-y-2">
-                        <label className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400">Postcode</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={address.postcode}
-                            onChange={(e) => setAddress({ ...address, postcode: e.target.value.toUpperCase() })}
-                            placeholder="SW1A 1AA"
-                            className="w-full rounded-2xl border-2 border-slate-200/90 bg-white/95 p-4 font-black text-foreground shadow-sm outline-none ring-slate-200/40 transition-all placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/12"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleVerifyPostcode}
-                            disabled={postcodeVerifying}
-                            className="shrink-0 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] sm:text-xs font-black uppercase tracking-wider text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {postcodeVerifying ? 'Checking' : 'Verify'}
-                          </button>
-                        </div>
-                        {postcodeVerifyMsg ? (
-                          <p className={`text-[11px] sm:text-xs font-black uppercase tracking-wider ${postcodeVerified ? 'text-emerald-600' : 'text-amber-700'}`}>
-                            {postcodeVerifyMsg}
-                          </p>
-                        ) : (
-                          <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500">
-                            Verify with UK postcode dataset before continuing.
-                          </p>
-                        )}
-                        {usesRegionalRate && regionNote}
+                <div className="space-y-4 border-t border-slate-100 pt-6">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <MapPin className="h-4 w-4 text-primary" /> Where should we clean?
+                  </p>
+                  <InputField label="Address line 1" value={address.line1} onChange={(v) => setAddress({ ...address, line1: v })} placeholder="123 Neat Street" icon={<MapPin className="h-4 w-4" />} />
+                  <InputField label="Address line 2 (optional)" value={address.line2 || ''} onChange={(v) => setAddress({ ...address, line2: v })} placeholder="Flat, floor or building" />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <InputField label="Town or city" value={address.city} onChange={(v) => setAddress({ ...address, city: v })} placeholder="London" />
+                    <div className="space-y-1.5">
+                      <label className={labelCls}>Postcode</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={address.postcode}
+                          onChange={(e) => setAddress({ ...address, postcode: e.target.value.toUpperCase() })}
+                          placeholder="SW1A 1AA"
+                          autoComplete="postal-code"
+                          className={`w-full rounded-xl border bg-white px-4 py-3 text-sm font-semibold uppercase tracking-wide text-slate-900 shadow-sm outline-none transition placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-slate-400 focus:ring-4 focus:ring-primary/10 ${
+                            postcodeVerified ? 'border-emerald-300 focus:border-emerald-400' : 'border-slate-200 focus:border-primary'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyPostcode}
+                          disabled={postcodeVerifying}
+                          className={`shrink-0 rounded-xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                            postcodeVerified ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200' : 'bg-slate-900 text-white hover:bg-slate-800'
+                          }`}
+                        >
+                          {postcodeVerifying ? 'Checking…' : postcodeVerified ? '✓ Checked' : 'Check'}
+                        </button>
                       </div>
+                      {postcodeVerifyMsg ? (
+                        <p className={`text-xs font-medium ${postcodeVerified ? 'text-emerald-600' : 'text-amber-700'}`}>{postcodeVerifyMsg}</p>
+                      ) : (
+                        <p className="text-xs text-slate-500">Tap Check so we can confirm we cover your area.</p>
+                      )}
+                      {usesRegionalRate && regionNote}
                     </div>
                   </div>
                 </div>
@@ -1594,131 +1592,133 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
             )}
 
             {currentStep === 5 && (
-              <div className="space-y-6 animate-in slide-in-from-right-8">
-                <div className="flex items-center space-x-4 mb-6">
-                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-lg shadow-lg shadow-blue-200">{displayStepNumber(currentStep)}</div>
-                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Special Requirements</h3>
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="space-y-2">
+                  <label className={labelCls}>Anything we should know?</label>
+                  <textarea
+                    className={`${textareaCls} h-36`}
+                    placeholder="Any special instructions? Key location, parking, pets, etc..."
+                    value={instructions}
+                    onChange={(e) => setInstructions(e.target.value)}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {['Key is with a neighbour', 'Free parking outside', 'I have a pet', 'Please focus on the kitchen'].map((chip) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => setInstructions((prev) => (prev.trim() ? `${prev.trim()}\n${chip}` : chip))}
+                        className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-primary/40 hover:text-primary"
+                      >
+                        + {chip}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <textarea
-                  className="w-full h-40 bg-card rounded-2xl p-6 border-2 border-input outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 font-medium text-foreground"
-                  placeholder="Any special instructions? Key location, parking, pets, etc..."
-                  value={instructions}
-                  onChange={(e) => setInstructions(e.target.value)}
-                />
                 {selectedService && getServiceTrigger(selectedService) === 'standard' && (
-                  <div className="bg-blue-50 rounded-2xl border border-blue-100 p-5 space-y-3">
-                    <p className="text-sm font-black text-slate-900">Want us to come with a hoover and cleaning materials?</p>
-                    <p className="text-xs font-medium text-slate-500">If you don't have your own supplies, our team can bring everything needed.</p>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-blue-300 transition-colors">
-                        <input type="radio" name="cleaningMaterials" value="none" checked={cleaningMaterials === 'none'} onChange={() => setCleaningMaterials('none')} className="w-4 h-4 text-blue-600" />
-                        <div className="flex-1">
-                          <span className="text-sm font-bold text-slate-800">No thanks, I have my own</span>
-                        </div>
-                        <span className="text-sm font-black text-slate-400">Free</span>
-                      </label>
-                      <label className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-blue-300 transition-colors">
-                        <input type="radio" name="cleaningMaterials" value="hoover_only" checked={cleaningMaterials === 'hoover_only'} onChange={() => setCleaningMaterials('hoover_only')} className="w-4 h-4 text-blue-600" />
-                        <div className="flex-1">
-                          <span className="text-sm font-bold text-slate-800">Just a hoover</span>
-                        </div>
-                        <span className="text-sm font-black text-emerald-700">+£3.00</span>
-                      </label>
-                      <label className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-blue-300 transition-colors">
-                        <input type="radio" name="cleaningMaterials" value="hoover_and_materials" checked={cleaningMaterials === 'hoover_and_materials'} onChange={() => setCleaningMaterials('hoover_and_materials')} className="w-4 h-4 text-blue-600" />
-                        <div className="flex-1">
-                          <span className="text-sm font-bold text-slate-800">Hoover + cleaning materials</span>
-                        </div>
-                        <span className="text-sm font-black text-emerald-700">+£6.00</span>
-                      </label>
+                  <div className="space-y-3">
+                    <div>
+                      <p className={labelCls}>Should we bring a hoover and cleaning materials?</p>
+                      <p className="text-xs text-slate-500">If you do not have your own supplies, our team can bring everything needed.</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      {(
+                        [
+                          { v: 'none', label: 'No thanks', sub: 'I have my own', price: 'Free' },
+                          { v: 'hoover_only', label: 'Just a hoover', sub: 'We bring a hoover', price: '+£3.00' },
+                          { v: 'hoover_and_materials', label: 'Hoover + materials', sub: 'Everything needed', price: '+£6.00' },
+                        ] as const
+                      ).map((o) => {
+                        const on = cleaningMaterials === o.v;
+                        return (
+                          <label
+                            key={o.v}
+                            className={`flex cursor-pointer flex-col rounded-2xl border p-4 transition ${on ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/15' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                          >
+                            <input type="radio" name="cleaningMaterials" value={o.v} checked={on} onChange={() => setCleaningMaterials(o.v)} className="sr-only" />
+                            <span className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-semibold text-slate-900">{o.label}</span>
+                              <span className={`shrink-0 whitespace-nowrap text-sm font-semibold ${o.v === 'none' ? 'text-slate-400' : 'text-emerald-700'}`}>{o.price}</span>
+                            </span>
+                            <span className="mt-0.5 text-xs text-slate-500">{o.sub}</span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                <label className="flex items-center space-x-3 p-4 bg-slate-50 rounded-2xl cursor-pointer hover:bg-slate-100 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={smsOptIn}
-                    onChange={(e) => setSmsOptIn(e.target.checked)}
-                    className="w-5 h-5 rounded-lg text-blue-600 focus:ring-blue-500 border-gray-300"
-                  />
-                  <span className="font-bold text-slate-700 text-sm">Receive SMS updates & reminders about my booking</span>
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-300">
+                  <input type="checkbox" checked={smsOptIn} onChange={(e) => setSmsOptIn(e.target.checked)} className="mt-0.5 h-4 w-4 rounded accent-primary" />
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-900">Text me updates and reminders</span>
+                    <span className="block text-xs text-slate-500">Reminders and updates about this booking by text message.</span>
+                  </span>
                 </label>
               </div>
             )}
 
             {currentStep === 6 && (
-              <div className="space-y-5 animate-in slide-in-from-right-8">
-                <div className="flex items-center space-x-4 mb-6">
-                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-lg shadow-lg shadow-blue-200">{displayStepNumber(currentStep)}</div>
-                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Review Invoice</h3>
-                </div>
-                <div className="flex items-center space-x-6 rounded-[2rem] border border-sky-100/90 bg-gradient-to-r from-sky-50/90 via-white to-indigo-50/40 p-8 shadow-md ring-1 ring-white/80">
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-300/30">
-                    <CheckCircle className="h-8 w-8" />
-                  </div>
-                  <div>
-                    <h4 className="font-black text-slate-900">Review invoice</h4>
-                    <p className="text-sm font-medium text-sky-800/90">Please review your booking details before confirming.</p>
-                  </div>
-                </div>
-
-                {/* Discount Code */}
-                <div className="space-y-4">
-                  <label className="text-sm font-black uppercase text-slate-400 tracking-wider">Promo Code (Optional)</label>
-                  <div className="flex gap-4">
-                    <input
-                      type="text"
-                      className="flex-1 bg-card rounded-2xl p-4 font-bold outline-none border-2 border-input focus:border-primary focus:ring-2 focus:ring-primary/25 transition-colors uppercase text-foreground"
-                      placeholder="Enter Code"
-                      value={discountCode}
-                      onChange={(e) => setDiscountCode(e.target.value)}
-                      disabled={!!appliedDiscount}
-                    />
-                    <button
-                      onClick={() => {
-                        if (appliedDiscount) {
-                          setAppliedDiscount(null);
-                          setDiscountCode('');
-                        } else {
-                          handleApplyDiscount();
-                        }
-                      }}
-                      className={`px-6 rounded-2xl font-black text-sm uppercase tracking-wider transition-all ${appliedDiscount ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
-                      disabled={isValidatingDiscount}
-                    >
-                      {isValidatingDiscount ? '...' : appliedDiscount ? 'Remove' : 'Apply'}
-                    </button>
-                  </div>
-                  {discountError && <p className="text-red-500 font-bold text-xs mt-1">{discountError}</p>}
-                  {appliedDiscount && <p className="text-green-600 font-bold text-xs mt-1">Discount Applied: {appliedDiscount.code}</p>}
-                </div>
-
-                {/* Optional Tip Selection for Invoice */}
-                <div className="space-y-4">
-                  <label className="text-sm font-black uppercase text-slate-400 tracking-wider">Add a Tip (Optional)</label>
-                  <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-                    {[0, 5, 10, 15, 20].map(p => (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className={labelCls}>Promo code (optional)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold uppercase tracking-wide text-slate-900 shadow-sm outline-none transition placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:bg-slate-50"
+                        placeholder="e.g. FIRST10"
+                        value={discountCode}
+                        onChange={(e) => setDiscountCode(e.target.value)}
+                        disabled={!!appliedDiscount}
+                      />
                       <button
-                        key={p}
-                        type="button"
-                        onClick={() => { setTipPercent(p); setCustomTip(''); }}
-                        className={`rounded-2xl px-5 py-3 font-black transition-all sm:px-6 sm:py-4 ${tipPercent === p && tipPercent !== -1 ? 'scale-110 bg-blue-600 text-white shadow-lg' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                        onClick={() => {
+                          if (appliedDiscount) {
+                            setAppliedDiscount(null);
+                            setDiscountCode('');
+                          } else {
+                            handleApplyDiscount();
+                          }
+                        }}
+                        className={`shrink-0 rounded-xl px-4 text-sm font-semibold transition ${appliedDiscount ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                        disabled={isValidatingDiscount}
                       >
-                        {p === 0 ? 'No Tip' : `${p}%`}
+                        {isValidatingDiscount ? '…' : appliedDiscount ? 'Remove' : 'Apply'}
                       </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setTipPercent(-1)}
-                      className={`rounded-2xl px-5 py-3 font-black transition-all sm:px-6 sm:py-4 ${tipPercent === -1 ? 'scale-110 bg-blue-600 text-white shadow-lg' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                    >
-                      Custom £
-                    </button>
+                    </div>
+                    {discountError && <p className="text-xs font-medium text-red-600">{discountError}</p>}
+                    {appliedDiscount && <p className="text-xs font-medium text-emerald-600">✓ {appliedDiscount.code} applied</p>}
+                    {!appliedDiscount && !discountError ? <p className="text-xs text-slate-500">New customer? Try FIRST10 for 10% off your first clean.</p> : null}
                   </div>
-                  {tipPercent === -1 && (
-                    <div className="space-y-2">
-                      <label className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-500">Tip amount (£)</label>
+
+                  <div className="space-y-2">
+                    <label className={labelCls}>Add a tip for your cleaner (optional)</label>
+                    <div className="flex flex-wrap gap-2">
+                      {[0, 5, 10, 15, 20].map((p) => {
+                        const on = tipPercent === p && tipPercent !== -1;
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => {
+                              setTipPercent(p);
+                              setCustomTip('');
+                            }}
+                            className={`rounded-xl border px-3.5 py-2 text-sm font-semibold transition ${on ? 'border-primary bg-primary text-primary-foreground' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
+                          >
+                            {p === 0 ? 'No tip' : `${p}%`}
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => setTipPercent(-1)}
+                        className={`rounded-xl border px-3.5 py-2 text-sm font-semibold transition ${tipPercent === -1 ? 'border-primary bg-primary text-primary-foreground' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
+                      >
+                        Custom £
+                      </button>
+                    </div>
+                    {tipPercent === -1 && (
                       <input
                         type="number"
                         min={0}
@@ -1726,15 +1726,15 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                         inputMode="decimal"
                         value={customTip}
                         onChange={(e) => setCustomTip(e.target.value)}
-                        placeholder="0.00"
-                        className="w-full max-w-xs rounded-2xl border-2 border-slate-200/90 bg-white/95 p-4 font-black text-foreground outline-none focus:border-primary focus:ring-4 focus:ring-primary/12"
+                        placeholder="Tip amount in £"
+                        aria-label="Tip amount in pounds"
+                        className="w-full max-w-[12rem] rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
                       />
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
-                {/* Invoice (no transform scale - scale does not shrink layout box, causing huge gap above nav) */}
-                <div className="mt-4 w-full">
+                <div className="w-full">
                   <InvoiceView
                     booking={{
                       serviceType: selectedService?.name,
@@ -1763,68 +1763,61 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
             )}
 
             {currentStep === 7 && (
-              <div className="space-y-6 animate-in slide-in-from-right-8">
-                <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 p-8 text-white shadow-[0_24px_60px_-12px_rgba(15,23,42,0.45)] ring-1 ring-white/10">
-                  <div className="pointer-events-none absolute -right-8 -top-8 h-48 w-48 rounded-full bg-indigo-500/25 blur-3xl" />
-                  <div className="pointer-events-none absolute bottom-0 left-1/4 h-32 w-32 rounded-full bg-sky-500/15 blur-2xl" />
-                  <ShieldCheck className="pointer-events-none absolute right-4 top-4 h-32 w-32 text-white/10" aria-hidden />
-                  <h3 className="relative z-[1] mb-6 border-b border-white/10 pb-4 text-xl font-black uppercase tracking-widest">Booking summary</h3>
-
-                  <div className="space-y-6 relative z-10">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                        <div className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Service Details</div>
-                        <div className="text-lg font-black text-white">{selectedService?.name}</div>
-                        <div className="text-sm font-bold text-slate-300">{frequency} • {calculatedDuration} Hours (booked)</div>
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="overflow-hidden rounded-2xl border border-slate-200">
+                  <div className="flex items-center justify-between gap-3 bg-slate-50 px-5 py-3">
+                    <p className="text-sm font-semibold text-slate-900">Your booking</p>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                      <ShieldCheck className="h-4 w-4" /> Check everything before you submit
+                    </span>
+                  </div>
+                  <dl className="divide-y divide-slate-100">
+                    {[
+                      { icon: <Sparkles className="h-4 w-4" />, k: 'Service', v: selectedService?.name, sub: `${frequency} · ${formatHoursMinutes(calculatedDuration)} booked` },
+                      { icon: <Calendar className="h-4 w-4" />, k: 'When', v: prettyDate || date, sub: time ? `Starting at ${time}` : undefined },
+                      {
+                        icon: <MapPin className="h-4 w-4" />,
+                        k: 'Where',
+                        v: [address.line1, address.line2].filter(Boolean).join(', '),
+                        sub: [address.city, address.postcode].filter(Boolean).join(', '),
+                      },
+                      { icon: <User className="h-4 w-4" />, k: 'Contact', v: customer.name, sub: [customer.email, customer.phone].filter(Boolean).join(' · ') },
+                    ].map((row) => (
+                      <div key={row.k} className="flex items-start gap-3 px-5 py-4">
+                        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">{row.icon}</span>
+                        <div className="min-w-0 flex-1">
+                          <dt className="text-xs font-medium text-slate-500">{row.k}</dt>
+                          <dd className="break-words font-semibold text-slate-900">{row.v || '—'}</dd>
+                          {row.sub ? <dd className="break-words text-sm text-slate-500">{row.sub}</dd> : null}
+                        </div>
                       </div>
-                      <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                        <div className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Date & Time</div>
-                        <div className="text-lg font-black text-white">{date}</div>
-                        <div className="text-sm font-bold text-slate-300">@ {time}</div>
-                      </div>
-                    </div>
-
-                    <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                      <div className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Location</div>
-                      <div className="text-sm font-bold text-white">{address.line1}</div>
-                      {address.line2 && <div className="text-sm font-bold text-slate-300">{address.line2}</div>}
-                      <div className="text-sm font-bold text-slate-300">{address.city}, {address.postcode}</div>
-                    </div>
-
-                    <div className="flex justify-between items-center pt-4 border-t border-white/10">
-                      <span className="text-lg text-slate-300 font-bold">Total Estimate</span>
-                      <span className="text-3xl text-blue-400 font-black">
-                        {(() => {
-                          const trig = getServiceTrigger(selectedService);
-                          return trig === 'commercial' || trig === 'jet_washing'
-                            ? 'Quote Based'
-                            : `£${Number(totalPrice).toFixed(2)}`;
-                        })()}
-                      </span>
-                    </div>
+                    ))}
+                  </dl>
+                  <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-900 px-5 py-4 text-white">
+                    <span className="text-sm font-medium text-white/80">Total estimate</span>
+                    <span className="text-2xl font-semibold tabular-nums">
+                      {(() => {
+                        const trig = getServiceTrigger(selectedService);
+                        return trig === 'commercial' || trig === 'jet_washing' ? 'Quote based' : `£${Number(totalPrice).toFixed(2)}`;
+                      })()}
+                    </span>
                   </div>
                 </div>
 
                 {(() => {
                   const trig = getServiceTrigger(selectedService);
                   return selectedService && Number(totalPrice) > 0 && trig !== 'commercial' && trig !== 'jet_washing' ? (
-                    <PaymentChoicePicker
-                      total={Number(totalPrice)}
-                      depositPercent={wizardDepositPercent}
-                      value={paymentChoice}
-                      onChange={setPaymentChoice}
-                    />
+                    <PaymentChoicePicker total={Number(totalPrice)} depositPercent={wizardDepositPercent} value={paymentChoice} onChange={setPaymentChoice} />
                   ) : null;
                 })()}
 
                 {invoiceStepSkipped && selectedService ? (
-                  <div className="space-y-3 rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-lg ring-1 ring-slate-100/80">
-                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-800">Payment and terms</h4>
-                    <p className="text-xs font-semibold leading-relaxed text-slate-600">
-                      This booking path skips the separate invoice screen. Review the payment details and tick the agreement
-                      before you submit your request.
+                  <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
+                    <p className="text-sm font-semibold text-slate-900">Payment and terms</p>
+                    <p className="text-xs leading-relaxed text-slate-600">
+                      This booking path skips the separate invoice screen. Review the payment details and tick the agreement before you submit your request.
                     </p>
-                    <div className="max-h-[min(70vh,560px)] overflow-y-auto rounded-2xl border border-slate-100">
+                    <div className="max-h-[min(70vh,560px)] overflow-y-auto rounded-xl border border-slate-100">
                       <InvoiceView
                         booking={{
                           serviceType: selectedService?.name,
@@ -1851,7 +1844,8 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                     </div>
                   </div>
                 ) : (
-                  <p className="text-center text-xs font-bold text-slate-500">
+                  <p className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-center text-sm font-medium ${depositTermsAccepted ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+                    {depositTermsAccepted ? <CheckCircle className="h-4 w-4 shrink-0" /> : <Lock className="h-4 w-4 shrink-0" />}
                     {depositTermsAccepted
                       ? 'Terms accepted on the invoice step. Submit your booking request when you are ready.'
                       : 'Go back to the invoice step and tick the payment agreement before submitting.'}
@@ -1861,80 +1855,78 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
             )}
           </div>
 
-          <div className="relative flex flex-col-reverse justify-between gap-4 border-t border-slate-200/80 bg-gradient-to-r from-slate-50/90 via-white to-sky-50/20 p-6 backdrop-blur-sm sm:flex-row sm:gap-0 md:p-10">
+          <div className="hidden items-center justify-between gap-4 border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:px-8 lg:flex">
             <button
               onClick={back}
               disabled={currentStep === 0}
-              className="flex w-full items-center justify-center space-x-2 rounded-2xl px-8 py-4 font-bold text-slate-500 transition-all hover:bg-white/80 hover:shadow-sm disabled:pointer-events-none disabled:opacity-0 sm:w-auto"
+              className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-white hover:shadow-sm disabled:pointer-events-none disabled:opacity-0"
             >
-              <ChevronLeft className="h-5 w-5" />
-              <span>Previous</span>
+              <ChevronLeft className="h-4 w-4" /> Back
             </button>
-            <button
-              onClick={currentStep === STEPS.length - 1 ? handleFinalSubmit : next}
-              disabled={currentStep === 0 && !serviceId || isProcessing}
-              className="group flex w-full items-center justify-center space-x-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 px-10 py-4 font-black text-white shadow-lg shadow-indigo-500/25 transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-50 sm:w-auto"
-            >
-              <span>
-                {isProcessing ? 'Processing...' : currentStep === STEPS.length - 1 ? 'Submit booking request' : 'Next step'}
-              </span>
-              {!isProcessing && <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />}
-            </button>
+            <div className="flex items-center gap-3">
+              {currentStep < STEPS.length - 1 && activeSteps[stepPos] ? <span className="text-xs text-slate-400">Next: {STEP_COPY[activeSteps[stepPos]]?.short || activeSteps[stepPos]}</span> : null}
+              <button
+                onClick={currentStep === STEPS.length - 1 ? handleFinalSubmit : next}
+                disabled={(currentStep === 0 && !serviceId) || isProcessing}
+                className="group inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-sm shadow-primary/25 transition hover:opacity-90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                <span>{isProcessing ? 'Processing…' : currentStep === STEPS.length - 1 ? 'Submit booking request' : 'Continue'}</span>
+                {!isProcessing && <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="lg:col-span-4">
-        <div className="sticky top-28 space-y-6">
-          <div className="overflow-hidden rounded-[2.5rem] border border-slate-200/60 bg-white/95 shadow-[0_20px_50px_-12px_rgba(30,58,138,0.15)] ring-1 ring-slate-100/80 backdrop-blur-sm">
-            <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 p-8 text-white">
-              <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
-              <div className="pointer-events-none absolute bottom-0 left-0 h-28 w-28 rounded-full bg-sky-400/20 blur-xl" />
-              <Sparkles className="absolute right-6 top-6 h-20 w-20 text-white/15" aria-hidden />
-              <span className="relative z-[1] mb-2 block text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] text-white/85">Live cost estimate</span>
-              <div className="relative z-[1] text-5xl font-black tracking-tight drop-shadow-sm">£{Number(totalPrice).toFixed(2)}</div>
-              <div className="relative z-[1] mt-4 inline-flex items-center rounded-xl border border-white/20 bg-white/15 px-3 py-1.5 text-xs font-bold backdrop-blur-md">
-                Est. duration: {Math.floor(calculatedDuration)}h {Math.round((calculatedDuration - Math.floor(calculatedDuration)) * 60) > 0 ? `${Math.round((calculatedDuration - Math.floor(calculatedDuration)) * 60)}m` : ''}
+      <div className="min-w-0 lg:col-span-4">
+        <div className="space-y-4 lg:sticky lg:top-28">
+          <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_32px_-16px_rgba(15,23,42,0.12)]">
+            <div className="relative overflow-hidden bg-gradient-to-br from-primary to-primary/80 px-6 py-6 text-primary-foreground">
+              <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-white/10" aria-hidden />
+              <p className="relative text-xs font-medium text-white/85">Your price</p>
+              <p className="relative mt-1 text-4xl font-semibold tracking-tight tabular-nums">
+                {isQuoteOnly ? 'Quote' : `£${Number(totalPrice).toFixed(2)}`}
+              </p>
+              <div className="relative mt-3 flex flex-wrap gap-2 text-xs font-medium">
+                <span className="rounded-full bg-white/15 px-2.5 py-1">
+                  <Clock className="mr-1 inline h-3.5 w-3.5 -translate-y-px" />
+                  {durationLabel}
+                </span>
+                <span className="rounded-full bg-white/15 px-2.5 py-1">{frequency}</span>
+                {date ? <span className="rounded-full bg-white/15 px-2.5 py-1">{new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}{time ? ` · ${time}` : ''}</span> : null}
               </div>
             </div>
-            <div className="space-y-4 p-8">
-              {/* Service & Duration */}
-              <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-                <span className="text-sm font-bold text-slate-500">Service:</span>
-                <span className="text-sm font-black text-slate-900 text-right">{selectedService?.name || 'None'}</span>
+            <div className="space-y-3 p-6 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-slate-500">Service</span>
+                <span className="text-right font-semibold text-slate-900">{selectedService?.name || 'Not chosen yet'}</span>
               </div>
-              <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-                <span className="text-sm font-bold text-slate-500">Duration:</span>
-                <span className="text-sm font-black text-slate-900">
-                  {Math.floor(calculatedDuration)}h {Math.round((calculatedDuration - Math.floor(calculatedDuration)) * 60) > 0 ? `${Math.round((calculatedDuration - Math.floor(calculatedDuration)) * 60)}m` : ''}
-                </span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-slate-500">Duration</span>
+                <span className="font-semibold text-slate-900">{durationLabel}</span>
               </div>
 
-              {/* Call-out + base line */}
-              <div className="pb-4 border-b border-slate-100">
+              <div className="space-y-2 border-t border-slate-100 pt-3">
                 {selectedService && isDeepOrEOTService(selectedService, selectedService.name) && (
-                  <div className="flex justify-between items-center mb-3">
-                    <span className="text-sm font-bold text-slate-500">Call-out charge:</span>
-                    <span className="text-sm font-black text-slate-900">
-                      £{resolveDeepEotCallOutChargeGbp(selectedService).toFixed(2)}
-                    </span>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-slate-500">Call-out charge</span>
+                    <span className="font-semibold text-slate-900">£{resolveDeepEotCallOutChargeGbp(selectedService).toFixed(2)}</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-bold text-slate-500">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-slate-500">
                     {(() => {
                       const trig = getServiceTrigger(selectedService);
-                      if (trig === 'deep' || trig === 'end_of_tenancy') return 'Minimum duration (instruction only):';
+                      if (trig === 'deep' || trig === 'end_of_tenancy') return 'Minimum duration (instruction only)';
                       if (trig === 'standard') {
                         const hrs = duration || 2;
-                        return `Base Price (${Number.isInteger(hrs) ? hrs : hrs.toFixed(1)}h × £${effectiveHourlyRate.toFixed(2)}/hr${
-                          pricingRegion === 'london' ? ', London rate' : ''
-                        }):`;
+                        return `Base price (${formatHoursMinutes(hrs)} × £${effectiveHourlyRate.toFixed(2)}/hr${pricingRegion === 'london' ? ', London rate' : ''})`;
                       }
-                      return 'Base Price:';
+                      return 'Base price';
                     })()}
                   </span>
-                  <span className="text-sm font-black text-slate-900">
+                  <span className="shrink-0 font-semibold text-slate-900">
                     £{(() => {
                       if (!selectedService) return '0.00';
                       const baseRate = Number(selectedService.baseRate) || 0;
@@ -1953,52 +1945,42 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                     })()}
                   </span>
                 </div>
-
               </div>
 
-              {/* Selected Extras Section (Additional Services) */}
-              {/* Selected Extras Section (Additional Services) */}
-              <div className="pb-4 border-b border-slate-100">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-bold text-slate-500">Selected Items:</span>
-                  <span className="text-sm font-black text-slate-900">
+              <div className="space-y-1.5 border-t border-slate-100 pt-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-500">Rooms and extras</span>
+                  <span className="font-semibold text-slate-900">
                     £{(() => {
                       const trig = getServiceTrigger(selectedService);
                       const isHourly = trig === 'standard' || trig === 'airbnb' || trig === 'custom';
-                      return selectedExtras.reduce((sum, item) => {
-                        const extra = extras.find(e => e.id === item.id);
-                        if (!extra) return sum;
-
-                        const isRoomExtra = ['bedroom', 'reception', 'bathroom', 'utility', 'cloakroom', 'clock', 'kitchen', 'carpet'].some(n => extra.name.toLowerCase().includes(n));
-
-                        if (isHourly && isRoomExtra) return sum;
-
-                        return sum + (Number(extra.price) * item.quantity);
-                      }, 0).toFixed(2);
+                      return selectedExtras
+                        .reduce((sum, item) => {
+                          const extra = extras.find((e) => e.id === item.id);
+                          if (!extra) return sum;
+                          const isRoomExtra = ['bedroom', 'reception', 'bathroom', 'utility', 'cloakroom', 'clock', 'kitchen', 'carpet'].some((n) => extra.name.toLowerCase().includes(n));
+                          if (isHourly && isRoomExtra) return sum;
+                          return sum + Number(extra.price) * item.quantity;
+                        }, 0)
+                        .toFixed(2);
                     })()}
                   </span>
                 </div>
                 {itemizedDurationBreakdown && isDeepOrEOTService(selectedService, selectedService?.name) && (
-                  <p className="text-[11px] sm:text-xs font-bold text-slate-400 mb-2 -mt-1">
-                    Each line has its own price; estimated minimum duration is for scheduling only (not charged).
-                  </p>
+                  <p className="text-xs text-slate-400">Each line has its own price; the estimated duration is for scheduling only (not charged).</p>
                 )}
-                <div className="space-y-1 pl-2 max-h-40 overflow-y-auto custom-scrollbar pr-2">
-                  {selectedExtras.map(item => {
-                    const extra = extras.find(e => e.id === item.id);
+                <div className="max-h-40 space-y-1 overflow-y-auto pr-1 custom-scrollbar">
+                  {selectedExtras.map((item) => {
+                    const extra = extras.find((e) => e.id === item.id);
                     if (!extra) return null;
                     const lowerName = extra.name.toLowerCase();
                     const isCloakroomToilet =
-                      (lowerName.includes('cloakroom') || lowerName.includes('clockroom') || /clock\s*room/.test(lowerName)) &&
-                      (lowerName.includes('toilet') || /\bwc\b/.test(lowerName));
+                      (lowerName.includes('cloakroom') || lowerName.includes('clockroom') || /clock\s*room/.test(lowerName)) && (lowerName.includes('toilet') || /\bwc\b/.test(lowerName));
                     const displayName = isCloakroomToilet ? 'Cloakroom Toilet (£15/30min each)' : extra.name;
-
                     const trig = getServiceTrigger(selectedService);
                     const isHourly = trig === 'standard' || trig === 'airbnb' || trig === 'custom';
-                    const isRoomExtra = ['bedroom', 'reception', 'bathroom', 'utility', 'cloakroom', 'clock', 'kitchen', 'carpet', 'toilet'].some(n => extra.name.toLowerCase().includes(n));
-
+                    const isRoomExtra = ['bedroom', 'reception', 'bathroom', 'utility', 'cloakroom', 'clock', 'kitchen', 'carpet', 'toilet'].some((n) => extra.name.toLowerCase().includes(n));
                     if (isHourly && isRoomExtra) return null;
-
                     const isDeepOrEOT = trig === 'deep' || trig === 'end_of_tenancy';
                     if (isDeepOrEOT) {
                       const durLine = itemizedDurationBreakdown?.lines.find((l) => l.extraId === item.id);
@@ -2006,118 +1988,129 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                       const lineSubtotal = Number(extra.price) * item.quantity;
                       return (
                         <div key={item.id} className="flex justify-between gap-2 text-xs text-slate-500">
-                          <span>• {item.quantity} × {displayName}</span>
-                          <span className="text-right shrink-0">
+                          <span>
+                            {item.quantity} × {displayName}
+                          </span>
+                          <span className="shrink-0 text-right">
                             £{lineSubtotal.toFixed(2)}
-                            {lineH > 0 ? <span className="text-slate-400 font-medium"> · +{lineH.toFixed(2)}h</span> : null}
+                            {lineH > 0 ? <span className="text-slate-400"> · +{formatHoursMinutes(lineH)}</span> : null}
                           </span>
                         </div>
                       );
                     }
-
                     return (
-                      <div key={item.id} className="flex justify-between text-xs text-slate-400">
-                        <span>• {item.quantity} x {displayName}</span>
+                      <div key={item.id} className="flex justify-between gap-2 text-xs text-slate-500">
+                        <span>
+                          {item.quantity} × {displayName}
+                        </span>
                         <span>£{(Number(extra.price) * item.quantity).toFixed(2)}</span>
                       </div>
                     );
                   })}
                 </div>
                 {cleaningMaterials !== 'none' && (
-                  <div className="flex justify-between text-xs text-slate-500 pt-1 border-t border-dashed border-slate-100 mt-1">
-                    <span>• {cleaningMaterials === 'hoover_and_materials' ? 'Hoover + cleaning materials' : 'Hoover only'}</span>
-                    <span className="font-bold">£{cleaningMaterials === 'hoover_and_materials' ? '6.00' : '3.00'}</span>
+                  <div className="flex justify-between text-xs text-slate-500">
+                    <span>{cleaningMaterials === 'hoover_and_materials' ? 'Hoover + cleaning materials' : 'Hoover only'}</span>
+                    <span>£{cleaningMaterials === 'hoover_and_materials' ? '6.00' : '3.00'}</span>
                   </div>
                 )}
               </div>
 
               {pricing.discountAmount > 0 ? (
-                <div className="flex justify-between items-center border-t border-slate-100 py-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Discount{appliedDiscount?.code ? ` (${appliedDiscount.code})` : ''}
-                  </span>
-                  <span className="text-sm font-black text-emerald-700">−£{pricing.discountAmount.toFixed(2)}</span>
+                <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                  <span className="text-slate-500">Discount{appliedDiscount?.code ? ` (${appliedDiscount.code})` : ''}</span>
+                  <span className="font-semibold text-emerald-700">−£{pricing.discountAmount.toFixed(2)}</span>
                 </div>
               ) : null}
-              <div className="flex justify-between items-center border-t border-slate-100 py-2">
-                <span className="text-sm font-bold text-slate-500">Subtotal (after discount)</span>
-                <span className="text-lg font-bold text-slate-900">£{pricing.totalAfterDiscount.toFixed(2)}</span>
+              <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                <span className="text-slate-500">Subtotal (after discount)</span>
+                <span className="font-semibold text-slate-900">£{pricing.totalAfterDiscount.toFixed(2)}</span>
               </div>
               {pricing.tipAmount > 0 ? (
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-sm font-bold text-slate-500">Tip</span>
-                  <span className="text-lg font-bold text-slate-900">£{pricing.tipAmount.toFixed(2)}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-500">Tip</span>
+                  <span className="font-semibold text-slate-900">£{pricing.tipAmount.toFixed(2)}</span>
                 </div>
               ) : null}
-              <div className="flex items-center justify-between rounded-2xl border border-emerald-100/80 bg-gradient-to-br from-emerald-50/90 to-teal-50/50 px-4 py-3">
-                <span className="text-lg font-black uppercase tracking-tighter text-emerald-950">Total due</span>
-                <span className="text-3xl font-black tracking-tight text-emerald-800">£{pricing.grandTotal.toFixed(2)}</span>
+              <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+                <span className="font-semibold text-slate-900">Total due</span>
+                <span className="text-2xl font-semibold tracking-tight tabular-nums text-slate-900">£{pricing.grandTotal.toFixed(2)}</span>
               </div>
               <button
                 onClick={handleReset}
-                className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-200/90 py-3 font-bold text-slate-500 transition-all hover:border-red-200 hover:bg-red-50/90 hover:text-red-600"
+                className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-slate-400 transition hover:bg-red-50 hover:text-red-600"
               >
                 <RotateCcw className="h-4 w-4" /> Start over
               </button>
             </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200/80 bg-white p-5">
+            <p className="text-sm font-semibold text-slate-900">Why book with us</p>
+            <ul className="mt-3 space-y-2.5 text-sm text-slate-600">
+              {[
+                { icon: <ShieldCheck className="h-4 w-4" />, t: 'Fully insured on every visit' },
+                { icon: <User className="h-4 w-4" />, t: 'Vetted, DBS-checked cleaners' },
+                { icon: <CheckCircle className="h-4 w-4" />, t: '100% satisfaction guarantee' },
+                { icon: <Calendar className="h-4 w-4" />, t: 'Move or cancel from your account' },
+              ].map((x) => (
+                <li key={x.t} className="flex items-center gap-2.5">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">{x.icon}</span>
+                  {x.t}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </div>
 
       {/* Reset Confirmation Dialog */}
       {showResetConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <h3 className="mb-2 text-lg font-black text-slate-900">Reset booking?</h3>
-            <p className="mb-6 text-sm font-semibold text-slate-500">This will clear all your booking details and start from scratch.</p>
-            <div className="flex gap-3">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-sm sm:items-center">
+          <div className="w-full max-w-sm rounded-t-3xl bg-white p-6 shadow-2xl sm:mx-4 sm:rounded-2xl">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-red-600">
+              <RotateCcw className="h-5 w-5" />
+            </div>
+            <h3 className="mt-4 text-lg font-semibold text-slate-900">Start over?</h3>
+            <p className="mt-1 text-sm text-slate-500">This clears everything you have entered so far.</p>
+            <div className="mt-6 flex gap-3">
               <button
                 type="button"
                 onClick={() => setShowResetConfirm(false)}
-                className="flex-1 rounded-xl border-2 border-slate-200 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
               >
-                Cancel
+                Keep going
               </button>
-              <button
-                type="button"
-                onClick={confirmReset}
-                className="flex-1 rounded-xl bg-red-500 py-3 text-sm font-bold text-white transition-colors hover:bg-red-600"
-              >
-                Reset
+              <button type="button" onClick={confirmReset} className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white transition hover:bg-red-700">
+                Start over
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Mobile Sticky Summary */}
-      <div className="safe-area-pb fixed bottom-0 left-0 right-0 z-40 flex items-center justify-between border-t border-slate-200/80 bg-white/90 p-4 shadow-[0_-12px_40px_-8px_rgba(15,23,42,0.12)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/75 lg:hidden">
-        <div className="flex flex-col">
-          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">Estimated total</span>
-          <span className="bg-gradient-to-br from-slate-900 to-slate-600 bg-clip-text text-2xl font-black text-transparent">£{Number(totalPrice).toFixed(2)}</span>
-        </div>
-        <div className="flex space-x-2 sm:space-x-3">
-          <button onClick={handleReset} className="rounded-xl bg-slate-50 p-3 font-bold text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500" title="Start Over">
-            <RotateCcw className="h-5 w-5" />
-          </button>
+      {/* Mobile sticky bar */}
+      <div className="safe-area-pb fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200/80 bg-white/95 px-4 py-3 shadow-[0_-12px_40px_-12px_rgba(15,23,42,0.18)] backdrop-blur-xl lg:hidden">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-medium text-slate-500">
+              Step {stepPos} of {activeSteps.length} · {STEP_COPY[stepName]?.short || stepName}
+            </p>
+            <p className="text-xl font-semibold tabular-nums text-slate-900">{isQuoteOnly ? 'Quote' : `£${Number(totalPrice).toFixed(2)}`}</p>
+          </div>
           {currentStep > 0 && (
-            <button onClick={back} className="rounded-xl bg-slate-100 p-3 font-bold text-slate-600 transition-colors hover:bg-slate-200">
+            <button onClick={back} className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-slate-200" aria-label="Back">
               <ChevronLeft className="h-5 w-5" />
             </button>
           )}
           <button
             onClick={currentStep === STEPS.length - 1 ? handleFinalSubmit : next}
             disabled={(currentStep === 0 && !serviceId) || isProcessing}
-            className="flex items-center space-x-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-3 font-black text-white shadow-lg shadow-indigo-500/20"
+            className="inline-flex h-11 items-center gap-1.5 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm shadow-primary/25 disabled:opacity-50"
           >
-            <span>
-              {currentStep === STEPS.length - 1
-                ? isProcessing
-                  ? 'Processing'
-                  : 'Submit'
-                : 'Next'}
-            </span>
-            <ChevronRight className="h-4 w-4" />
+            {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            <span>{currentStep === STEPS.length - 1 ? (isProcessing ? 'Processing' : 'Submit') : 'Continue'}</span>
+            {!isProcessing ? <ChevronRight className="h-4 w-4" /> : null}
           </button>
         </div>
       </div>
@@ -2127,37 +2120,38 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
 };
 
 const InputField: React.FC<{ label: string, value: string, onChange: (v: string) => void, placeholder?: string, icon?: React.ReactNode, type?: string }> = ({ label, value, onChange, placeholder, icon, type = 'text' }) => (
-  <div className="space-y-2">
-    <label className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-slate-400">{label}</label>
+  <div className="space-y-1.5">
+    <label className="text-sm font-semibold text-slate-800">{label}</label>
     <div className="relative">
-      {icon && <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">{icon}</div>}
+      {icon && <div className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">{icon}</div>}
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`w-full rounded-2xl border-2 border-slate-200/90 bg-white/95 p-4 font-black text-foreground shadow-sm outline-none ring-slate-200/40 transition-all placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/12 ${icon ? 'pl-12' : ''}`}
+        className={`w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10 ${icon ? 'pl-10' : ''}`}
       />
     </div>
   </div>
 );
 
-const DropdownField: React.FC<{ label: string, value: number | string, options: (number | string)[], onChange: (val: string | number) => void, isString?: boolean }> = ({ label, value, options, onChange, isString }) => (
-  <div className="space-y-2">
-    <label className="text-sm font-bold text-slate-700">{label}</label>
+const DropdownField: React.FC<{ label: string, value: number | string, options: (number | string)[], onChange: (val: string | number) => void, isString?: boolean, hint?: string }> = ({ label, value, options, onChange, hint }) => (
+  <div className="space-y-1.5">
+    <div className="flex items-baseline justify-between gap-2">
+      <label className="text-sm font-semibold text-slate-800">{label}</label>
+      {hint ? <span className="text-xs text-slate-400">{hint}</span> : null}
+    </div>
     <div className="relative">
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full cursor-pointer appearance-none rounded-xl border border-slate-200/90 bg-white/95 p-3 pr-10 text-sm font-medium text-slate-700 shadow-sm outline-none ring-slate-100/80 transition-all focus:border-sky-400 focus:ring-2 focus:ring-sky-200/60"
+        className="w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-white px-4 py-3 pr-10 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
       >
         {options.map((opt) => (
           <option key={opt} value={opt}>{opt}</option>
         ))}
       </select>
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-        <ChevronDown className="w-4 h-4" />
-      </div>
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
     </div>
   </div>
 );

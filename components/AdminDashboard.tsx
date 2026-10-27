@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { formatHoursMinutes } from '../src/utils/bookingHelpers';
 import BookingsBoard, { type BookingsView } from './admin/BookingsBoard';
 import {
   Users,
@@ -66,6 +67,7 @@ import {
   Eye,
   RotateCcw,
   Receipt,
+  Palmtree,
 } from 'lucide-react';
 import { Booking, BookingStatus, ServiceConfig, Extra, Staff, Referral, EmailTemplate, SmsTemplate, BusinessSettings, UserAccount, ChatSummary, QuoteLead, QuoteLeadStatus } from '../types';
 import { apiAdmin, apiUrl } from '../services/api';
@@ -86,18 +88,19 @@ import ExtraServiceFlyout from './admin/ExtraServiceFlyout';
 import CreateServiceFlyout from './admin/CreateServiceFlyout';
 import ReferralFlyout from './admin/ReferralFlyout';
 import ActivityLogFlyout from './admin/ActivityLogFlyout';
-import ChatOversightFlyout from './admin/ChatOversightFlyout';
 import EmailTemplateFlyout from './admin/EmailTemplateFlyout';
 import SmsTemplateFlyout from './admin/SmsTemplateFlyout'; // ADDED SMS FLYOUT
 import MarketingHub, { type MarketingSectionId } from './admin/marketing/MarketingHub';
 import SettingsHub, { type SettingsSectionId } from './admin/settings/SettingsHub';
 import ReviewsPanel from './admin/ReviewsPanel';
-import AdminStaffChat from './admin/AdminStaffChat';
+import ChatOversightPanel from './admin/ChatOversightPanel';
 import CustomerInvoicesPanel from './admin/CustomerInvoicesPanel';
 import ExpenseTracker from './admin/ExpenseTracker';
 import StaffProfileFlyout from './admin/StaffProfileFlyout';
 import ClientHistoryFlyout from './admin/ClientHistoryFlyout';
 import LiveMapPanel from './admin/LiveMapPanel';
+import AdminHolidaysPanel from './admin/AdminHolidaysPanel';
+import ServicesHub, { type ServicesSectionId } from './admin/services/ServicesHub';
 import BrandLogoMark from './BrandLogoMark';
 import StaffInvoiceDocument from './StaffInvoiceDocument';
 import { useFlyer } from './Flyer';
@@ -117,9 +120,8 @@ interface Props {
   currentUser: UserAccount | null;
 }
 
-type AdminTab = 'overview' | 'reports' | 'bookings' | 'quotes' | 'assignment' | 'rota' | 'liveMap' | 'staff' | 'staffInvoices' | 'customerInvoices' | 'services' | 'marketing' | 'communication' | 'support' | 'settings' | 'reviews' | 'expenses' | 'performance';
+type AdminTab = 'overview' | 'reports' | 'bookings' | 'quotes' | 'assignment' | 'rota' | 'liveMap' | 'staff' | 'staffInvoices' | 'customerInvoices' | 'services' | 'marketing' | 'communication' | 'support' | 'settings' | 'reviews' | 'expenses' | 'performance' | 'holidays';
 
-type ServicesSectionId = 'catalog' | 'addons';
 
 const ADMIN_PERMISSIONABLE_TABS: AdminTab[] = [
   'overview',
@@ -130,6 +132,7 @@ const ADMIN_PERMISSIONABLE_TABS: AdminTab[] = [
   'rota',
   'staff',
   'staffInvoices',
+  'holidays',
   'customerInvoices',
   'services',
   'marketing',
@@ -154,6 +157,7 @@ const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
   staff: 'Staffing',
   staffInvoices: 'Staff invoices',
   performance: 'Performance',
+  holidays: 'Holiday',
   customerInvoices: 'Customer Invoices',
   expenses: 'Expenses',
   services: 'Services',
@@ -168,48 +172,12 @@ const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
 const ADMIN_MENU_GROUPS: Array<{ id: string; label: string; tabs: AdminTab[] }> = [
   { id: 'home', label: '', tabs: ['overview', 'reports'] },
   { id: 'jobs', label: 'Jobs & bookings', tabs: ['bookings', 'quotes', 'assignment', 'rota', 'liveMap'] },
-  { id: 'team', label: 'Team', tabs: ['staff', 'staffInvoices', 'performance'] },
+  { id: 'team', label: 'Team', tabs: ['staff', 'staffInvoices', 'holidays', 'performance'] },
   { id: 'finance', label: 'Finance', tabs: ['customerInvoices', 'expenses'] },
   { id: 'growth', label: 'Growth', tabs: ['services', 'marketing', 'reviews'] },
 ];
 
-const SERVICES_NAV: { id: ServicesSectionId; label: string }[] = [
-  { id: 'catalog', label: 'Main services' },
-  { id: 'addons', label: 'Extra add-ons' },
-];
 
-function AdminInnerSubNav<T extends string>({
-  items,
-  active,
-  onChange,
-  ariaLabel,
-}: {
-  items: { id: T; label: string }[];
-  active: T;
-  onChange: (id: T) => void;
-  ariaLabel: string;
-}) {
-  return (
-    <nav
-      className="flex flex-row flex-wrap gap-2 lg:flex-col lg:flex-nowrap lg:w-52 shrink-0 lg:sticky lg:top-4 z-10 pb-1 lg:pb-0"
-      aria-label={ariaLabel}
-    >
-      {items.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          onClick={() => onChange(item.id)}
-          className={`rounded-xl px-3 py-2.5 text-left text-[10px] font-black uppercase tracking-widest transition-all border-2 ${active === item.id
-              ? 'border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-200'
-              : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200 hover:bg-slate-50'
-            }`}
-        >
-          {item.label}
-        </button>
-      ))}
-    </nav>
-  );
-}
 
 function isOngoingLiveChat(s: ChatSummary | undefined): boolean {
   if (!s || s.chatClosed || s.msgCount === 0) return false;
@@ -307,13 +275,6 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
     });
   }, []);
 
-  useEffect(() => {
-    setSelectedChatBooking((prev) => {
-      if (!prev) return prev;
-      const next = bookings.find((b) => b.id === prev.id);
-      return next ?? prev;
-    });
-  }, [bookings]);
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [services, setServices] = useState<ServiceConfig[]>([]);
   const [extraServices, setExtraServices] = useState<Extra[]>([]);
@@ -465,7 +426,6 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
   const [quoteLeadsLoading, setQuoteLeadsLoading] = useState(false);
 
   // Support Tab UI State
-  const [selectedChatBooking, setSelectedChatBooking] = useState<Booking | null>(null);
   const [chatSummaries, setChatSummaries] = useState<ChatSummary[]>([]);
 
   const [settingsSection, setSettingsSection] = useState<SettingsSectionId>('company');
@@ -1198,6 +1158,19 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
     }
   };
 
+  const [pendingHolidayCount, setPendingHolidayCount] = useState(0);
+  useEffect(() => {
+    const refresh = () =>
+      void apiAdmin
+        .getAdminHolidays()
+        .then((r) => setPendingHolidayCount(r.requests.filter((x) => x.status === 'Pending').length))
+        .catch(() => {});
+    refresh();
+    return subscribeNnSync((scope) => {
+      if (scope === 'all' || scope === 'notifications') refresh();
+    });
+  }, []);
+
   const pendingStaffInvoiceCount = useMemo(
     () => staffPayInvoices.filter((i) => i.status === 'Pending').length,
     [staffPayInvoices]
@@ -1219,74 +1192,17 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
     }).length;
   }, [bookings]);
 
+  /** Open client chats where the last message came from the client or cleaner. */
+  const chatsNeedingReply = useMemo(
+    () => chatSummaries.filter((s) => !s.chatClosed && s.msgCount > 0 && s.lastSenderRole && s.lastSenderRole !== 'admin').length,
+    [chatSummaries]
+  );
+
   const summaryById = useMemo(() => {
     const m = new Map<string, ChatSummary>();
     chatSummaries.forEach((s) => m.set(String(s.bookingId), s));
     return m;
   }, [chatSummaries]);
-
-  const supportBookings = useMemo(
-    () =>
-      bookings.filter(
-        (b) =>
-          b.status === BookingStatus.PENDING ||
-          b.status === BookingStatus.CONFIRMED ||
-          b.status === BookingStatus.COMPLETED
-      ),
-    [bookings]
-  );
-
-  const activeSupportBookings = useMemo(() => {
-    return supportBookings.filter((b) => {
-      const s = summaryById.get(String(b.id));
-      const closed = s ? s.chatClosed : Boolean(b.chatClosedByAdmin);
-      return !closed;
-    });
-  }, [supportBookings, summaryById]);
-
-  const historySupportBookings = useMemo(() => {
-    return supportBookings.filter((b) => {
-      const s = summaryById.get(String(b.id));
-      const closed = s ? s.chatClosed : Boolean(b.chatClosedByAdmin);
-      return closed;
-    });
-  }, [supportBookings, summaryById]);
-
-  const renderSupportChatCard = (b: Booking) => {
-    const s = summaryById.get(String(b.id));
-    const live = isOngoingLiveChat(s);
-    return (
-      <div
-        key={b.id}
-        className={`p-6 bg-slate-50 rounded-2xl border transition-colors cursor-pointer group ${live
-            ? 'border-emerald-400 ring-2 ring-emerald-300/80 animate-pulse ring-offset-2'
-            : 'border-slate-100/50 hover:border-blue-200'
-          }`}
-        onClick={() => setSelectedChatBooking(b)}
-      >
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <div className="font-black text-slate-900">{b.contact?.name || 'Client'}</div>
-            <div className="text-xs font-bold text-slate-400 mt-0.5">{b.address.line1}</div>
-            {live && (
-              <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mt-2">Live activity</div>
-            )}
-          </div>
-          <div className="bg-blue-100 text-blue-600 rounded-full w-8 h-8 flex items-center justify-center relative shadow-sm">
-            <MessageCircle className="w-4 h-4" />
-          </div>
-        </div>
-        <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center">
-          <Calendar className="w-3 h-3 mr-1" /> {b.date} • {b.time}
-        </div>
-        <div className="mt-4 pt-4 border-t border-slate-200/50 flex justify-between items-center text-xs font-bold">
-          <span className="text-slate-500 group-hover:text-blue-600 transition-colors flex items-center">
-            <MessageSquare className="w-3 h-3 mr-1" /> Monitor Chat
-          </span>
-        </div>
-      </div>
-    );
-  };
 
   const primaryMenuItems: Array<{
     id: AdminTab;
@@ -1302,6 +1218,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
       { id: 'liveMap', label: 'Live Map', icon: <MapPin className="w-5 h-5" />, badge: coverageWarningCount },
       { id: 'staff', label: 'Staffing', icon: <Users className="w-5 h-5" /> },
       { id: 'staffInvoices', label: 'Staff invoices', icon: <FileText className="w-5 h-5" />, badge: pendingStaffInvoiceCount },
+      { id: 'holidays', label: 'Holiday', icon: <Palmtree className="w-5 h-5" />, badge: pendingHolidayCount },
       { id: 'customerInvoices', label: 'Customer Invoices', icon: <DollarSign className="w-5 h-5" /> },
       { id: 'services', label: 'Services', icon: <Layers className="w-5 h-5" /> },
       { id: 'marketing', label: 'Marketing', icon: <TrendingUp className="w-5 h-5" /> },
@@ -1315,9 +1232,10 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
     id: Extract<AdminTab, 'communication' | 'support' | 'settings'>;
     label: string;
     icon: React.ReactNode;
+    badge?: number;
   }> = [
       { id: 'communication', label: 'Communication', icon: <MailQuestion className="w-5 h-5" /> },
-      { id: 'support', label: 'Chat Oversight', icon: <MessageCircle className="w-5 h-5" /> },
+      { id: 'support', label: 'Chat Oversight', icon: <MessageCircle className="w-5 h-5" />, badge: chatsNeedingReply },
       { id: 'settings', label: 'Settings', icon: <Settings className="w-5 h-5" /> },
     ];
   const allowedAdminTabs = useMemo<AdminTab[]>(() => {
@@ -1361,6 +1279,8 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
               ? 'Expenses'
               : activeTab === 'performance'
                 ? 'Performance'
+              : activeTab === 'holidays'
+                ? 'Holiday'
                 : activeTab === 'reports'
                   ? 'Reports'
                 : activeTab === 'liveMap'
@@ -1597,7 +1517,10 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                   : 'text-slate-500 bg-slate-50 hover:bg-slate-200 hover:text-slate-800'
                 }`}
             >
-              <span className="flex [&_svg]:w-[18px] [&_svg]:h-[18px]">{item.icon}</span>
+              <span className="relative flex [&_svg]:w-[18px] [&_svg]:h-[18px]">
+                {item.icon}
+                {item.badge ? <span className="absolute -right-2 -top-2 min-w-[16px] rounded-full bg-red-500 px-1 text-center text-[9px] font-black leading-4 text-white">{item.badge}</span> : null}
+              </span>
             </button>
           ))}
           <NotificationBell {...notificationBellProps} />
@@ -1637,6 +1560,9 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
             >
               <span className={activeTab === item.id ? 'text-white' : 'text-slate-500'}>{item.icon}</span>
               <span className="hidden xl:inline">{item.label}</span>
+              {item.badge ? (
+                <span className={`rounded-full px-1.5 text-[10px] leading-4 tabular-nums ${activeTab === item.id ? 'bg-white text-blue-700' : 'bg-red-500 text-white'}`}>{item.badge}</span>
+              ) : null}
             </button>
           ))}
           <div className="h-8 w-px bg-slate-200 mx-1 hidden sm:block" aria-hidden />
@@ -2207,204 +2133,20 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
         )}
 
         {activeTab === 'services' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            <div className="pb-4 border-b border-slate-100">
-              <h3 className="text-3xl font-black text-slate-900 tracking-tight">Services</h3>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                Main service types and optional add-ons — pick a section
-              </p>
-            </div>
-
-            <div className="flex flex-col lg:flex-row gap-8 items-start">
-              <AdminInnerSubNav
-                ariaLabel="Service sections"
-                items={SERVICES_NAV}
-                active={servicesSection}
-                onChange={setServicesSection}
-              />
-
-              <div className="flex-1 min-w-0 space-y-8 w-full">
-                {servicesSection === 'catalog' && (
-                  <div className="space-y-6">
-                    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-                      <div>
-                        <h4 className="text-xl font-black text-slate-900">Main services</h4>
-                        <p className="text-xs font-bold text-slate-500 mt-1">Base rates, pricing model, booking flow, and active status.</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsCreatingService(true)}
-                        className="inline-flex items-center justify-center gap-2 shrink-0 bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-200"
-                      >
-                        <Plus className="w-5 h-5" />
-                        Add service type
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {(services || []).length === 0 ? (
-                        <div className="col-span-full rounded-[2rem] border border-dashed border-slate-200 bg-slate-50/80 py-16 px-8 text-center">
-                          <Layers className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                          <p className="font-black text-slate-800 text-lg mb-1">No services yet</p>
-                          <p className="text-sm text-slate-500 font-medium mb-6">
-                            Add your first service type. Base rate and active status can be edited anytime.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => setIsCreatingService(true)}
-                            className="inline-flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-200"
-                          >
-                            <Plus className="w-5 h-5" /> Add service
-                          </button>
-                        </div>
-                      ) : (
-                        (services || []).map((s) => (
-                          <div
-                            key={s.id}
-                            className={`bg-white p-5 sm:p-8 rounded-[2.5rem] border transition-all relative group ${s.active ? 'border-slate-100 hover:border-blue-200' : 'border-slate-100 opacity-80'
-                              }`}
-                          >
-                            <div className="flex justify-between items-start mb-6 gap-3">
-                              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 shrink-0">
-                                <Layers className="w-6 h-6" />
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleServiceActive(s)}
-                                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${s.active ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                                  }`}
-                                aria-label={s.active ? `Disable ${s.name}` : `Enable ${s.name}`}
-                                title={s.active ? 'Click to disable' : 'Click to enable'}
-                              >
-                                <span
-                                  className={`relative inline-block w-7 h-4 rounded-full transition-colors ${s.active ? 'bg-green-500' : 'bg-slate-300'
-                                    }`}
-                                >
-                                  <span
-                                    className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${s.active ? 'translate-x-3' : 'translate-x-0'
-                                      }`}
-                                  />
-                                </span>
-                                {s.active ? 'Active' : 'Disabled'}
-                              </button>
-                            </div>
-                            <h4 className="font-black text-lg text-slate-900 mb-2">{s.name}</h4>
-                            <div className="space-y-2 mb-6">
-                              <div className="flex justify-between text-sm">
-                                <span className="text-slate-400 font-bold">Base Rate</span>
-                                <span className="font-black text-slate-900">£{Number(s.baseRate).toFixed(2)}</span>
-                              </div>
-                              {s.londonRate != null && Number(s.londonRate) > 0 && (
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-slate-400 font-bold">London Rate</span>
-                                  <span className="font-black text-blue-700">£{Number(s.londonRate).toFixed(2)}</span>
-                                </div>
-                              )}
-                              <div className="flex justify-between text-sm">
-                                <span className="text-slate-400 font-bold">Pricing Model</span>
-                                <span className="font-black text-slate-900 capitalize">
-                                  {(s.pricingModel === 'flat' ? 'flat rate' : s.pricingModel)?.replace(/_/g, ' ') || 'Hourly'}
-                                </span>
-                              </div>
-                              <div className="flex justify-between text-sm">
-                                <span className="text-slate-400 font-bold">Trigger</span>
-                                <span className="font-black text-slate-900 capitalize">
-                                  {(s.bookingFlow?.trigger || 'standard').replace(/_/g, ' ')}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex space-x-2">
-                              <button
-                                type="button"
-                                onClick={() => setEditingService(s)}
-                                className="flex-1 py-3 rounded-xl bg-slate-50 text-slate-600 font-bold hover:bg-blue-50 hover:text-blue-600 transition-all"
-                              >
-                                Edit Config
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteService(s.id)}
-                                className="p-3 bg-red-50 rounded-xl text-red-500 hover:bg-red-100 transition-all"
-                              >
-                                <Trash2 className="w-5 h-5" />
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {servicesSection === 'addons' && (
-                  <div className="space-y-6">
-                    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-                      <div>
-                        <h4 className="text-xl font-black text-slate-900">Extra add-ons</h4>
-                        <p className="text-xs font-bold text-slate-500 mt-1">Optional upsells: price, duration, and fixed vs hourly billing.</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsCreatingExtra(true)}
-                        className="inline-flex items-center justify-center gap-2 shrink-0 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
-                      >
-                        <Plus className="w-5 h-5" />
-                        New extra
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                      {(extraServices || []).length === 0 ? (
-                        <div className="col-span-full rounded-[2rem] border border-dashed border-slate-200 bg-slate-50/80 py-12 px-8 text-center">
-                          <Package className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                          <p className="font-black text-slate-800 mb-1">No extra add-ons</p>
-                          <p className="text-sm text-slate-500 font-medium mb-6">
-                            Create extras customers can add to a booking (price, duration, billing type).
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => setIsCreatingExtra(true)}
-                            className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
-                          >
-                            <Plus className="w-5 h-5" /> New extra
-                          </button>
-                        </div>
-                      ) : (
-                        (extraServices || []).map((ex) => (
-                          <div
-                            key={ex.id}
-                            className="bg-white p-6 rounded-[2rem] border border-slate-100 hover:border-blue-200 transition-all group relative"
-                          >
-                            <div className="flex justify-between items-start mb-4">
-                              <div className="font-black text-slate-900">{ex.name}</div>
-                              <div className="font-black text-blue-600">£{Number(ex.price).toFixed(2)}</div>
-                            </div>
-                            <div className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-4">
-                              {ex.type || 'Fixed'} • {ex.duration != null ? `${ex.duration} m` : 'N/A'}
-                            </div>
-                            <div className="flex space-x-2">
-                              <button
-                                type="button"
-                                onClick={() => setEditingExtra(ex)}
-                                className="flex-1 py-2 bg-slate-50 rounded-lg text-xs font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-600"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteExtra(ex.id)}
-                                className="p-2 bg-red-50 rounded-lg text-red-500 hover:bg-red-100"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <ServicesHub
+            section={servicesSection}
+            onSectionChange={setServicesSection}
+            services={services || []}
+            extras={extraServices || []}
+            bookings={bookings}
+            onCreateService={() => setIsCreatingService(true)}
+            onEditService={(svc) => setEditingService(svc)}
+            onToggleService={handleToggleServiceActive}
+            onDeleteService={handleDeleteService}
+            onCreateExtra={() => setIsCreatingExtra(true)}
+            onEditExtra={(ex) => setEditingExtra(ex)}
+            onDeleteExtra={handleDeleteExtra}
+          />
         )}
 
         {activeTab === 'staff' && (
@@ -2521,6 +2263,67 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                           {['Active', 'Inactive'].map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                       </div>
+                    </div>
+                  )}
+
+                  {isEditingStaff && editingStaff && !['Admin', 'Superadmin'].includes(String(editingStaff.role || '')) && (
+                    <div className="rounded-[1.5rem] border-2 border-input bg-card p-5 sm:p-6 space-y-5">
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600"><Palmtree className="h-5 w-5" /></span>
+                        <div>
+                          <p className="font-black text-foreground">Contract and paid holiday</p>
+                          <p className="text-sm text-slate-500">Only contracted staff can book holiday (up to 26 days, April to March). Self-employed staff cannot.</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 rounded-2xl bg-slate-100 p-1">
+                        {[
+                          { id: 'self_employed', label: 'Self-employed' },
+                          { id: 'contracted', label: 'Contracted' },
+                        ].map((opt) => {
+                          const on = (editingStaff.contractType || 'self_employed') === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => setEditingStaff({ ...editingStaff, contractType: opt.id as Staff['contractType'] })}
+                              className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-black transition ${on ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {editingStaff.contractType === 'contracted' && (
+                        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Holiday days per year (max 26)</label>
+                            <input
+                              type="number"
+                              min={0}
+                              max={26}
+                              step={0.5}
+                              value={editingStaff.holidayAllowanceDays ?? 26}
+                              onChange={e => setEditingStaff({ ...editingStaff, holidayAllowanceDays: e.target.value === '' ? undefined : Math.min(26, Number(e.target.value)) })}
+                              className="w-full bg-card border-2 border-input rounded-2xl p-4 outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 font-bold text-sm text-foreground"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Paid hours per holiday day</label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={12}
+                              step={0.25}
+                              value={editingStaff.holidayHoursPerDay ?? 8}
+                              onChange={e => setEditingStaff({ ...editingStaff, holidayHoursPerDay: e.target.value === '' ? undefined : Number(e.target.value) })}
+                              className="w-full bg-card border-2 border-input rounded-2xl p-4 outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 font-bold text-sm text-foreground"
+                            />
+                            <p className="ml-1 text-xs text-slate-500">
+                              Holiday pay per day: £{((Number(editingStaff.holidayHoursPerDay ?? 8) || 0) * (Number(editingStaff.hourlyRate) || 0)).toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -2704,7 +2507,18 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                   </div>
                 )}
 
-                <AdminStaffChat api={apiAdmin} showFlyer={showFlyer} staffList={staffList} />
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('support')}
+                  className="mt-10 flex w-full items-center gap-4 rounded-[2rem] border border-slate-100 bg-white p-5 text-left transition hover:border-blue-200 hover:shadow-md"
+                >
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-600"><MessageSquare className="h-5 w-5" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-lg font-black text-slate-900">Team messages</span>
+                    <span className="block text-sm text-slate-500">Chat one to one with cleaners or message the whole team. Now in Chat Oversight.</span>
+                  </span>
+                  <ChevronRight className="h-5 w-5 text-slate-400" />
+                </button>
               </div>
             )}
           </div>
@@ -2766,7 +2580,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
                           </div>
                           <div>
                             <p className="text-[10px] font-black uppercase text-slate-400">Hours</p>
-                            <p className="text-xl font-black text-slate-900">{Number(inv.weekTotalHours || 0).toFixed(2)}</p>
+                            <p className="text-xl font-black text-slate-900">{formatHoursMinutes(Number(inv.weekTotalHours || 0))}</p>
                           </div>
                           <div>
                             <p className="text-[10px] font-black uppercase text-slate-400">Jobs</p>
@@ -2925,49 +2739,18 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
 
         {/* Communication Center */}
         {activeTab === 'communication' && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 w-full">
-            <div className="w-full min-w-0">
-              <CommunicationCenter />
-            </div>
-          </div>
+          <CommunicationCenter
+            adminEmail={currentUser?.email}
+            onOpenTemplates={() => {
+              setSettingsSection('templates');
+              setActiveTab('settings');
+            }}
+          />
         )}
 
         {/* Chat Oversight (Support) */}
         {activeTab === 'support' && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-            <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-100 flex-wrap gap-4">
-              <div>
-                <h3 className="text-3xl font-black text-slate-900 tracking-tight">Chat Oversight</h3>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Monitor conversations between staff and clients</p>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100/50 p-5 sm:p-8">
-              <h3 className="text-xl font-black text-slate-900 mb-2">Active monitoring</h3>
-              <p className="text-xs font-bold text-slate-500 mb-6">Open chats you have not closed. Cards pulse green when the client or staff sent a message in the last 15 minutes.</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {activeSupportBookings.map((b) => renderSupportChatCard(b))}
-                {activeSupportBookings.length === 0 && (
-                  <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-12 text-slate-400 font-bold italic">
-                    No open chats to monitor. Closed chats appear under History.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100/50 p-5 sm:p-8">
-              <h3 className="text-xl font-black text-slate-900 mb-2">History</h3>
-              <p className="text-xs font-bold text-slate-500 mb-6">Bookings where you ended the chat (locked). Reopen from the flyout if needed.</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {historySupportBookings.map((b) => renderSupportChatCard(b))}
-                {historySupportBookings.length === 0 && (
-                  <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-12 text-slate-400 font-bold italic">
-                    No closed chats yet.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <ChatOversightPanel bookings={bookings} chatSummaries={chatSummaries} staffList={staffList} adminName={currentUser?.name} />
         )}
 
         {/* Reviews */}
@@ -2992,6 +2775,8 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
             onViewClient={(email) => setProfileClientEmail(email)}
           />
         )}
+
+        {activeTab === 'holidays' && <AdminHolidaysPanel onPendingChange={setPendingHolidayCount} />}
 
         {activeTab === 'performance' && (() => {
           const perfSearchTerm = searchTerm.toLowerCase();
@@ -3400,13 +3185,6 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
           />
         )}
 
-        {selectedChatBooking && (
-          <ChatOversightFlyout
-            booking={selectedChatBooking}
-            adminName={currentUser?.name}
-            onClose={() => setSelectedChatBooking(null)}
-          />
-        )}
 
         {/* Email Template Editor Flyout */}
         {editingEmailTemplate && (

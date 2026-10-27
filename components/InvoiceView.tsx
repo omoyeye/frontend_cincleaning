@@ -6,6 +6,7 @@ import { useBusinessBrand } from '../src/hooks/useBusinessBrand';
 import { useBusinessSettings } from '../src/context/BusinessSettingsContext';
 import {
     formatBookedHoursLabel,
+    formatHoursMinutes,
     getBookingDurationHours,
     getDurationBreakdown,
     getCallOutChargeGbp,
@@ -80,7 +81,7 @@ const InvoiceView: React.FC<Props> = ({
         }
         return `INV-${Date.now()}`;
     }, [booking.id]);
-    const dateParams = new Date().toLocaleDateString();
+    const dateParams = new Date().toLocaleDateString('en-GB');
     const totalHours = getBookingDurationHours(booking, serviceConfig ?? null, extrasConfig);
     const durationBreakdown = getDurationBreakdown(booking, serviceConfig ?? null, extrasConfig);
     const callOutCharge = getCallOutChargeGbp(booking, serviceConfig ?? null);
@@ -166,7 +167,7 @@ const InvoiceView: React.FC<Props> = ({
                     <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Booking Details</h3>
                     <p className="font-bold"><span className="text-slate-400 text-xs uppercase tracking-wide mr-2">Service Date:</span> {booking.date}</p>
                     <p className="font-bold"><span className="text-slate-400 text-xs uppercase tracking-wide mr-2">Time:</span> {booking.time}</p>
-                    <p className="font-bold"><span className="text-slate-400 text-xs uppercase tracking-wide mr-2">Total hours (booked):</span> {formatBookedHoursLabel(totalHours)} hrs</p>
+                    <p className="font-bold"><span className="text-slate-400 text-xs uppercase tracking-wide mr-2">Total hours (booked):</span> {formatHoursMinutes(totalHours)}</p>
                     <p className="font-bold"><span className="text-slate-400 text-xs uppercase tracking-wide mr-2">Frequency:</span> {booking.frequency || '-'}</p>
                     <p className="font-bold mt-2"><span className="text-slate-400 text-xs uppercase tracking-wide mr-2">Issue Date:</span> {dateParams}</p>
                 </div>
@@ -230,13 +231,13 @@ const InvoiceView: React.FC<Props> = ({
                                 {serviceConfig?.name || booking.serviceType}
                                 <span className="block text-xs font-medium text-slate-400 mt-1">
                                     {durationBreakdown.model === 'itemized'
-                                        ? `Minimum duration guidance - ${formatBookedHoursLabel(durationBreakdown.baseHours)}h (instruction only, not charged)`
-                                        : `Booked duration - ${formatBookedHoursLabel(totalHours)}h`}
+                                        ? `Minimum duration guidance - ${formatHoursMinutes(durationBreakdown.baseHours)} (instruction only, not charged)`
+                                        : `Booked duration - ${formatHoursMinutes(totalHours)}`}
                                 </span>
                             </td>
                             {durationBreakdown.model === 'itemized' && (
                                 <td className="py-4 text-right font-bold text-slate-600 tabular-nums">
-                                    {formatBookedHoursLabel(durationBreakdown.baseHours)}h
+                                    {formatHoursMinutes(durationBreakdown.baseHours)}
                                 </td>
                             )}
                             <td className="py-4 text-right font-bold text-slate-900">
@@ -261,7 +262,7 @@ const InvoiceView: React.FC<Props> = ({
                                     </td>
                                     {durationBreakdown.model === 'itemized' && (
                                         <td className="py-4 text-right font-bold text-slate-600 tabular-nums">
-                                            {timeLine ? `${formatBookedHoursLabel(timeLine.lineHours)}h` : '-'}
+                                            {timeLine ? `${formatHoursMinutes(timeLine.lineHours)}` : '-'}
                                         </td>
                                     )}
                                     <td className="py-4 text-right font-bold text-slate-900">
@@ -419,7 +420,7 @@ export function InvoiceBankConsentFooter({ depositConsent }: { depositConsent: I
 
     const at = depositConsent.acceptedAt;
     if (at) {
-        const label = new Date(at).toLocaleString();
+        const label = new Date(at).toLocaleString('en-GB');
         return (
             <p className="rounded-xl border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-xs font-bold text-emerald-900">
                 Deposit and cancellation terms acknowledged on {label}. This is stored on your booking for our team.

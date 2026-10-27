@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { formatHoursMinutes } from '../../src/utils/bookingHelpers';
 import { createPortal } from 'react-dom';
 import { X, Plus, Minus, Trash2, Send, Save, Printer, Eye, PencilLine, StickyNote, User, ListChecks, Home, Sparkles, MapPin } from 'lucide-react';
 import type { Extra, QuoteDetails, QuoteLead, QuoteOffer, QuoteOfferInput, QuoteOfferItem, ServiceConfig } from '../../types';
@@ -257,7 +258,7 @@ const QuoteBuilder: React.FC<Props> = ({ lead: leadProp, quote, companyName, ser
     if (service && model === 'hourly') {
       lines.push({
         description: service.name,
-        detail: `${hours} hour${hours === 1 ? '' : 's'} x ${money(rate)} per hour${region === 'london' && hasLondonRate && rateOverride === null ? ' (London rate)' : ''}`,
+        detail: `${formatHoursMinutes(hours)} x ${money(rate)} per hour${region === 'london' && hasLondonRate && rateOverride === null ? ' (London rate)' : ''}`,
         quantity: hours,
         unitPrice: rate,
       });

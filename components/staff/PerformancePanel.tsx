@@ -23,7 +23,7 @@ function hoursLabel(h: number): string {
   const total = Math.round((h || 0) * 60);
   const hh = Math.floor(total / 60);
   const mm = total % 60;
-  return mm ? `${hh}h ${mm}m` : `${hh}h`;
+  return mm ? `${hh}h ${mm}min` : `${hh}h`;
 }
 
 function prettyDate(ymd: string): string {

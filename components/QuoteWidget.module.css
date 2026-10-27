@@ -5,6 +5,11 @@
 .loadingBox { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 3rem 1rem; }
 .loadingText { font-size: 13px; font-weight: 700; color: #64748b; }
 
+/* Heading: makes it clear the whole card is a free quote */
+.quoteHeading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 1rem; }
+.quoteHeadingTitle { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: .02em; color: #0f172a; line-height: 1.1; }
+.quoteHeadingNote { font-size: 12px; font-weight: 700; color: #0f766e; }
+
 /* Progress */
 .progress { display: flex; gap: 6px; margin-bottom: 1.25rem; }
 .progressBar { flex: 1; height: 5px; border-radius: 99px; background: #e2e8f0; transition: background .3s; }
@@ -185,17 +190,31 @@
 }
 .btnBook:hover { background: #115e59; }
 
-/* Email capture (inline after service step) */
-.emailCapture {
-  margin-top: 1.25rem; padding: 16px; border-radius: 14px;
-  background: #f0fdfa; border: 1px solid #99f6e4;
-}
-.emailCaptureLabel { font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 4px; }
-.emailCaptureHint { font-size: 12px; font-weight: 600; color: #64748b; line-height: 1.5; margin-bottom: 10px; }
-.emailCaptureRow { display: flex; gap: 8px; }
-.emailCaptureRow .formInput { flex: 1; }
-.emailCaptureRow .btnNext { flex: 0 0 auto; }
 .emailCaptureTrust { font-size: 11px; font-weight: 600; color: #64748b; margin-top: 8px; }
+
+/* Email pop-up */
+.gateOverlay { position: fixed; inset: 0; z-index: 10050; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.gateBackdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .55); backdrop-filter: blur(3px); animation: gateFade .2s ease-out; }
+.gateCard {
+  position: relative; width: 100%; max-width: 420px; background: #fff; border-radius: 20px; padding: 28px 24px 22px;
+  box-shadow: 0 25px 60px -12px rgba(15, 23, 42, .35); text-align: center; animation: gatePop .25s ease-out;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.gateClose {
+  position: absolute; top: 10px; right: 12px; width: 32px; height: 32px; border-radius: 10px; border: none; background: transparent;
+  font-size: 24px; line-height: 1; color: #94a3b8; cursor: pointer;
+}
+.gateClose:hover { background: #f1f5f9; color: #0f172a; }
+.gateIcon {
+  margin: 0 auto; width: 52px; height: 52px; border-radius: 16px; background: #f0fdfa; color: #0f766e;
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
+}
+.gateTitle { font-size: 20px; font-weight: 900; color: #0f172a; letter-spacing: -.01em; line-height: 1.2; }
+.gateHint { font-size: 13px; font-weight: 600; color: #64748b; line-height: 1.5; margin-top: -4px; }
+.gateCard .formInput { text-align: left; font-size: 16px; padding: 12px 14px; }
+.gateSubmit { flex: none; width: 100%; padding: 14px 18px; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+@keyframes gateFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gatePop { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: none; } }
 
 /* Spinner */
 .spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; margin-right: 8px; vertical-align: middle; }

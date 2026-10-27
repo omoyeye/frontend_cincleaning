@@ -54,70 +54,70 @@ const ExtraServiceFlyout: React.FC<Props> = ({ extra, onClose, onUpdate }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex justify-end animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[200] flex justify-end bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="absolute inset-0" onClick={onClose} />
-            <div className="bg-white w-full max-w-md h-full shadow-2xl animate-in slide-in-from-right duration-500 relative flex flex-col">
+            <div className="relative flex h-full w-full max-w-lg flex-col bg-white shadow-2xl animate-in slide-in-from-right duration-300">
                 {/* Header */}
-                <div className="p-8 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
+                <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
                     <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center">
+                        <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
                             <Package className="w-5 h-5" />
                         </div>
-                        <h2 className="text-xl font-black text-slate-900 tracking-tight">Edit Extra Service</h2>
+                        <h2 className="text-lg font-black text-slate-900">Edit Extra Service</h2>
                     </div>
-                    <button onClick={onClose} className="p-3 bg-white rounded-xl text-slate-400 hover:text-red-500 shadow-sm transition-all">
+                    <button onClick={onClose} className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 {/* Form Content */}
-                <div className="flex-1 overflow-y-auto p-8 border-b border-slate-100">
-                    <form id="edit-extra-form" onSubmit={handleSave} className="space-y-6">
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Name</label>
+                <div className="flex-1 overflow-y-auto bg-slate-50 px-6 py-6">
+                    <form id="edit-extra-form" onSubmit={handleSave} className="space-y-5">
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-800">Name</label>
                             <input
                                 type="text"
                                 value={name}
                                 onChange={e => setName(e.target.value)}
-                                className="w-full bg-card border-2 border-input rounded-2xl p-5 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/25 font-bold text-sm text-foreground transition-all shadow-inner"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                 required
                             />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-3">
-                                <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Price (£)</label>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-semibold text-slate-800">Price (£)</label>
                                 <input
                                     type="number"
                                     step="0.01"
                                     value={price}
                                     onChange={e => setPrice(e.target.value)}
-                                    className="w-full bg-card border-2 border-input rounded-2xl p-5 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/25 font-bold text-lg text-foreground transition-all shadow-inner"
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                     required
                                 />
                             </div>
 
-                            <div className="space-y-3">
-                                <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Duration (min)</label>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-semibold text-slate-800">Duration (min)</label>
                                 <input
                                     type="number"
                                     value={duration}
                                     onChange={e => setDuration(e.target.value)}
-                                    className="w-full bg-card border-2 border-input rounded-2xl p-5 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/25 font-bold text-lg text-foreground transition-all shadow-inner"
+                                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base font-semibold text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                                     required
                                 />
                             </div>
                         </div>
 
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest ml-1">Billing Type</label>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-800">Billing Type</label>
                             <div className="flex space-x-3">
                                 {['fixed', 'hourly'].map(t => (
                                     <button
                                         key={t}
                                         type="button"
                                         onClick={() => setType(t as any)}
-                                        className={`flex-1 py-4 rounded-xl font-bold capitalize transition-all ${type === t ? 'bg-amber-500 text-white shadow-lg shadow-amber-200' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                                        className={`flex-1 py-2.5 rounded-xl text-sm font-semibold capitalize transition-all ${type === t ? 'bg-blue-600 text-white shadow-sm shadow-blue-200' : 'bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:ring-slate-300'}`}
                                     >
                                         {t}
                                     </button>
@@ -128,12 +128,12 @@ const ExtraServiceFlyout: React.FC<Props> = ({ extra, onClose, onUpdate }) => {
                 </div>
 
                 {/* Footer */}
-                <div className="p-8 bg-slate-50">
+                <div className="border-t border-slate-200 bg-white px-6 py-4">
                     <button
                         type="submit"
                         form="edit-extra-form"
                         disabled={isSaving}
-                        className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 hover:-translate-y-0.5 active:scale-95 transition-all text-sm uppercase tracking-widest flex items-center justify-center disabled:opacity-50"
+                        className="flex w-full items-center justify-center rounded-xl bg-blue-600 py-3 text-sm font-bold text-white shadow-sm shadow-blue-200 transition hover:bg-blue-700 disabled:opacity-50"
                     >
                         {isSaving ? 'Saving...' : <><Save className="w-4 h-4 mr-2" /> Save Details</>}
                     </button>

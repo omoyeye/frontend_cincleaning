@@ -221,6 +221,8 @@ export type ChatSummary = {
   msgCount: number;
   lastSenderRole: string | null;
   lastMessageAt: string | null;
+  lastText?: string | null;
+  lastSenderName?: string | null;
 };
 
 export interface Invoice {
@@ -314,6 +316,12 @@ export interface Staff {
   skills?: string[] | null;
   /** Admin view only: when the cleaner's login account was created. */
   joinedAt?: string | null;
+  /** 'contracted' staff get paid holiday; 'self_employed' cannot book holiday. */
+  contractType?: 'contracted' | 'self_employed' | null;
+  /** Paid holiday days per April to March year (max 26). */
+  holidayAllowanceDays?: number | string | null;
+  /** Paid hours per holiday day (holiday pay = days x hours x hourly rate). */
+  holidayHoursPerDay?: number | string | null;
 }
 
 /** Supervisor / admin on-the-job assessment of a cleaner. */

@@ -877,7 +877,7 @@ const AppContent: React.FC<{ serverUrl?: string }> = ({ serverUrl }) => {
           </div>
         ) : (
           <div
-            className={`${currentView === 'customer' && customerPage !== 'book' ? 'pt-0 pb-0' : 'py-6 sm:py-8'
+            className={`${(currentView === 'customer' && customerPage !== 'book') || currentView === 'portal' ? 'pt-0 pb-0' : 'py-6 sm:py-8'
               }`}
           >
             {currentView === 'customer' && (

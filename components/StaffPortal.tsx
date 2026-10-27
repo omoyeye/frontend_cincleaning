@@ -3,14 +3,15 @@ import {
   Clock, MapPin, ChevronRight, ChevronLeft, CheckCircle2, Camera, MessageSquare, History, Navigation, Star,
   Signature, ShieldCheck, Phone, X, AlertCircle, Bell, User, ClipboardList, Send, LogOut,
   ImageIcon, Box, Calendar, FileText, Search, RotateCcw, Filter, Trash2, Settings, Lock,
-  Briefcase, CheckSquare, Menu, Gift, Users, Wallet, Map as MapIcon, AlarmClock, TrendingUp
+  Briefcase, CheckSquare, Menu, Gift, Users, Wallet, Map as MapIcon, AlarmClock, TrendingUp, Palmtree
 } from 'lucide-react';
 import RunningLatePanel from './staff/RunningLatePanel';
 import PerformancePanel from './staff/PerformancePanel';
+import StaffHolidayPanel, { holidayRange } from './staff/StaffHolidayPanel';
 import AccountDataControls from './AccountDataControls';
 import { Avatar, Badge, Button, Callout, Card, cx, EmptyState, Field, InfoItem, inputClass, SectionHeader, Segmented, Spinner, StatTile, statusTone } from './staff/StaffUi';
 import { StaffNotification, Booking, BookingStatus, Extra, Referral, ServiceConfig, Staff, WorkCompletionData, UserAccount } from '../types';
-import { apiStaff } from '../services/api';
+import { apiStaff, type ClaimableHoliday } from '../services/api';
 import { NotificationBell } from './NotificationBell';
 import ReviewsPanel from './admin/ReviewsPanel';
 import { requestNotificationPermission } from '../services/NotificationService';
@@ -19,6 +20,7 @@ import { useBusinessBrand } from '../src/hooks/useBusinessBrand';
 import { useBusinessSettings } from '../src/context/BusinessSettingsContext';
 import {
   formatBookedHoursLabel,
+    formatHoursMinutes,
   normalizeBookingDate,
   getBookingDurationHours,
   getDurationBreakdown,
@@ -162,7 +164,7 @@ function formatElapsedClock(iso: string, nowMs: number): string {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 }
 
-type PortalTab = 'schedule' | 'availability' | 'messages' | 'late' | 'invoice' | 'referrals' | 'profile' | 'reviews' | 'performance';
+type PortalTab = 'schedule' | 'availability' | 'messages' | 'late' | 'invoice' | 'holiday' | 'referrals' | 'profile' | 'reviews' | 'performance';
 type InboxView = 'alerts' | 'chats' | 'admin';
 
 const TAB_ACCENT: Record<PortalTab, {
@@ -200,6 +202,12 @@ const TAB_ACCENT: Record<PortalTab, {
     sideActive: 'bg-gradient-to-r from-purple-600 to-fuchsia-500 shadow-xl shadow-purple-300/50 text-white -translate-y-0.5',
     menuActive: 'bg-gradient-to-br from-purple-500 to-fuchsia-500 text-white shadow-lg shadow-purple-300/50',
     bottomActive: 'bg-gradient-to-br from-purple-200 to-fuchsia-200 text-purple-700 scale-105',
+  },
+  holiday: {
+    titleGradient: 'from-sky-600 to-indigo-500',
+    sideActive: 'bg-gradient-to-r from-sky-600 to-indigo-500 shadow-xl shadow-sky-300/50 text-white -translate-y-0.5',
+    menuActive: 'bg-gradient-to-br from-sky-500 to-indigo-500 text-white shadow-lg shadow-sky-300/50',
+    bottomActive: 'bg-gradient-to-br from-sky-200 to-indigo-200 text-sky-700 scale-105',
   },
   referrals: {
     titleGradient: 'from-rose-600 to-pink-500',
@@ -259,7 +267,7 @@ const StaffPortal: React.FC<{
   const [showAllOpenChats, setShowAllOpenChats] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const activeTheme = TAB_ACCENT[activeTab];
-  const isMoreTab = activeTab === 'profile' || activeTab === 'reviews' || activeTab === 'referrals' || activeTab === 'late' || activeTab === 'performance';
+  const isMoreTab = activeTab === 'profile' || activeTab === 'reviews' || activeTab === 'referrals' || activeTab === 'late' || activeTab === 'performance' || activeTab === 'holiday';
   const [staffAlerts, setStaffAlerts] = useState<StaffNotification[]>(notifications || []);
 
   const openInbox = (view: InboxView = 'alerts') => {
@@ -336,6 +344,9 @@ const StaffPortal: React.FC<{
     createdAt?: string;
   }>>([]);
   const [expandedSubmittedInvoiceId, setExpandedSubmittedInvoiceId] = useState<number | null>(null);
+  /** Approved holiday already taken but not yet paid; the staff member can add it to a weekly invoice. */
+  const [claimableHolidays, setClaimableHolidays] = useState<ClaimableHoliday[]>([]);
+  const [selectedHolidayIds, setSelectedHolidayIds] = useState<number[]>([]);
   const [staffDirectory, setStaffDirectory] = useState<Staff[]>([]);
   const [activeChatJobId, setActiveChatJobId] = useState<string | null>(null);
   const [staffChatMessage, setStaffChatMessage] = useState('');
@@ -1090,8 +1101,33 @@ const StaffPortal: React.FC<{
     return { counts, n, avg };
   }, [jobs]);
 
+  const isContracted = currentStaff?.contractType === 'contracted';
+  const selectedHolidayPay = claimableHolidays.filter((h) => selectedHolidayIds.includes(h.id));
+  const selectedHolidayTotal = selectedHolidayPay.reduce((s, h) => s + h.amount, 0);
+  const selectedHolidayHours = selectedHolidayPay.reduce((s, h) => s + h.hours, 0);
+  const canSubmitInvoice = invoiceData.weekJobs.length > 0 || selectedHolidayPay.length > 0;
+
+  const loadClaimableHolidays = React.useCallback(async () => {
+    if (!currentStaff?.id || currentStaff.contractType !== 'contracted') {
+      setClaimableHolidays([]);
+      return;
+    }
+    try {
+      const res = await apiStaff.getStaffHolidays(currentStaff.id);
+      setClaimableHolidays(res.claimable);
+      // Pre-tick everything that is ready so holiday pay is not forgotten.
+      setSelectedHolidayIds(res.claimable.map((c) => c.id));
+    } catch {
+      setClaimableHolidays([]);
+    }
+  }, [currentStaff?.id, currentStaff?.contractType]);
+
+  useEffect(() => {
+    if (activeTab === 'invoice') void loadClaimableHolidays();
+  }, [activeTab, loadClaimableHolidays]);
+
   const handleSendInvoice = async () => {
-    if (invoiceData.weekJobs.length === 0 || !currentStaff) return;
+    if (!canSubmitInvoice || !currentStaff) return;
 
     if (!currentStaff.bankName || !currentStaff.accountNumber || !currentStaff.sortCode) {
       showFlyer('Please add your bank details in the Profile tab first!', 'error');
@@ -1102,6 +1138,7 @@ const StaffPortal: React.FC<{
       await apiStaff.submitWeeklyInvoice(currentStaff.id, {
         totalAmount: invoiceData.weekTotalShare,
         jobs: invoiceData.weekJobs,
+        holidayIds: selectedHolidayPay.map((h) => h.id),
         week: `${invoiceData.weekStart} → ${invoiceData.weekEnd}`,
         weekTotalHours: invoiceData.weekTotalYourHours,
         weekJobCount: invoiceData.weekJobCount,
@@ -1113,9 +1150,12 @@ const StaffPortal: React.FC<{
       });
       const history = await apiStaff.getStaffInvoiceHistory(currentStaff.id).catch(() => []);
       setSubmittedInvoices(Array.isArray(history) ? history : []);
-      showFlyer(`Weekly invoice (£${Number(invoiceData.weekTotalShare || 0).toFixed(2)}, ${Number(invoiceData.weekTotalYourHours || 0).toFixed(2)} your hrs) submitted!`, 'success');
+      const total = Number(invoiceData.weekTotalShare || 0) + selectedHolidayTotal;
+      const hours = Number(invoiceData.weekTotalYourHours || 0) + selectedHolidayHours;
+      showFlyer(`Weekly invoice (£${total.toFixed(2)}, ${formatHoursMinutes(hours)}) submitted!`, 'success');
+      void loadClaimableHolidays();
     } catch (e) {
-      showFlyer('Failed to submit invoice', 'error');
+      showFlyer(e instanceof Error && e.message ? e.message : 'Failed to submit invoice', 'error');
     }
   };
 
@@ -1244,6 +1284,7 @@ const StaffPortal: React.FC<{
     messages: { title: 'Inbox', subtitle: 'Alerts, client chats and messages from the office.' },
     late: { title: 'Running late', subtitle: 'Let the client and the office know straight away.' },
     invoice: { title: 'Earnings', subtitle: 'Your pay for this week and your invoices.' },
+    holiday: { title: 'Holiday', subtitle: 'Book paid holiday and see what you have left this year.' },
     referrals: { title: 'Referrals', subtitle: 'Share your code and earn a bonus.' },
     profile: { title: 'My profile', subtitle: 'Your details, bank account and password.' },
     reviews: { title: 'My reviews', subtitle: 'What clients said about your work.' },
@@ -1503,6 +1544,9 @@ const StaffPortal: React.FC<{
           <div className="space-y-1">
             <p className="px-3 pb-1 text-xs font-medium text-slate-400">Me</p>
             <SideNavBtn active={activeTab === 'invoice'} onClick={() => setActiveTab('invoice')} label="Earnings" icon={<Wallet className="h-[18px] w-[18px]" />} />
+            {isContracted ? (
+              <SideNavBtn active={activeTab === 'holiday'} onClick={() => setActiveTab('holiday')} label="Holiday" icon={<Palmtree className="h-[18px] w-[18px]" />} />
+            ) : null}
             <SideNavBtn active={activeTab === 'performance'} onClick={() => setActiveTab('performance')} label="My performance" icon={<TrendingUp className="h-[18px] w-[18px]" />} />
             <SideNavBtn active={activeTab === 'reviews'} onClick={() => setActiveTab('reviews')} label="My reviews" icon={<Star className="h-[18px] w-[18px]" />} />
             <SideNavBtn active={activeTab === 'referrals'} onClick={() => setActiveTab('referrals')} label="Referrals" icon={<Gift className="h-[18px] w-[18px]" />} />
@@ -1632,7 +1676,7 @@ const StaffPortal: React.FC<{
                                             <div className="min-w-0 flex-1">
                                               <p className="font-semibold text-slate-900">{isToday ? 'Today' : formatMobileDateRowTitle(row.date)}</p>
                                               <p className="text-sm text-slate-500">
-                                                {row.jobs.length} {row.jobs.length === 1 ? 'job' : 'jobs'} · {formatBookedHoursLabel(row.totalHours)}h
+                                                {row.jobs.length} {row.jobs.length === 1 ? 'job' : 'jobs'} · {formatHoursMinutes(row.totalHours)}
                                               </p>
                                             </div>
                                             <ChevronRight className="h-5 w-5 shrink-0 text-slate-300" />
@@ -1885,19 +1929,20 @@ const StaffPortal: React.FC<{
                       <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/10" aria-hidden />
                       <div className="relative">
                         <p className="text-sm font-medium text-emerald-50">This week · {shortDate(invoiceData.weekStart)} to {shortDate(invoiceData.weekEnd)}</p>
-                        <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums">£{Number(invoiceData.weekTotalShare || 0).toFixed(2)}</p>
+                        <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums">£{(Number(invoiceData.weekTotalShare || 0) + selectedHolidayTotal).toFixed(2)}</p>
                         <p className="mt-1 text-sm text-emerald-50/90">
-                          {invoiceData.weekJobCount} {invoiceData.weekJobCount === 1 ? 'job' : 'jobs'} · {Number(invoiceData.weekTotalYourHours || 0).toFixed(2)} of your hours
+                          {invoiceData.weekJobCount} {invoiceData.weekJobCount === 1 ? 'job' : 'jobs'} · {formatHoursMinutes(Number(invoiceData.weekTotalYourHours || 0))} of your hours
+                          {selectedHolidayPay.length ? ` · + £${selectedHolidayTotal.toFixed(2)} holiday pay` : ''}
                         </p>
                         <button
                           type="button"
                           onClick={handleSendInvoice}
-                          disabled={invoiceData.weekJobs.length === 0}
+                          disabled={!canSubmitInvoice}
                           className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                         >
                           <Send className="h-4 w-4" /> Submit weekly invoice
                         </button>
-                        {invoiceData.weekJobs.length === 0 ? <p className="mt-2 text-xs text-emerald-50/80">You can submit once you have a completed job this week.</p> : null}
+                        {!canSubmitInvoice ? <p className="mt-2 text-xs text-emerald-50/80">You can submit once you have a completed job this week{isContracted ? ' or holiday pay to claim' : ''}.</p> : null}
                       </div>
                     </div>
 
@@ -1917,11 +1962,53 @@ const StaffPortal: React.FC<{
                       />
                     </div>
 
+                    {isContracted ? (
+                      <Card>
+                        <SectionHeader
+                          title="Holiday pay"
+                          subtitle="Approved holiday you have taken. Tick what to add to this invoice."
+                          action={
+                            <Button variant="ghost" size="sm" onClick={() => setActiveTab('holiday')} icon={<Palmtree className="h-4 w-4" />}>
+                              Holiday
+                            </Button>
+                          }
+                        />
+                        {claimableHolidays.length === 0 ? (
+                          <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">No holiday pay waiting. It shows here once an approved holiday has started.</p>
+                        ) : (
+                          <ul className="mt-4 divide-y divide-slate-100">
+                            {claimableHolidays.map((h) => {
+                              const checked = selectedHolidayIds.includes(h.id);
+                              return (
+                                <li key={h.id}>
+                                  <label className="flex cursor-pointer items-center gap-3 py-3.5">
+                                    <input
+                                      type="checkbox"
+                                      className="h-4 w-4 rounded accent-emerald-600"
+                                      checked={checked}
+                                      onChange={() => setSelectedHolidayIds((ids) => (checked ? ids.filter((x) => x !== h.id) : [...ids, h.id]))}
+                                    />
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block font-medium text-slate-900">{holidayRange(h)}</span>
+                                      <span className="block text-sm text-slate-500">
+                                        {h.days} {h.days === 1 ? 'day' : 'days'} · {formatHoursMinutes(h.hours)} × £{h.hourlyRate.toFixed(2)}
+                                      </span>
+                                    </span>
+                                    <span className={cx('shrink-0 font-semibold tabular-nums', checked ? 'text-emerald-600' : 'text-slate-400')}>£{h.amount.toFixed(2)}</span>
+                                  </label>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </Card>
+                    ) : null}
+
                     <Card>
                       <SectionHeader
                         title="This week's jobs"
                         subtitle="Pay = booked hours ÷ people on the job × your hourly rate."
-                        action={<Badge tone="neutral">{Number(invoiceData.weekTotalYourHours || 0).toFixed(2)}h</Badge>}
+                        action={<Badge tone="neutral">{formatHoursMinutes(Number(invoiceData.weekTotalYourHours || 0))}</Badge>}
                       />
                       {invoiceData.weekJobs.length === 0 ? (
                         <EmptyState className="mt-5" icon={<FileText className="h-6 w-6" />} title="No completed jobs this week" body={`${shortDate(invoiceData.weekStart)} to ${shortDate(invoiceData.weekEnd)}`} />
@@ -1932,11 +2019,11 @@ const StaffPortal: React.FC<{
                               <div className="min-w-0">
                                 <p className="truncate font-medium text-slate-900">{job.customer}</p>
                                 <p className="text-sm text-slate-500">
-                                  {formatScheduleCardDate(job.date)} · {Number(job.yourHours || 0).toFixed(2)}h × £{Number(job.hourlyRate || 0).toFixed(2)}
+                                  {formatScheduleCardDate(job.date)} · {formatHoursMinutes(Number(job.yourHours || 0))} × £{Number(job.hourlyRate || 0).toFixed(2)}
                                 </p>
                                 {job.staffCount > 1 ? (
                                   <Badge tone="primary" className="mt-1.5">
-                                    <Users className="h-3 w-3" /> Team of {job.staffCount} · {Number(job.bookedHours || 0).toFixed(2)}h booked
+                                    <Users className="h-3 w-3" /> Team of {job.staffCount} · {formatHoursMinutes(Number(job.bookedHours || 0))} booked
                                   </Badge>
                                 ) : null}
                               </div>
@@ -1959,7 +2046,7 @@ const StaffPortal: React.FC<{
                                 <div>
                                   <p className="font-medium text-slate-900">{inv.weekLabel || 'Current week'}</p>
                                   <p className="text-sm text-slate-500">
-                                    {inv.weekJobCount} {Number(inv.weekJobCount) === 1 ? 'job' : 'jobs'} · {Number(inv.weekTotalHours || 0).toFixed(2)}h
+                                    {inv.weekJobCount} {Number(inv.weekJobCount) === 1 ? 'job' : 'jobs'} · {formatHoursMinutes(Number(inv.weekTotalHours || 0))}
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -2315,6 +2402,7 @@ const StaffPortal: React.FC<{
                 {/* ───────── Reviews ───────── */}
                 {activeTab === 'reviews' && <ReviewsPanel role="staff" api={apiStaff as any} />}
                 {activeTab === 'performance' && <PerformancePanel />}
+                {activeTab === 'holiday' && currentStaff ? <StaffHolidayPanel staffId={currentStaff.id} /> : null}
 
                 {/* ───────── Running late ───────── */}
                 {activeTab === 'late' && (
@@ -2558,8 +2646,8 @@ const StaffPortal: React.FC<{
                         value={
                           selectedJobBreakdown && selectedJobEarningsPreview
                             ? selectedJobEarningsPreview.staffCount > 1
-                              ? `${formatBookedHoursLabel(selectedJobBreakdown.totalHours)}h booked · ${formatBookedHoursLabel(selectedJobEarningsPreview.yourHours)}h yours`
-                              : `${formatBookedHoursLabel(selectedJobBreakdown.totalHours)}h booked`
+                              ? `${formatHoursMinutes(selectedJobBreakdown.totalHours)} booked · ${formatHoursMinutes(selectedJobEarningsPreview.yourHours)} yours`
+                              : `${formatHoursMinutes(selectedJobBreakdown.totalHours)} booked`
                             : 'N/A'
                         }
                         icon={<History className="h-4 w-4" />}
@@ -2571,7 +2659,7 @@ const StaffPortal: React.FC<{
                             <span>
                               £{Number(selectedJobEarningsPreview.pay || 0).toFixed(2)}{' '}
                               <span className="font-normal text-slate-500">
-                                ({formatBookedHoursLabel(selectedJobEarningsPreview.yourHours)}h × £{Number(selectedJobEarningsPreview.rate).toFixed(2)})
+                                ({formatHoursMinutes(selectedJobEarningsPreview.yourHours)} × £{Number(selectedJobEarningsPreview.rate).toFixed(2)})
                               </span>
                             </span>
                           }
@@ -3003,6 +3091,9 @@ const StaffPortal: React.FC<{
               </div>
               <div className="space-y-1">
                 <MoreSheetItem active={activeTab === 'profile'} onClick={() => { setActiveTab('profile'); setIsMenuOpen(false); }} label="My profile" icon={<User className="h-5 w-5" />} />
+                {isContracted ? (
+                  <MoreSheetItem active={activeTab === 'holiday'} onClick={() => { setActiveTab('holiday'); setIsMenuOpen(false); }} label="Holiday" icon={<Palmtree className="h-5 w-5" />} />
+                ) : null}
                 <MoreSheetItem active={activeTab === 'performance'} onClick={() => { setActiveTab('performance'); setIsMenuOpen(false); }} label="My performance" icon={<TrendingUp className="h-5 w-5" />} />
                 <MoreSheetItem active={activeTab === 'reviews'} onClick={() => { setActiveTab('reviews'); setIsMenuOpen(false); }} label="My reviews" icon={<Star className="h-5 w-5" />} />
                 <MoreSheetItem active={activeTab === 'referrals'} onClick={() => { setActiveTab('referrals'); setIsMenuOpen(false); }} label="Referrals" icon={<Gift className="h-5 w-5" />} />
@@ -3199,7 +3290,7 @@ const JobCard: React.FC<{
       >
         <span className="text-lg font-semibold tabular-nums leading-none">{job.time || '--:--'}</span>
         {endLabel ? <span className="text-xs tabular-nums opacity-70">to {endLabel}</span> : null}
-        <span className="mt-1 text-xs font-medium opacity-80">{formatBookedHoursLabel(durationHours)}h</span>
+        <span className="mt-1 text-xs font-medium opacity-80">{formatHoursMinutes(durationHours)}</span>
       </div>
 
       <div className="min-w-0 flex-1 p-4">

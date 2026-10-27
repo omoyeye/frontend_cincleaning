@@ -1,6 +1,6 @@
 import React from 'react';
 import type { DurationBreakdown } from '../src/utils/bookingHelpers';
-import { formatBookedHoursLabel } from '../src/utils/bookingHelpers';
+import { formatBookedHoursLabel, formatHoursMinutes } from '../src/utils/bookingHelpers';
 
 interface Props {
   breakdown: DurationBreakdown;
@@ -26,7 +26,7 @@ export const DurationBreakdownBlock: React.FC<Props> = ({
                 {breakdown.model === 'itemized' ? breakdown.baseLabel : 'Booked clean duration'}
               </td>
               <td className="py-2 text-right font-black text-blue-600 tabular-nums">
-                {formatBookedHoursLabel(breakdown.totalHours)}h
+                {formatHoursMinutes(breakdown.totalHours)}
               </td>
             </tr>
           ) : (
@@ -34,7 +34,7 @@ export const DurationBreakdownBlock: React.FC<Props> = ({
               <tr>
                 <td className="py-2 pr-2 font-bold text-slate-700">{breakdown.baseLabel}</td>
                 <td className="py-2 text-right font-black text-slate-900 tabular-nums">
-                  {formatBookedHoursLabel(breakdown.baseHours)}h
+                  {formatHoursMinutes(breakdown.baseHours)}
                 </td>
               </tr>
               {breakdown.lines.map((line, i) => (
@@ -47,13 +47,13 @@ export const DurationBreakdownBlock: React.FC<Props> = ({
                       {line.quantity > 1 && line.hoursPerUnit > 0 ? (
                         <span className="text-xs">
                           {' '}
-                          @ {formatBookedHoursLabel(line.hoursPerUnit)}h ea.
+                          @ {formatHoursMinutes(line.hoursPerUnit)} ea.
                         </span>
                       ) : null}
                     </span>
                   </td>
                   <td className="py-2 text-right font-black text-slate-800 tabular-nums">
-                    {formatBookedHoursLabel(line.lineHours)}h
+                    {formatHoursMinutes(line.lineHours)}
                   </td>
                 </tr>
               ))}
@@ -62,7 +62,7 @@ export const DurationBreakdownBlock: React.FC<Props> = ({
                   Total booked
                 </td>
                 <td className="py-2.5 text-right font-black text-base text-blue-600 tabular-nums">
-                  {formatBookedHoursLabel(breakdown.totalHours)}h
+                  {formatHoursMinutes(breakdown.totalHours)}
                 </td>
               </tr>
             </>
