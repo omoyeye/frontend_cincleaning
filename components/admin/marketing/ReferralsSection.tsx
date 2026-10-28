@@ -30,10 +30,21 @@ export interface LoyaltyOverview {
 }
 
 const STATUS_PILL: Record<Referral['status'], { tone: string; label: string }> = {
-  Pending: { tone: PILL.amber, label: 'Pending' },
+  Pending: { tone: PILL.amber, label: 'Waiting for first clean' },
   Completed: { tone: PILL.blue, label: 'Ready to pay' },
   'Paid Out': { tone: PILL.green, label: 'Paid out' },
+  Rejected: { tone: PILL.slate, label: 'Not eligible' },
 };
+
+/** Client rewards are cleaning credit (used automatically on bookings); staff rewards are paid as a bonus. */
+function pillFor(r: Referral): { tone: string; label: string } {
+  if (r.status === 'Completed' && r.referrerType === 'customer') return { tone: PILL.green, label: 'Credit added' };
+  if (r.status === 'Completed' && r.payStatus === 'claimed') return { tone: PILL.blue, label: 'On staff invoice' };
+  return STATUS_PILL[r.status] ?? { tone: PILL.slate, label: r.status };
+}
+
+/** Only an unlocked staff bonus that is not already on a weekly invoice can be marked paid by hand. */
+const canMarkPaid = (r: Referral) => r.status === 'Completed' && r.referrerType === 'staff' && r.payStatus !== 'claimed';
 
 export function referralTotals(referrals: Referral[]) {
   const t = { pending: 0, completed: 0, paid: 0, owed: 0, paidAmount: 0 };
@@ -42,7 +53,8 @@ export function referralTotals(referrals: Referral[]) {
     if (r.status === 'Pending') t.pending++;
     else if (r.status === 'Completed') {
       t.completed++;
-      t.owed += amt;
+      // Client rewards are cleaning credit, not money owed.
+      if (r.referrerType === 'staff' && r.payStatus !== 'paid') t.owed += amt;
     } else if (r.status === 'Paid Out') {
       t.paid++;
       t.paidAmount += amt;
@@ -189,7 +201,7 @@ export const ReferralsSection: React.FC<ReferralsSectionProps> = ({
             <span className="text-right">Actions</span>
           </div>
           {shown.map((r) => {
-            const pill = STATUS_PILL[r.status] ?? { tone: PILL.slate, label: r.status };
+            const pill = pillFor(r);
             const staff = r.referrerType === 'staff';
             return (
               <div
@@ -216,7 +228,7 @@ export const ReferralsSection: React.FC<ReferralsSectionProps> = ({
                     <Pill tone={pill.tone}>{pill.label}</Pill>
                   </span>
                   <div className="flex items-center gap-2 lg:justify-end">
-                    {r.status !== 'Paid Out' ? (
+                    {r.status === 'Pending' || canMarkPaid(r) ? (
                       <button
                         type="button"
                         disabled={busyId === r.id}

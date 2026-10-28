@@ -198,7 +198,7 @@ function Overview(
       tone: 'bg-emerald-50 text-emerald-600',
       text: (
         <>
-          <strong>{money(totals.owed)}</strong> in referral rewards ready to pay ({totals.completed})
+          <strong>{money(totals.owed)}</strong> in staff referral bonuses ready to pay ({totals.completed})
         </>
       ),
       action: 'Pay out',

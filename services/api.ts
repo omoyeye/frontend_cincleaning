@@ -14,6 +14,7 @@ import {
     Staff,
     Extra,
     Referral,
+    ReferralSummary,
     ChatSummary,
     GalleryItem,
     BlogPost,
@@ -594,6 +595,10 @@ function createRealmApi(realm: AuthRealm) {
             depositTermsAcceptedAt?: string;
             /** Card payment page for the deposit or full payment the client chose. */
             stripePaymentLink?: string;
+            /** Final total after any referral credit. */
+            totalPrice?: number;
+            /** Referral credit taken off this booking. */
+            referralCreditUsed?: number;
             conflictWarning?: { conflictCount: number; conflictingBookingIds: string[]; message: string };
         }> => {
             const res = await fetchWithNetworkHint(realm, `${API_URL}/bookings`, {
@@ -1519,6 +1524,12 @@ function createRealmApi(realm: AuthRealm) {
             if (!res.ok) throw new Error('Failed to fetch user referrals');
             const rows: unknown = await res.json();
             return Array.isArray(rows) ? (rows as Referral[]) : [];
+        },
+
+        /** The signed-in user's referral balance (cleaning credit for clients, claimable bonuses for staff). */
+        getReferralSummary: async (): Promise<ReferralSummary> => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/referrals/summary`, { headers: { ...H() } });
+            return jsonOrError(res, 'Could not load referral rewards');
         },
 
         updateReferral: async (id: string, updates: { rewardAmount?: number; status?: string }) => {

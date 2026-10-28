@@ -57,6 +57,7 @@ import {
   Extra,
   Staff,
   Referral,
+  ReferralSummary,
   PaymentFeeEvidenceItem,
 } from '../types';
 const CleanerTracker = React.lazy(() => import('./CleanerTracker'));
@@ -150,6 +151,7 @@ const CustomerPortal: React.FC<Props> = ({
   const [notifications, setNotifications] = useState<any[]>([]);
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
+  const [referralSummary, setReferralSummary] = useState<ReferralSummary | null>(null);
   const [customerInvoicesList, setCustomerInvoicesList] = useState<any[]>([]);
 
   // Load alerts, invoices and referrals up front (Home shows counts), and refresh when a section opens.
@@ -157,7 +159,10 @@ const CustomerPortal: React.FC<Props> = ({
     if (!user) return;
     if (activeSection === 'home' || activeSection === 'notifications') apiClient.getNotifications(user.id).then(setNotifications).catch(() => {});
     if (activeSection === 'home' || activeSection === 'invoices') apiClient.getMyInvoices().then(setCustomerInvoicesList).catch(() => {});
-    if (activeSection === 'referrals') apiClient.getUserReferrals(user.id, 'customer').then(setReferrals).catch(() => {});
+    if (activeSection === 'referrals') {
+      apiClient.getUserReferrals(user.id, 'customer').then(setReferrals).catch(() => {});
+      apiClient.getReferralSummary().then(setReferralSummary).catch(() => {});
+    }
   }, [activeSection, user]);
 
   useEffect(() => {
@@ -1995,11 +2000,39 @@ const CustomerPortal: React.FC<Props> = ({
                       <Copy className="h-4 w-4" /> Copy code
                     </button>
                   </div>
-                  <p className="mt-3 text-sm text-white/90">Friends enter it when they sign up or book. You get a reward when they complete their first clean.</p>
+                  <p className="mt-3 text-sm text-white/90">
+                    Friends enter it when they create their account. You get {money(referralSummary?.rewardAmount ?? 20)} cleaning credit when they complete their first clean.
+                  </p>
                 </div>
+                <Card className="border-emerald-200 bg-emerald-50/70">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Your cleaning credit</p>
+                      <p className="mt-1 text-3xl font-semibold tabular-nums text-emerald-900">{money(referralSummary?.credit?.balance ?? 0)}</p>
+                      <p className="mt-1 text-sm text-emerald-800">
+                        {(referralSummary?.credit?.balance ?? 0) > 0
+                          ? 'Comes off your next booking automatically.'
+                          : 'Credit appears here when a friend has their first clean.'}
+                        {referralSummary?.pending ? ` ${money(referralSummary.pending)} on its way.` : ''}
+                      </p>
+                      <p className="mt-1 text-xs text-emerald-700">Can only be used towards your cleaning. No cash value.</p>
+                    </div>
+                    {(referralSummary?.credit?.balance ?? 0) > 0 ? (
+                      <Button icon={<Plus className="h-4 w-4" />} onClick={onStartNewBooking}>
+                        Book a clean
+                      </Button>
+                    ) : null}
+                  </div>
+                </Card>
                 <div className="grid grid-cols-2 gap-3">
                   <StatTile label="Friends referred" value={referrals.length} icon={<Gift className="h-5 w-5" />} accent="bg-amber-50 text-amber-600" />
-                  <StatTile label="Rewards earned" value={money(referrals.reduce((sum, r) => sum + Number(r.rewardAmount || 0), 0))} icon={<Wallet className="h-5 w-5" />} accent="bg-emerald-50 text-emerald-600" />
+                  <StatTile
+                    label="Credit earned"
+                    value={money(referralSummary?.unlocked ?? referrals.filter((r) => r.status === 'Completed' || r.status === 'Paid Out').reduce((sum, r) => sum + Number(r.rewardAmount || 0), 0))}
+                    hint={referralSummary?.credit?.used ? `${money(referralSummary.credit.used)} used so far` : undefined}
+                    icon={<Wallet className="h-5 w-5" />}
+                    accent="bg-emerald-50 text-emerald-600"
+                  />
                 </div>
                 {referrals.length === 0 ? (
                   <EmptyState icon={<Gift className="h-6 w-6" />} title="No referrals yet" body="Share your code with friends and family to start earning." />
@@ -2014,7 +2047,9 @@ const CustomerPortal: React.FC<Props> = ({
                         </div>
                         <div className="text-right">
                           <p className="font-semibold tabular-nums text-slate-900">{money(Number(r.rewardAmount || 0))}</p>
-                          <Badge tone={r.status === 'Paid Out' ? 'success' : r.status === 'Completed' ? 'primary' : 'warning'}>{r.status}</Badge>
+                          <Badge tone={r.status === 'Completed' || r.status === 'Paid Out' ? 'success' : r.status === 'Rejected' ? 'neutral' : 'warning'}>
+                            {r.status === 'Completed' || r.status === 'Paid Out' ? 'Credit added' : r.status === 'Rejected' ? 'Not eligible' : 'Waiting for first clean'}
+                          </Badge>
                         </div>
                       </div>
                     ))}

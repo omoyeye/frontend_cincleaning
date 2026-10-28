@@ -137,6 +137,8 @@ export interface Booking {
   priceRegion?: 'london' | 'standard' | null;
   /** Hourly rate actually charged (hourly services). */
   hourlyRate?: number | string | null;
+  /** Referral credit taken off this booking (clients only; cleaning credit, no cash value). */
+  referralCreditUsed?: number | string | null;
   /** ISO time the cleaner tapped "Start travel". */
   enRouteAt?: string | null;
   lateNotices?: LateNotice[] | null;
@@ -671,8 +673,27 @@ export interface Referral {
   referrerType: 'staff' | 'customer';
   referredClientName: string;
   dateReferred: string;
-  status: 'Pending' | 'Completed' | 'Paid Out';
+  status: 'Pending' | 'Completed' | 'Paid Out' | 'Rejected';
   rewardAmount: number;
+  payStatus?: 'unpaid' | 'claimed' | 'paid';
+}
+
+/** A staff referral bonus that has unlocked and can go on the weekly invoice. */
+export interface ClaimableReferral { id: number; friendName: string; amount: number; unlockedAt: string | null }
+
+/** Referral balance for the signed-in user (/api/referrals/summary). */
+export interface ReferralSummary {
+  role: 'customer' | 'staff';
+  code: string | null;
+  rewardAmount: number;
+  pending: number;
+  unlocked: number;
+  /** Clients: cleaning credit (no cash value) taken off the next booking automatically. */
+  credit?: { earned: number; used: number; balance: number };
+  /** Staff: bonuses ready to add to the weekly invoice. */
+  claimable?: ClaimableReferral[];
+  claimed?: number;
+  paid?: number;
 }
 
 export interface DiscountCode {

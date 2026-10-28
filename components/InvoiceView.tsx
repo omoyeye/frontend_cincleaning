@@ -285,6 +285,18 @@ const InvoiceView: React.FC<Props> = ({
                                 </td>
                             </tr>
                         )}
+                        {Number(booking.referralCreditUsed) > 0 && (
+                            <tr>
+                                <td className="py-4 font-bold text-emerald-700">
+                                    Referral credit
+                                    <span className="block text-xs font-medium text-slate-400 mt-1">Cleaning credit from referring a friend (no cash value)</span>
+                                </td>
+                                {durationBreakdown.model === 'itemized' && (
+                                    <td className="py-4 text-right font-bold text-slate-600 tabular-nums">-</td>
+                                )}
+                                <td className="py-4 text-right font-bold text-emerald-700">-£{Number(booking.referralCreditUsed).toFixed(2)}</td>
+                            </tr>
+                        )}
                     </tbody>
                     <tfoot>
                         <tr className="border-t border-slate-200">

@@ -10,7 +10,7 @@ import PerformancePanel from './staff/PerformancePanel';
 import StaffHolidayPanel, { holidayRange } from './staff/StaffHolidayPanel';
 import AccountDataControls from './AccountDataControls';
 import { Avatar, Badge, Button, Callout, Card, cx, EmptyState, Field, InfoItem, inputClass, SectionHeader, Segmented, Spinner, StatTile, statusTone } from './staff/StaffUi';
-import { StaffNotification, Booking, BookingStatus, Extra, Referral, ServiceConfig, Staff, WorkCompletionData, UserAccount } from '../types';
+import { StaffNotification, Booking, BookingStatus, Extra, Referral, ReferralSummary, ServiceConfig, Staff, WorkCompletionData, UserAccount } from '../types';
 import { apiStaff, type ClaimableHoliday } from '../services/api';
 import { NotificationBell } from './NotificationBell';
 import ReviewsPanel from './admin/ReviewsPanel';
@@ -346,6 +346,9 @@ const StaffPortal: React.FC<{
   const [expandedSubmittedInvoiceId, setExpandedSubmittedInvoiceId] = useState<number | null>(null);
   /** Approved holiday already taken but not yet paid; the staff member can add it to a weekly invoice. */
   const [claimableHolidays, setClaimableHolidays] = useState<ClaimableHoliday[]>([]);
+  // Referral bonuses that unlocked (friend's first clean done) and can go on the weekly invoice.
+  const [referralSummary, setReferralSummary] = useState<ReferralSummary | null>(null);
+  const [selectedBonusIds, setSelectedBonusIds] = useState<number[]>([]);
   const [selectedHolidayIds, setSelectedHolidayIds] = useState<number[]>([]);
   const [staffDirectory, setStaffDirectory] = useState<Staff[]>([]);
   const [activeChatJobId, setActiveChatJobId] = useState<string | null>(null);
@@ -1105,7 +1108,25 @@ const StaffPortal: React.FC<{
   const selectedHolidayPay = claimableHolidays.filter((h) => selectedHolidayIds.includes(h.id));
   const selectedHolidayTotal = selectedHolidayPay.reduce((s, h) => s + h.amount, 0);
   const selectedHolidayHours = selectedHolidayPay.reduce((s, h) => s + h.hours, 0);
-  const canSubmitInvoice = invoiceData.weekJobs.length > 0 || selectedHolidayPay.length > 0;
+  const claimableBonuses = referralSummary?.claimable ?? [];
+  const selectedBonuses = claimableBonuses.filter((b) => selectedBonusIds.includes(b.id));
+  const selectedBonusTotal = selectedBonuses.reduce((s, b) => s + b.amount, 0);
+  const canSubmitInvoice = invoiceData.weekJobs.length > 0 || selectedHolidayPay.length > 0 || selectedBonuses.length > 0;
+
+  const loadReferralSummary = React.useCallback(async () => {
+    try {
+      const res = await apiStaff.getReferralSummary();
+      setReferralSummary(res);
+      // Pre-tick everything that is ready so bonuses are not forgotten.
+      setSelectedBonusIds((res.claimable ?? []).map((c) => c.id));
+    } catch {
+      setReferralSummary(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'invoice' || activeTab === 'referrals') void loadReferralSummary();
+  }, [activeTab, loadReferralSummary]);
 
   const loadClaimableHolidays = React.useCallback(async () => {
     if (!currentStaff?.id || currentStaff.contractType !== 'contracted') {
@@ -1139,6 +1160,7 @@ const StaffPortal: React.FC<{
         totalAmount: invoiceData.weekTotalShare,
         jobs: invoiceData.weekJobs,
         holidayIds: selectedHolidayPay.map((h) => h.id),
+        referralRewardIds: selectedBonuses.map((b) => b.id),
         week: `${invoiceData.weekStart} → ${invoiceData.weekEnd}`,
         weekTotalHours: invoiceData.weekTotalYourHours,
         weekJobCount: invoiceData.weekJobCount,
@@ -1150,10 +1172,11 @@ const StaffPortal: React.FC<{
       });
       const history = await apiStaff.getStaffInvoiceHistory(currentStaff.id).catch(() => []);
       setSubmittedInvoices(Array.isArray(history) ? history : []);
-      const total = Number(invoiceData.weekTotalShare || 0) + selectedHolidayTotal;
+      const total = Number(invoiceData.weekTotalShare || 0) + selectedHolidayTotal + selectedBonusTotal;
       const hours = Number(invoiceData.weekTotalYourHours || 0) + selectedHolidayHours;
       showFlyer(`Weekly invoice (£${total.toFixed(2)}, ${formatHoursMinutes(hours)}) submitted!`, 'success');
       void loadClaimableHolidays();
+      void loadReferralSummary();
     } catch (e) {
       showFlyer(e instanceof Error && e.message ? e.message : 'Failed to submit invoice', 'error');
     }
@@ -1929,10 +1952,11 @@ const StaffPortal: React.FC<{
                       <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/10" aria-hidden />
                       <div className="relative">
                         <p className="text-sm font-medium text-emerald-50">This week · {shortDate(invoiceData.weekStart)} to {shortDate(invoiceData.weekEnd)}</p>
-                        <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums">£{(Number(invoiceData.weekTotalShare || 0) + selectedHolidayTotal).toFixed(2)}</p>
+                        <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums">£{(Number(invoiceData.weekTotalShare || 0) + selectedHolidayTotal + selectedBonusTotal).toFixed(2)}</p>
                         <p className="mt-1 text-sm text-emerald-50/90">
                           {invoiceData.weekJobCount} {invoiceData.weekJobCount === 1 ? 'job' : 'jobs'} · {formatHoursMinutes(Number(invoiceData.weekTotalYourHours || 0))} of your hours
                           {selectedHolidayPay.length ? ` · + £${selectedHolidayTotal.toFixed(2)} holiday pay` : ''}
+                          {selectedBonuses.length ? ` · + £${selectedBonusTotal.toFixed(2)} referral bonus` : ''}
                         </p>
                         <button
                           type="button"
@@ -1942,7 +1966,7 @@ const StaffPortal: React.FC<{
                         >
                           <Send className="h-4 w-4" /> Submit weekly invoice
                         </button>
-                        {!canSubmitInvoice ? <p className="mt-2 text-xs text-emerald-50/80">You can submit once you have a completed job this week{isContracted ? ' or holiday pay to claim' : ''}.</p> : null}
+                        {!canSubmitInvoice ? <p className="mt-2 text-xs text-emerald-50/80">You can submit once you have a completed job this week{isContracted ? ', holiday pay' : ''} or a referral bonus to claim.</p> : null}
                       </div>
                     </div>
 
@@ -2001,6 +2025,42 @@ const StaffPortal: React.FC<{
                             })}
                           </ul>
                         )}
+                      </Card>
+                    ) : null}
+
+                    {claimableBonuses.length > 0 ? (
+                      <Card>
+                        <SectionHeader
+                          title="Referral bonuses"
+                          subtitle="Friends you referred who have had their first clean. Tick what to add to this invoice."
+                          action={
+                            <Button variant="ghost" size="sm" onClick={() => setActiveTab('referrals')} icon={<Gift className="h-4 w-4" />}>
+                              Referrals
+                            </Button>
+                          }
+                        />
+                        <ul className="mt-4 divide-y divide-slate-100">
+                          {claimableBonuses.map((b) => {
+                            const checked = selectedBonusIds.includes(b.id);
+                            return (
+                              <li key={b.id}>
+                                <label className="flex cursor-pointer items-center gap-3 py-3.5">
+                                  <input
+                                    type="checkbox"
+                                    className="h-4 w-4 rounded accent-emerald-600"
+                                    checked={checked}
+                                    onChange={() => setSelectedBonusIds((ids) => (checked ? ids.filter((x) => x !== b.id) : [...ids, b.id]))}
+                                  />
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block font-medium text-slate-900">{b.friendName}</span>
+                                    <span className="block text-sm text-slate-500">Referral bonus · first clean done</span>
+                                  </span>
+                                  <span className={cx('shrink-0 font-semibold tabular-nums', checked ? 'text-emerald-600' : 'text-slate-400')}>£{b.amount.toFixed(2)}</span>
+                                </label>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       </Card>
                     ) : null}
 
@@ -2112,11 +2172,23 @@ const StaffPortal: React.FC<{
                       <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/10" aria-hidden />
                       <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                         <div>
-                          <p className="text-sm font-medium text-violet-100">Referral earnings</p>
+                          <p className="text-sm font-medium text-violet-100">Ready to claim</p>
                           <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums">
-                            £{referrals.reduce((sum, r) => sum + Number(r.rewardAmount || 0), 0).toFixed(2)}
+                            £{claimableBonuses.reduce((sum, b) => sum + b.amount, 0).toFixed(2)}
                           </p>
-                          <p className="mt-2 max-w-sm text-sm text-violet-100">Share your code with friends and clients. You earn a bonus when they book their first clean.</p>
+                          <p className="mt-1 text-sm text-violet-100">
+                            £{(referralSummary?.paid ?? 0).toFixed(2)} paid so far
+                            {referralSummary?.claimed ? ` · £${referralSummary.claimed.toFixed(2)} on an invoice` : ''}
+                            {referralSummary?.pending ? ` · £${referralSummary.pending.toFixed(2)} waiting for a first clean` : ''}
+                          </p>
+                          <p className="mt-2 max-w-sm text-sm text-violet-100">
+                            Friends enter your code when they create their account. You earn £{(referralSummary?.rewardAmount ?? 20).toFixed(0)} after their first clean, paid with your weekly invoice.
+                          </p>
+                          {claimableBonuses.length > 0 ? (
+                            <button type="button" onClick={() => setActiveTab('invoice')} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 text-sm font-semibold text-white hover:bg-white/25">
+                              Add to my invoice
+                            </button>
+                          ) : null}
                         </div>
                         <button
                           type="button"
@@ -2151,7 +2223,13 @@ const StaffPortal: React.FC<{
                                 </div>
                               </div>
                               <div className="flex shrink-0 items-center gap-3">
-                                <Badge tone={r.status === 'Paid Out' ? 'success' : r.status === 'Completed' ? 'info' : 'warning'}>{r.status}</Badge>
+                                <Badge tone={r.status === 'Paid Out' ? 'success' : r.status === 'Completed' ? 'info' : r.status === 'Rejected' ? 'neutral' : 'warning'}>
+                                  {r.status === 'Paid Out'
+                                    ? 'Paid'
+                                    : r.status === 'Completed'
+                                      ? r.payStatus === 'claimed' ? 'On an invoice' : 'Ready to claim'
+                                      : r.status === 'Rejected' ? 'Not eligible' : 'Waiting for first clean'}
+                                </Badge>
                                 <p className="font-semibold tabular-nums text-slate-900">£{Number(r.rewardAmount || 0).toFixed(2)}</p>
                               </div>
                             </li>

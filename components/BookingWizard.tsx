@@ -680,6 +680,23 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
 
   const totalPrice = pricing.grandTotal;
 
+  // Referral credit (cleaning credit, no cash value) for a signed-in client. The server takes it off
+  // when the booking is saved; it is shown here so the client sees what they will actually pay.
+  const [creditBalance, setCreditBalance] = useState(0);
+  useEffect(() => {
+    if (currentUser?.role !== 'customer') {
+      setCreditBalance(0);
+      return;
+    }
+    apiClient.getReferralSummary().then((r) => setCreditBalance(r.credit?.balance ?? 0)).catch(() => setCreditBalance(0));
+  }, [currentUser?.id, currentUser?.role]);
+  const quoteBasedService = (() => {
+    const t = getServiceTrigger(selectedService);
+    return t === 'commercial' || t === 'jet_washing';
+  })();
+  const referralCredit = quoteBasedService ? 0 : Math.round(Math.min(creditBalance, Number(totalPrice) || 0) * 100) / 100;
+  const payableTotal = Math.round(((Number(totalPrice) || 0) - referralCredit) * 100) / 100;
+
   const londonRate = londonRateOf(selectedService);
   const regionNote = (
     <p
@@ -919,6 +936,9 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
         createdAt: new Date().toISOString(),
         depositTermsAcceptedAt: res.depositTermsAcceptedAt,
         stripePaymentLink: res.stripePaymentLink || '',
+        // The server's final price (after any referral credit) is what the client pays.
+        ...(typeof res.totalPrice === 'number' ? { totalPrice: res.totalPrice } : {}),
+        ...(res.referralCreditUsed ? { referralCreditUsed: res.referralCreditUsed } : {}),
       };
 
       localStorage.removeItem('niceNeatWizardState');
@@ -1746,11 +1766,12 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                       contact: customer,
                       address,
                       extras: selectedExtras,
-                      totalPrice,
+                      totalPrice: payableTotal,
+                      referralCreditUsed: referralCredit || null,
                     }}
                     serviceConfig={selectedService}
                     extrasConfig={extras}
-                    total={totalPrice}
+                    total={payableTotal}
                     enableInvoiceExportActions={false}
                     depositConsent={{
                       variant: 'controlled',
@@ -1793,12 +1814,18 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                       </div>
                     ))}
                   </dl>
+                  {referralCredit > 0 ? (
+                    <div className="flex items-center justify-between gap-3 border-t border-emerald-100 bg-emerald-50 px-5 py-3 text-emerald-800">
+                      <span className="text-sm font-medium">Referral credit (cleaning only, no cash value)</span>
+                      <span className="font-semibold tabular-nums">−£{referralCredit.toFixed(2)}</span>
+                    </div>
+                  ) : null}
                   <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-900 px-5 py-4 text-white">
                     <span className="text-sm font-medium text-white/80">Total estimate</span>
                     <span className="text-2xl font-semibold tabular-nums">
                       {(() => {
                         const trig = getServiceTrigger(selectedService);
-                        return trig === 'commercial' || trig === 'jet_washing' ? 'Quote based' : `£${Number(totalPrice).toFixed(2)}`;
+                        return trig === 'commercial' || trig === 'jet_washing' ? 'Quote based' : `£${payableTotal.toFixed(2)}`;
                       })()}
                     </span>
                   </div>
@@ -1807,7 +1834,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                 {(() => {
                   const trig = getServiceTrigger(selectedService);
                   return selectedService && Number(totalPrice) > 0 && trig !== 'commercial' && trig !== 'jet_washing' ? (
-                    <PaymentChoicePicker total={Number(totalPrice)} depositPercent={wizardDepositPercent} value={paymentChoice} onChange={setPaymentChoice} />
+                    <PaymentChoicePicker total={payableTotal} depositPercent={wizardDepositPercent} value={paymentChoice} onChange={setPaymentChoice} />
                   ) : null;
                 })()}
 
@@ -1829,11 +1856,12 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                           contact: customer,
                           address,
                           extras: selectedExtras,
-                          totalPrice,
+                          totalPrice: payableTotal,
+                          referralCreditUsed: referralCredit || null,
                         }}
                         serviceConfig={selectedService}
                         extrasConfig={extras}
-                        total={totalPrice}
+                        total={payableTotal}
                         enableInvoiceExportActions={false}
                         depositConsent={{
                           variant: 'controlled',
@@ -1886,7 +1914,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
               <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-white/10" aria-hidden />
               <p className="relative text-xs font-medium text-white/85">Your price</p>
               <p className="relative mt-1 text-4xl font-semibold tracking-tight tabular-nums">
-                {isQuoteOnly ? 'Quote' : `£${Number(totalPrice).toFixed(2)}`}
+                {isQuoteOnly ? 'Quote' : `£${payableTotal.toFixed(2)}`}
               </p>
               <div className="relative mt-3 flex flex-wrap gap-2 text-xs font-medium">
                 <span className="rounded-full bg-white/15 px-2.5 py-1">
@@ -2032,9 +2060,15 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                   <span className="font-semibold text-slate-900">£{pricing.tipAmount.toFixed(2)}</span>
                 </div>
               ) : null}
+              {referralCredit > 0 ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-500">Referral credit</span>
+                  <span className="font-semibold text-emerald-700">−£{referralCredit.toFixed(2)}</span>
+                </div>
+              ) : null}
               <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
                 <span className="font-semibold text-slate-900">Total due</span>
-                <span className="text-2xl font-semibold tracking-tight tabular-nums text-slate-900">£{pricing.grandTotal.toFixed(2)}</span>
+                <span className="text-2xl font-semibold tracking-tight tabular-nums text-slate-900">£{payableTotal.toFixed(2)}</span>
               </div>
               <button
                 onClick={handleReset}
@@ -2096,7 +2130,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
             <p className="text-[11px] font-medium text-slate-500">
               Step {stepPos} of {activeSteps.length} · {STEP_COPY[stepName]?.short || stepName}
             </p>
-            <p className="text-xl font-semibold tabular-nums text-slate-900">{isQuoteOnly ? 'Quote' : `£${Number(totalPrice).toFixed(2)}`}</p>
+            <p className="text-xl font-semibold tabular-nums text-slate-900">{isQuoteOnly ? 'Quote' : `£${payableTotal.toFixed(2)}`}</p>
           </div>
           {currentStep > 0 && (
             <button onClick={back} className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition hover:bg-slate-200" aria-label="Back">
