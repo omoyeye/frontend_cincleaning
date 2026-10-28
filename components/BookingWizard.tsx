@@ -683,19 +683,56 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
   // Referral credit (cleaning credit, no cash value) for a signed-in client. The server takes it off
   // when the booking is saved; it is shown here so the client sees what they will actually pay.
   const [creditBalance, setCreditBalance] = useState(0);
-  useEffect(() => {
+  const [pointsBalance, setPointsBalance] = useState(0);
+  const [canApplyCode, setCanApplyCode] = useState(false);
+  const [usePoints, setUsePoints] = useState(true);
+  const [refCode, setRefCode] = useState('');
+  const [refBusy, setRefBusy] = useState(false);
+  const [refMsg, setRefMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const loadRewards = React.useCallback(() => {
     if (currentUser?.role !== 'customer') {
       setCreditBalance(0);
+      setPointsBalance(0);
+      setCanApplyCode(false);
       return;
     }
-    apiClient.getReferralSummary().then((r) => setCreditBalance(r.credit?.balance ?? 0)).catch(() => setCreditBalance(0));
+    apiClient
+      .getReferralSummary()
+      .then((r) => {
+        setCreditBalance(r.credit?.balance ?? 0);
+        setPointsBalance(r.points?.balance ?? 0);
+        setCanApplyCode(!!r.canApplyCode);
+      })
+      .catch(() => setCreditBalance(0));
   }, [currentUser?.id, currentUser?.role]);
+  useEffect(() => {
+    loadRewards();
+  }, [loadRewards]);
+  const applyReferralCode = async () => {
+    const code = refCode.trim().toUpperCase();
+    if (!code) return;
+    setRefBusy(true);
+    setRefMsg(null);
+    try {
+      const r = await apiClient.applyReferralCode(code);
+      setRefMsg({ ok: true, text: r.welcomeCredit > 0 ? `£${r.welcomeCredit.toFixed(2)} welcome credit added.` : 'Code added.' });
+      setRefCode('');
+      loadRewards();
+    } catch (e) {
+      setRefMsg({ ok: false, text: e instanceof Error ? e.message : 'That code could not be added.' });
+    } finally {
+      setRefBusy(false);
+    }
+  };
   const quoteBasedService = (() => {
     const t = getServiceTrigger(selectedService);
     return t === 'commercial' || t === 'jet_washing';
   })();
+  // Mirrors the server: referral credit first, then whole pounds of points (10 points = £1).
   const referralCredit = quoteBasedService ? 0 : Math.round(Math.min(creditBalance, Number(totalPrice) || 0) * 100) / 100;
-  const payableTotal = Math.round(((Number(totalPrice) || 0) - referralCredit) * 100) / 100;
+  const afterCredit = Math.round(((Number(totalPrice) || 0) - referralCredit) * 100) / 100;
+  const pointsPounds = quoteBasedService || !usePoints ? 0 : Math.min(Math.floor(pointsBalance / 10), Math.floor(afterCredit));
+  const payableTotal = Math.round((afterCredit - pointsPounds) * 100) / 100;
 
   const londonRate = londonRateOf(selectedService);
   const regionNote = (
@@ -920,6 +957,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
         customerId: currentUser?.id,
         depositTermsAccepted: true,
         paymentChoice,
+        usePoints: !quoteBasedService && usePoints && pointsBalance >= 10,
       };
 
       const res = await apiClient.createBooking(bookingData);
@@ -939,6 +977,7 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
         // The server's final price (after any referral credit) is what the client pays.
         ...(typeof res.totalPrice === 'number' ? { totalPrice: res.totalPrice } : {}),
         ...(res.referralCreditUsed ? { referralCreditUsed: res.referralCreditUsed } : {}),
+        ...(res.pointsRedeemed ? { pointsRedeemed: res.pointsRedeemed, pointsDiscount: res.pointsDiscount } : {}),
       };
 
       localStorage.removeItem('niceNeatWizardState');
@@ -1768,6 +1807,8 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                       extras: selectedExtras,
                       totalPrice: payableTotal,
                       referralCreditUsed: referralCredit || null,
+                      pointsDiscount: pointsPounds || null,
+                      pointsRedeemed: pointsPounds ? pointsPounds * 10 : null,
                     }}
                     serviceConfig={selectedService}
                     extrasConfig={extras}
@@ -1820,6 +1861,12 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                       <span className="font-semibold tabular-nums">−£{referralCredit.toFixed(2)}</span>
                     </div>
                   ) : null}
+                  {pointsPounds > 0 ? (
+                    <div className="flex items-center justify-between gap-3 border-t border-emerald-100 bg-emerald-50 px-5 py-3 text-emerald-800">
+                      <span className="text-sm font-medium">Loyalty points ({pointsPounds * 10})</span>
+                      <span className="font-semibold tabular-nums">−£{pointsPounds.toFixed(2)}</span>
+                    </div>
+                  ) : null}
                   <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-900 px-5 py-4 text-white">
                     <span className="text-sm font-medium text-white/80">Total estimate</span>
                     <span className="text-2xl font-semibold tabular-nums">
@@ -1830,6 +1877,63 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                     </span>
                   </div>
                 </div>
+
+                {!quoteBasedService && selectedService && (pointsBalance >= 10 || canApplyCode || !currentUser) ? (
+                  <div className="space-y-3 rounded-2xl border border-emerald-200 bg-white p-5">
+                    <p className="text-sm font-semibold text-slate-900">Your rewards</p>
+                    {pointsBalance >= 10 ? (
+                      <label className="flex cursor-pointer items-center justify-between gap-3">
+                        <span>
+                          <span className="block text-sm font-medium text-slate-900">Use my points</span>
+                          <span className="block text-xs text-slate-500">
+                            {pointsBalance} points · worth £{Math.floor(pointsBalance / 10)} off this clean
+                          </span>
+                        </span>
+                        <input type="checkbox" className="h-5 w-5 rounded accent-emerald-600" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} />
+                      </label>
+                    ) : null}
+                    {canApplyCode ? (
+                      <div className="border-t border-slate-100 pt-3">
+                        <p className="text-sm font-medium text-slate-900">Have a referral code?</p>
+                        <p className="text-xs text-slate-500">A friend's code gives you credit off your first clean.</p>
+                        <div className="mt-2 flex gap-2">
+                          <input
+                            type="text"
+                            value={refCode}
+                            onChange={(e) => {
+                              setRefCode(e.target.value.toUpperCase());
+                              setRefMsg(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                void applyReferralCode();
+                              }
+                            }}
+                            placeholder="e.g. CINAB12"
+                            className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm uppercase tracking-wider outline-none focus:border-emerald-500"
+                            aria-label="Referral code"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void applyReferralCode()}
+                            disabled={!refCode.trim() || refBusy}
+                            className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            {refBusy ? 'Adding…' : 'Apply'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {!currentUser ? (
+                      <p className="text-xs text-slate-600">
+                        Got a referral code from a friend? Create a free account with it in the client portal first, and the credit comes off this clean.
+                      </p>
+                    ) : null}
+                    {refMsg ? <p className={`text-xs font-semibold ${refMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>{refMsg.text}</p> : null}
+                    {currentUser ? <p className="text-[11px] text-slate-400">Credit and points can only be used towards cleaning. No cash value.</p> : null}
+                  </div>
+                ) : null}
 
                 {(() => {
                   const trig = getServiceTrigger(selectedService);
@@ -1858,6 +1962,8 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                           extras: selectedExtras,
                           totalPrice: payableTotal,
                           referralCreditUsed: referralCredit || null,
+                          pointsDiscount: pointsPounds || null,
+                          pointsRedeemed: pointsPounds ? pointsPounds * 10 : null,
                         }}
                         serviceConfig={selectedService}
                         extrasConfig={extras}
@@ -2064,6 +2170,12 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-slate-500">Referral credit</span>
                   <span className="font-semibold text-emerald-700">−£{referralCredit.toFixed(2)}</span>
+                </div>
+              ) : null}
+              {pointsPounds > 0 ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-500">Loyalty points ({pointsPounds * 10})</span>
+                  <span className="font-semibold text-emerald-700">−£{pointsPounds.toFixed(2)}</span>
                 </div>
               ) : null}
               <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">

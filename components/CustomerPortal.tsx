@@ -1217,7 +1217,7 @@ const CustomerPortal: React.FC<Props> = ({
                         <Field label="Mobile (optional)" htmlFor="cp-phone" hint="For text updates on the day.">
                           <input id="cp-phone" type="tel" inputMode="tel" autoComplete="tel" value={registerPhone} onChange={(e) => setRegisterPhone(e.target.value)} className={inputClass} />
                         </Field>
-                        <Field label="Referral code (optional)" htmlFor="cp-ref">
+                        <Field label="Referral code (optional)" htmlFor="cp-ref" hint="A friend's code gives you credit off your first clean.">
                           <input id="cp-ref" type="text" value={referralCodeInput} onChange={(e) => setReferralCodeInput(e.target.value.toUpperCase())} className={cx(inputClass, 'uppercase')} />
                         </Field>
                       </div>
@@ -1472,7 +1472,13 @@ const CustomerPortal: React.FC<Props> = ({
                   <StatTile label="Upcoming" value={upcomingBookings.length} hint="Booked cleans" icon={<Calendar className="h-5 w-5" />} />
                   <StatTile label="Completed" value={pastBookings.length} hint="Cleans with us" icon={<CheckCircle2 className="h-5 w-5" />} accent="bg-emerald-50 text-emerald-600" />
                   <StatTile label="To pay" value={money(amountToPay)} hint={amountToPay > 0 ? 'Deposits and invoices' : 'All paid up'} icon={<Wallet className="h-5 w-5" />} accent="bg-rose-50 text-rose-600" />
-                  <StatTile label="Loyalty points" value={user?.loyaltyPoints || 0} hint="Earned on cleans" icon={<Star className="h-5 w-5" />} accent="bg-amber-50 text-amber-600" />
+                  <StatTile
+                    label="Loyalty points"
+                    value={user?.loyaltyPoints || 0}
+                    hint={(user?.loyaltyPoints || 0) >= 10 ? `Worth £${Math.floor((user?.loyaltyPoints || 0) / 10)} off a clean` : '10 points = £1 off a clean'}
+                    icon={<Star className="h-5 w-5" />}
+                    accent="bg-amber-50 text-amber-600"
+                  />
                 </div>
 
                 {(bookingsToPay.length > 0 || unpaidInvoices.length > 0 || bookingsNeedingProof.length > 0 || cleansToRate.length > 0) && (

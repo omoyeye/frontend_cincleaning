@@ -297,6 +297,18 @@ const InvoiceView: React.FC<Props> = ({
                                 <td className="py-4 text-right font-bold text-emerald-700">-£{Number(booking.referralCreditUsed).toFixed(2)}</td>
                             </tr>
                         )}
+                        {Number(booking.pointsDiscount) > 0 && (
+                            <tr>
+                                <td className="py-4 font-bold text-emerald-700">
+                                    Loyalty points ({Number(booking.pointsRedeemed) || Number(booking.pointsDiscount) * 10})
+                                    <span className="block text-xs font-medium text-slate-400 mt-1">Points spent on this clean (no cash value)</span>
+                                </td>
+                                {durationBreakdown.model === 'itemized' && (
+                                    <td className="py-4 text-right font-bold text-slate-600 tabular-nums">-</td>
+                                )}
+                                <td className="py-4 text-right font-bold text-emerald-700">-£{Number(booking.pointsDiscount).toFixed(2)}</td>
+                            </tr>
+                        )}
                     </tbody>
                     <tfoot>
                         <tr className="border-t border-slate-200">

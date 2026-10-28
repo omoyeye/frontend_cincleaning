@@ -599,6 +599,9 @@ function createRealmApi(realm: AuthRealm) {
             totalPrice?: number;
             /** Referral credit taken off this booking. */
             referralCreditUsed?: number;
+            /** Loyalty points spent and the amount taken off. */
+            pointsRedeemed?: number;
+            pointsDiscount?: number;
             conflictWarning?: { conflictCount: number; conflictingBookingIds: string[]; message: string };
         }> => {
             const res = await fetchWithNetworkHint(realm, `${API_URL}/bookings`, {
@@ -1524,6 +1527,16 @@ function createRealmApi(realm: AuthRealm) {
             if (!res.ok) throw new Error('Failed to fetch user referrals');
             const rows: unknown = await res.json();
             return Array.isArray(rows) ? (rows as Referral[]) : [];
+        },
+
+        /** Add a friend's referral code before the first clean; returns the welcome credit. */
+        applyReferralCode: async (code: string): Promise<{ welcomeCredit: number }> => {
+            const res = await fetchWithNetworkHint(realm, `${API_URL}/referrals/apply`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...H() },
+                body: JSON.stringify({ code }),
+            });
+            return jsonOrError(res, 'That code could not be added');
         },
 
         /** The signed-in user's referral balance (cleaning credit for clients, claimable bonuses for staff). */
