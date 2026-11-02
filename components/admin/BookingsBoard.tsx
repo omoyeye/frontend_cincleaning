@@ -21,6 +21,7 @@ import {
   Hourglass,
   Clock3,
   ChevronRight,
+  Repeat,
 } from 'lucide-react';
 import { Booking, BookingStatus, Staff } from '../../types';
 import { bookingHasStaff, getTodayYYYYMMDD, getTomorrowYYYYMMDD } from '../../src/utils/bookingHelpers';
@@ -683,6 +684,14 @@ export default function BookingsBoard(props: Props) {
                             {b.contact?.name || 'Guest'}
                           </span>
                           <span className="text-[11px] font-semibold text-slate-400">{b.bookingId || `#${id}`}</span>
+                          {b.frequency && b.frequency !== 'One-time' ? (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-indigo-700 ring-1 ring-indigo-200"
+                              title={`Regular client: ${b.frequency.toLowerCase()} clean`}
+                            >
+                              <Repeat className="h-3 w-3" /> {b.frequency}
+                            </span>
+                          ) : null}
                           {live ? (
                             <LiveBadge state={live} />
                           ) : (

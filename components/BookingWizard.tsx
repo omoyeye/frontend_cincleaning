@@ -1016,8 +1016,16 @@ const BookingWizard: React.FC<Props> = ({ onComplete, currentUser, initialData }
     setTipPercent(0);
     setCustomTip('');
     setDiscountCode('');
+    setDiscountError('');
     setAppliedDiscount(null);
     setCommercialDetails('');
+    setPaymentChoice('deposit');
+    setPostcodeVerified(false);
+    setPostcodeVerifyMsg('');
+    setPricingRegion(null);
+    setUsePoints(true);
+    setRefCode('');
+    setRefMsg(null);
     setError(null);
     if (currentUser) {
       setCustomer({ name: currentUser.name, email: currentUser.email, phone: '' });

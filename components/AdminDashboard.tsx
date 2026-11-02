@@ -67,6 +67,7 @@ import {
   Eye,
   RotateCcw,
   Receipt,
+  Repeat,
   Palmtree,
 } from 'lucide-react';
 import { Booking, BookingStatus, ServiceConfig, Extra, Staff, Referral, EmailTemplate, SmsTemplate, BusinessSettings, UserAccount, ChatSummary, QuoteLead, QuoteLeadStatus } from '../types';
@@ -100,6 +101,7 @@ import StaffProfileFlyout from './admin/StaffProfileFlyout';
 import ClientHistoryFlyout from './admin/ClientHistoryFlyout';
 import LiveMapPanel from './admin/LiveMapPanel';
 import AdminHolidaysPanel from './admin/AdminHolidaysPanel';
+import RegularClientsPanel from './admin/RegularClientsPanel';
 import ServicesHub, { type ServicesSectionId } from './admin/services/ServicesHub';
 import BrandLogoMark from './BrandLogoMark';
 import StaffInvoiceDocument from './StaffInvoiceDocument';
@@ -120,13 +122,14 @@ interface Props {
   currentUser: UserAccount | null;
 }
 
-type AdminTab = 'overview' | 'reports' | 'bookings' | 'quotes' | 'assignment' | 'rota' | 'liveMap' | 'staff' | 'staffInvoices' | 'customerInvoices' | 'services' | 'marketing' | 'communication' | 'support' | 'settings' | 'reviews' | 'expenses' | 'performance' | 'holidays';
+type AdminTab = 'overview' | 'reports' | 'bookings' | 'regulars' | 'quotes' | 'assignment' | 'rota' | 'liveMap' | 'staff' | 'staffInvoices' | 'customerInvoices' | 'services' | 'marketing' | 'communication' | 'support' | 'settings' | 'reviews' | 'expenses' | 'performance' | 'holidays';
 
 
 const ADMIN_PERMISSIONABLE_TABS: AdminTab[] = [
   'overview',
   'reports',
   'bookings',
+  'regulars',
   'quotes',
   'assignment',
   'rota',
@@ -150,6 +153,7 @@ const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
   overview: 'Dashboard',
   reports: 'Reports',
   bookings: 'Bookings',
+  regulars: 'Regular clients',
   quotes: 'Quote Requests',
   assignment: 'Job Assignment',
   rota: 'Rota & Schedule',
@@ -171,7 +175,7 @@ const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
 /** Sidebar sections. Groups can be folded away; the one holding the open page always stays open. */
 const ADMIN_MENU_GROUPS: Array<{ id: string; label: string; tabs: AdminTab[] }> = [
   { id: 'home', label: '', tabs: ['overview', 'reports'] },
-  { id: 'jobs', label: 'Jobs & bookings', tabs: ['bookings', 'quotes', 'assignment', 'rota', 'liveMap'] },
+  { id: 'jobs', label: 'Jobs & bookings', tabs: ['bookings', 'regulars', 'quotes', 'assignment', 'rota', 'liveMap'] },
   { id: 'team', label: 'Team', tabs: ['staff', 'staffInvoices', 'holidays', 'performance'] },
   { id: 'finance', label: 'Finance', tabs: ['customerInvoices', 'expenses'] },
   { id: 'growth', label: 'Growth', tabs: ['services', 'marketing', 'reviews'] },
@@ -1212,6 +1216,7 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
   }> = [
       { id: 'overview', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
       { id: 'bookings', label: 'Bookings', icon: <Package className="w-5 h-5" /> },
+      { id: 'regulars', label: 'Regular clients', icon: <Repeat className="w-5 h-5" /> },
       { id: 'quotes', label: 'Quote Requests', icon: <ClipboardList className="w-5 h-5" />, badge: newQuoteCount },
       { id: 'assignment', label: 'Job Assignment', icon: <UserCheck className="w-5 h-5" /> },
       { id: 'rota', label: 'Rota & Schedule', icon: <CalendarDays className="w-5 h-5" /> },
@@ -1267,6 +1272,8 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
   const mobileHeaderTitle =
     activeTab === 'bookings'
       ? 'Bookings'
+      : activeTab === 'regulars'
+        ? 'Regular clients'
       : activeTab === 'quotes'
         ? 'Quote Requests'
       : activeTab === 'communication'
@@ -2777,6 +2784,8 @@ const AdminDashboard: React.FC<Props> = ({ bookings: initialBookings, onLogout, 
         )}
 
         {activeTab === 'holidays' && <AdminHolidaysPanel onPendingChange={setPendingHolidayCount} />}
+
+        {activeTab === 'regulars' && <RegularClientsPanel onViewClient={(email) => setProfileClientEmail(email)} />}
 
         {activeTab === 'performance' && (() => {
           const perfSearchTerm = searchTerm.toLowerCase();

@@ -948,3 +948,32 @@ export interface SiteSeoSettings {
   /** Custom scripts to be injected before the closing body tag */
   scriptBodyEnd?: string;
 }
+
+/** Settings > Regular clients: thank-you rewards and follow-ups (business setting `regularClientCare`). */
+export interface RegularClientCare {
+  enabled: boolean;
+  milestones: { cleans: number; points: number }[];
+  anniversaryPoints: number;
+  sameCleaner: boolean;
+  winBack: boolean;
+  quietDays: number;
+}
+
+/** A weekly, fortnightly or monthly client as the admin Regular clients page shows them. */
+export interface RegularClient {
+  key: string;
+  customerId: number | null;
+  name: string;
+  email: string;
+  phone: string | null;
+  frequency: 'Weekly' | 'Fortnightly' | 'Monthly' | string;
+  serviceType: string;
+  since: string;
+  cleans: number;
+  lastClean: string | null;
+  nextVisit: { id: number; ref: string | null; date: string; time: string; status: string; cleaners: string[] } | null;
+  usualCleaner: string | null;
+  cancellations60d: number;
+  status: 'active' | 'at_risk' | 'lapsed';
+  reasons: string[];
+}

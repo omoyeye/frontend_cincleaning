@@ -25,6 +25,8 @@ import {
     StaffAssessment,
     QuoteLead,
     QuoteLeadStatus,
+  RegularClient,
+  RegularClientCare,
 } from '../types';
 
 /** Maps `/api/login` user JSON into a `UserAccount` for the customer portal (cookie auth; body is untyped). */
@@ -1671,6 +1673,11 @@ async function handleAdminJson<T>(res: Response, fallbackMsg: string): Promise<T
 
 export const apiAdmin = {
     ...adminRealmApi,
+    /** Weekly, fortnightly and monthly clients with their next visit, usual cleaner and at-risk reasons. */
+    getRegularClients: async (): Promise<{ clients: RegularClient[]; settings: RegularClientCare }> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/regular-clients`, { headers: { ...authHeader('admin') } });
+        return handleAdminJson(res, 'Failed to load regular clients');
+    },
     /** The finished branded email (layout, logo, footer) with sample values, for the template editor. */
     previewEmailTemplate: async (payload: { name: string; subject: string; body: string }): Promise<{ subject: string; html: string }> => {
         const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/email-templates/preview`, {
