@@ -284,7 +284,20 @@ const PerformancePanel: React.FC = () => {
                   {a.punctuality ? <Badge>Punctuality {a.punctuality}/5</Badge> : null}
                   {a.quality ? <Badge>Quality {a.quality}/5</Badge> : null}
                   {a.professionalism ? <Badge>Professionalism {a.professionalism}/5</Badge> : null}
+                  {a.checklist?.length ? (
+                    <Badge>
+                      Tasks {a.checklist.filter((c) => c.result === 'pass').length}/{a.checklist.filter((c) => c.result !== 'na').length} passed
+                    </Badge>
+                  ) : null}
                 </div>
+                {a.checklist
+                  ?.filter((c) => c.result === 'fail')
+                  .map((c) => (
+                    <p key={c.task} className="mt-1 text-sm text-rose-600">
+                      ✕ {c.task}
+                      {c.note ? `: ${c.note}` : ''}
+                    </p>
+                  ))}
                 <p className="mt-2 text-sm leading-relaxed text-slate-700">{a.remark}</p>
               </Card>
             ))}

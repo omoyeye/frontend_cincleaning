@@ -27,6 +27,7 @@ import { bookingHasStaff, getTodayYYYYMMDD, getTomorrowYYYYMMDD } from '../../sr
 import { bookingPaymentState } from '../../src/utils/bookingPayment';
 import { useBusinessSettings } from '../../src/context/BusinessSettingsContext';
 import BookingPaymentCell from './BookingPaymentCell';
+import { LiveBadge, liveState } from '../LiveBadge';
 
 /**
  * Admin bookings page: one list instead of two tables. Shows what needs attention first,
@@ -639,12 +640,13 @@ export default function BookingsBoard(props: Props) {
                     ? [pd.bedrooms ? `${pd.bedrooms} bed` : null, pd.bathrooms ? `${pd.bathrooms} bath` : null].filter(Boolean).join(' · ')
                     : '';
                   const cancelled = b.status === BookingStatus.CANCELLED;
+                  const live = liveState(b);
                   return (
                     <div
                       key={b.id}
                       className={`group relative grid grid-cols-[auto_1fr] xl:grid-cols-[auto_64px_minmax(0,1fr)_190px_180px_auto] items-start xl:items-center gap-x-4 gap-y-3 rounded-2xl border bg-white p-4 transition-all hover:shadow-md ${
                         selected.has(id) ? 'border-blue-300 ring-2 ring-blue-100' : cancelled ? 'border-red-100 bg-red-50/30' : 'border-slate-200'
-                      }`}
+                      } ${live && !selected.has(id) ? 'cin-live' : ''}`}
                     >
                       <input
                         type="checkbox"
@@ -681,9 +683,13 @@ export default function BookingsBoard(props: Props) {
                             {b.contact?.name || 'Guest'}
                           </span>
                           <span className="text-[11px] font-semibold text-slate-400">{b.bookingId || `#${id}`}</span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ring-1 ${STATUS_STYLE[b.status] || 'bg-slate-50 text-slate-600 ring-slate-200'}`}>
-                            {b.status}
-                          </span>
+                          {live ? (
+                            <LiveBadge state={live} />
+                          ) : (
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ring-1 ${STATUS_STYLE[b.status] || 'bg-slate-50 text-slate-600 ring-slate-200'}`}>
+                              {b.status}
+                            </span>
+                          )}
                         </div>
                         <p className="mt-0.5 text-sm font-semibold text-slate-700 truncate">
                           {b.serviceType}

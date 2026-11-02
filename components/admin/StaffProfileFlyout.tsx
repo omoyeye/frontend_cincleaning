@@ -539,6 +539,21 @@ const StaffProfileFlyout: React.FC<Props> = ({ staff, bookings, services, extras
                         {a.professionalism ? <span>Professionalism {a.professionalism}/5</span> : null}
                       </div>
                     )}
+                    {a.checklist?.length ? (
+                      <div className="mt-2 rounded-lg bg-white px-3 py-2 ring-1 ring-slate-100">
+                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                          Task check · {a.checklist.filter((c) => c.result === 'pass').length}/{a.checklist.filter((c) => c.result !== 'na').length} passed
+                        </p>
+                        <ul className="mt-1 space-y-0.5">
+                          {a.checklist.map((c) => (
+                            <li key={c.task} className={`text-xs ${c.result === 'fail' ? 'text-red-600 font-semibold' : c.result === 'na' ? 'text-slate-400' : 'text-slate-600'}`}>
+                              {c.result === 'pass' ? '✓' : c.result === 'fail' ? '✕' : '-'} {c.task}
+                              {c.note ? <span className="font-normal">: {c.note}</span> : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                     <p className="text-sm text-slate-700 mt-2">{a.remark}</p>
                   </div>
                 ))}

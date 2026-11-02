@@ -146,6 +146,8 @@ export interface Booking {
   usePoints?: boolean;
   /** ISO time the cleaner tapped "Start travel". */
   enRouteAt?: string | null;
+  /** ISO time the cleaner clocked in on site. */
+  arrivedAt?: string | null;
   lateNotices?: LateNotice[] | null;
   onTheWayPromptSentAt?: string | null;
   noEnRouteWarningSentAt?: string | null;
@@ -342,6 +344,8 @@ export interface StaffAssessment {
   quality: number | null;
   professionalism: number | null;
   remark: string;
+  /** Field quality check task by task (from the supervisor app). */
+  checklist?: { task: string; result: 'pass' | 'fail' | 'na'; note?: string }[] | null;
   createdAt: string | null;
   booking: { id: number; bookingId: string | null; date: string; clientName: string } | null;
 }
@@ -399,6 +403,7 @@ export interface StaffPerformance {
     quality: number | null;
     professionalism: number | null;
     remark: string;
+    checklist?: { task: string; result: 'pass' | 'fail' | 'na'; note?: string }[] | null;
     createdAt: string | null;
   }[];
   recentJobs: StaffPerformanceJob[];

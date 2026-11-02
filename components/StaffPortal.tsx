@@ -33,6 +33,7 @@ import {
 } from '../src/utils/bookingHelpers';
 import { DurationBreakdownBlock } from './DurationBreakdownBlock';
 import StaffInvoiceDocument from './StaffInvoiceDocument';
+import { LiveBadge, liveState } from './LiveBadge';
 
 const StaffEnRouteMap = React.lazy(() => import('./StaffEnRouteMap'));
 const StaffJobsMap = React.lazy(() => import('./StaffJobsMap'));
@@ -1376,7 +1377,7 @@ const StaffPortal: React.FC<{
 
   const activeJobBanner =
     activeClockedJob && clockInData ? (
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 p-5 text-white shadow-lg shadow-emerald-600/20">
+      <div className="cin-live relative overflow-hidden rounded-2xl border-2 border-transparent bg-gradient-to-br from-emerald-600 to-teal-600 p-5 text-white shadow-lg shadow-emerald-600/20">
         <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10" aria-hidden />
         <div className="relative flex flex-wrap items-center justify-between gap-4">
           <div className="min-w-0">
@@ -1417,11 +1418,15 @@ const StaffPortal: React.FC<{
       <button
         type="button"
         onClick={() => openJobDetails(nextJob)}
-        className="group relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-primary to-primary/80 p-5 text-left text-primary-foreground shadow-lg shadow-primary/20 transition hover:shadow-xl focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/30"
+        className={cx(
+          'group relative w-full overflow-hidden rounded-2xl border-2 border-transparent bg-gradient-to-br from-primary to-primary/80 p-5 text-left text-primary-foreground shadow-lg shadow-primary/20 transition hover:shadow-xl focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/30',
+          liveState(nextJob) && 'cin-live',
+        )}
       >
         <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-white/10" aria-hidden />
         <div className="relative flex items-start justify-between gap-4">
           <div className="min-w-0">
+            {liveState(nextJob) ? <LiveBadge state={liveState(nextJob)} className="mb-2" /> : null}
             <p className="text-sm font-medium opacity-90">
               Next job · {normalizeBookingDate(nextJob.date) === calendarToday ? 'Today' : formatScheduleCardDate(nextJob.date)}
             </p>
@@ -1454,7 +1459,7 @@ const StaffPortal: React.FC<{
             <p className="text-xs text-slate-500">Booking {activeChatJob?.bookingId || `#${activeChatJob?.id || activeChatJobId || ''}`}</p>
           </div>
         </div>
-        {!staffChatCanStart && <Callout tone="warning" className="mt-3">Chat opens 10 minutes before the start time.</Callout>}
+        {!staffChatCanStart && <Callout tone="warning" className="mt-3">Chat opens 10 minutes before the start time, or as soon as you set off.</Callout>}
         {staffChatClosed && <Callout tone="danger" className="mt-3">This chat was closed by the office after the job. You can still read it.</Callout>}
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 p-4">
@@ -3344,6 +3349,7 @@ const JobCard: React.FC<{
 
   const isCompleted = job.status === BookingStatus.COMPLETED;
   const isCancelled = job.status === BookingStatus.CANCELLED;
+  const live = liveState(job);
   const endLabel = (() => {
     const [h, m] = String(job.time || '').split(':').map(Number);
     if (!Number.isFinite(h)) return '';
@@ -3358,6 +3364,7 @@ const JobCard: React.FC<{
       className={cx(
         'group flex w-full items-stretch overflow-hidden rounded-2xl border bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:shadow-md focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/20 active:scale-[0.995]',
         isCancelled ? 'border-slate-200/80 opacity-70' : 'border-slate-200/80',
+        live && 'cin-live',
       )}
     >
       <div
@@ -3374,9 +3381,13 @@ const JobCard: React.FC<{
       <div className="min-w-0 flex-1 p-4">
         <div className="flex items-start justify-between gap-2">
           <p className={cx('truncate text-base font-semibold text-slate-900 group-hover:text-primary', isCancelled && 'line-through')}>{job.contact?.name || 'Guest'}</p>
-          <Badge tone={statusTone(job.status)} className="shrink-0">
-            {job.status}
-          </Badge>
+          {live ? (
+            <LiveBadge state={live} className="shrink-0" />
+          ) : (
+            <Badge tone={statusTone(job.status)} className="shrink-0">
+              {job.status}
+            </Badge>
+          )}
         </div>
         <p className="mt-0.5 truncate text-sm text-slate-500">{job.serviceType}</p>
         <p className="mt-2 flex items-start gap-1.5 text-sm text-slate-600">
