@@ -1687,7 +1687,8 @@ const CustomerPortal: React.FC<Props> = ({
                 ) : (
                   <Card padded={false} className="divide-y divide-slate-100 overflow-hidden">
                     {customerInvoicesList.map((inv) => {
-                      const payHref = inv.stripePaymentUrl || (inv.id ? `/pay/invoice/${inv.id}` : '');
+                      // Coded link from the server; invoices without one are not set up for online payment yet.
+                      const payHref = inv.stripePaymentUrl || '';
                       return (
                         <div key={inv.id} className="p-4 sm:p-5">
                           <div className="flex items-start gap-3">
