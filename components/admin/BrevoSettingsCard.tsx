@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { KeyRound, Mail, Phone, Save, Send, ShieldCheck, Trash2, Eye, EyeOff, Loader2, Server } from 'lucide-react';
+import { KeyRound, Mail, Phone, Save, Send, ShieldCheck, Trash2, Eye, EyeOff, Loader2, Server, MessageSquare } from 'lucide-react';
 import { apiAdmin, type BrevoSettingsPublic, type BrevoSettingsPatch } from '../../services/api';
 
 interface Props {
@@ -40,6 +40,9 @@ export default function BrevoSettingsCard({ onStatus }: Props) {
         smtpPassword: '',
     });
     const [testEmail, setTestEmail] = useState('');
+    const [testPhone, setTestPhone] = useState('');
+    const [testingSms, setTestingSms] = useState(false);
+    const [smsResult, setSmsResult] = useState<{ ok: boolean; text: string } | null>(null);
 
     const hydrateFrom = (data: BrevoSettingsPublic) => {
         setSettings(data);
@@ -104,6 +107,21 @@ export default function BrevoSettingsCard({ onStatus }: Props) {
             onStatus(err?.message || 'Brevo test email failed', 'error');
         } finally {
             setTesting(false);
+        }
+    };
+
+    const handleTestSms = async () => {
+        if (!testPhone.trim()) return;
+        setTestingSms(true);
+        setSmsResult(null);
+        try {
+            const r = await apiAdmin.sendBrevoTestSms(testPhone.trim());
+            const credits = typeof r.remainingCredits === 'number' ? ` ${r.remainingCredits} SMS credits left.` : '';
+            setSmsResult({ ok: true, text: `Sent to ${r.recipient} from "${r.sender}". It should arrive within a minute.${credits}` });
+        } catch (err: any) {
+            setSmsResult({ ok: false, text: err?.message || 'Brevo test SMS failed' });
+        } finally {
+            setTestingSms(false);
         }
     };
 
@@ -298,6 +316,27 @@ export default function BrevoSettingsCard({ onStatus }: Props) {
                             </button>
                         </div>
 
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="tel"
+                                value={testPhone}
+                                onChange={(e) => setTestPhone(e.target.value)}
+                                placeholder="07123 456789"
+                                aria-label="Mobile number for a test SMS"
+                                className="px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-40"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => void handleTestSms()}
+                                disabled={testingSms || !settings.hasApiKey || !testPhone.trim()}
+                                title={settings.hasApiKey ? 'Send a test SMS' : 'Save an API key first'}
+                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {testingSms ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
+                                Test SMS
+                            </button>
+                        </div>
+
                         {settings.hasApiKey && (
                             <button
                                 type="button"
@@ -310,6 +349,11 @@ export default function BrevoSettingsCard({ onStatus }: Props) {
                             </button>
                         )}
                     </div>
+                    {smsResult && (
+                        <p className={`rounded-xl px-3 py-2 text-xs font-semibold ${smsResult.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>
+                            {smsResult.text}
+                        </p>
+                    )}
                 </div>
             )}
         </div>

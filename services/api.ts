@@ -1735,6 +1735,15 @@ export const apiAdmin = {
         return handleAdminJson<{ ok: true; to: string }>(res, 'Brevo test email failed');
     },
 
+    sendBrevoTestSms: async (to: string): Promise<{ ok: true; recipient: string; sender: string; remainingCredits?: number }> => {
+        const res = await fetchWithNetworkHint('admin', `${API_URL}/admin/brevo-settings/test-sms`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader('admin') },
+            body: JSON.stringify({ to }),
+        });
+        return handleAdminJson(res, 'Brevo test SMS failed');
+    },
+
     getBookingReminderSettings: async (): Promise<{
         masterEnabled: boolean;
         send48h: boolean;
