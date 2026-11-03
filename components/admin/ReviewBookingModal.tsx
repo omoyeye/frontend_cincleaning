@@ -10,6 +10,43 @@ import { formatBookedHoursLabel,
 import { useBusinessSettings } from '../../src/context/BusinessSettingsContext';
 import { formatInvoiceBankDetailsPlainText, getPayoutBankDetailsForInvoice } from '../../src/utils/invoiceBankDetails';
 
+/** "Before 1" / "After 2" when the app labelled the photos, otherwise "Photo 3". */
+function photoLabel(wc: WorkCompletionData, idx: number): string {
+    const labels = Array.isArray(wc.photoLabels) && wc.photoLabels.length === wc.photos.length ? wc.photoLabels : null;
+    if (!labels) return `Photo ${idx + 1}`;
+    const kind = labels[idx] === 'after' ? 'after' : 'before';
+    const n = labels.slice(0, idx + 1).filter((l) => (l === 'after' ? 'after' : 'before') === kind).length;
+    return `${kind === 'after' ? 'After' : 'Before'} ${n}`;
+}
+
+function photoFileName(booking: Booking, wc: WorkCompletionData, idx: number): string {
+    const ref = String(booking.bookingId || booking.id || 'job').replace(/[^A-Za-z0-9-]/g, '');
+    return `${ref}-${photoLabel(wc, idx).toLowerCase().replace(/\s+/g, '-')}`;
+}
+
+/** Saves a job photo (data URL or link) with a clear file name. */
+async function downloadPhoto(src: string, baseName: string): Promise<void> {
+    let blob: Blob;
+    try {
+        const res = await fetch(src);
+        if (!res.ok) throw new Error('Download failed');
+        blob = await res.blob();
+    } catch {
+        // A link the browser will not hand over: open it so it can be saved from the new tab.
+        window.open(src, '_blank', 'noopener');
+        return;
+    }
+    const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg').split('+')[0];
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${baseName}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
 interface Props {
     booking: Booking;
     services: ServiceConfig[];
@@ -38,6 +75,7 @@ const BookingReviewModal: React.FC<Props> = ({ booking, services, extras, onClos
     const [adminNote, setAdminNote] = useState(booking.adminNotes || '');
     const [stripeLink, setStripeLink] = useState(booking.stripePaymentLink || '');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [downloadingAll, setDownloadingAll] = useState(false);
     const [generatingStripeLink, setGeneratingStripeLink] = useState(false);
     const [activeTab, setActiveTab] = useState<'details' | 'invoice' | 'actions'>('details');
 
@@ -377,13 +415,56 @@ const BookingReviewModal: React.FC<Props> = ({ booking, services, extras, onClos
                                                             <Camera className="w-4 h-4 mr-2" /> Submitted Photos
                                                         </div>
                                                         {wc.photos?.length ? (
-                                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                                                {wc.photos.map((photo, idx) => (
-                                                                    <a key={idx} href={photo} target="_blank" rel="noreferrer" className="block rounded-xl overflow-hidden border border-slate-200 bg-white">
-                                                                        <img src={photo} alt={`Work report ${idx + 1}`} className="w-full h-28 object-cover" />
-                                                                    </a>
-                                                                ))}
-                                                            </div>
+                                                            <>
+                                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                                                    {wc.photos.map((photo, idx) => {
+                                                                        const name = photoFileName(liveBooking, wc, idx);
+                                                                        const label = photoLabel(wc, idx);
+                                                                        return (
+                                                                            <div key={idx} className="group relative rounded-xl overflow-hidden border border-slate-200 bg-white">
+                                                                                <a href={photo} target="_blank" rel="noreferrer" className="block" title="Open full size">
+                                                                                    <img src={photo} alt={`${label} photo`} className="w-full h-28 object-cover" />
+                                                                                </a>
+                                                                                <span className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${label.startsWith('After') ? 'bg-emerald-600 text-white' : label.startsWith('Before') ? 'bg-slate-900/80 text-white' : 'bg-white/90 text-slate-700'}`}>
+                                                                                    {label}
+                                                                                </span>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => void downloadPhoto(photo, name).catch(() => showFlyer('Could not download that photo', 'error'))}
+                                                                                    className="absolute right-2 bottom-2 inline-flex items-center gap-1 rounded-lg bg-white/95 px-2 py-1 text-[11px] font-black text-slate-800 shadow hover:bg-white"
+                                                                                    aria-label={`Download ${label} photo`}
+                                                                                >
+                                                                                    <Download className="h-3.5 w-3.5" /> Download
+                                                                                </button>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                                {wc.photos.length > 1 ? (
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={downloadingAll}
+                                                                        onClick={async () => {
+                                                                            setDownloadingAll(true);
+                                                                            try {
+                                                                                for (let i = 0; i < wc.photos.length; i += 1) {
+                                                                                    await downloadPhoto(wc.photos[i], photoFileName(liveBooking, wc, i));
+                                                                                    // A short gap so the browser accepts each file.
+                                                                                    await new Promise((r) => setTimeout(r, 350));
+                                                                                }
+                                                                                showFlyer(`${wc.photos.length} photos downloaded`, 'success');
+                                                                            } catch {
+                                                                                showFlyer('Some photos could not be downloaded', 'error');
+                                                                            } finally {
+                                                                                setDownloadingAll(false);
+                                                                            }
+                                                                        }}
+                                                                        className="mt-3 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-black uppercase tracking-wider text-white hover:bg-slate-700 disabled:opacity-50"
+                                                                    >
+                                                                        <Download className="h-4 w-4" /> {downloadingAll ? 'Downloading...' : `Download all ${wc.photos.length} photos`}
+                                                                    </button>
+                                                                ) : null}
+                                                            </>
                                                         ) : (
                                                             <div className="text-sm font-bold text-slate-400">No photos submitted.</div>
                                                         )}

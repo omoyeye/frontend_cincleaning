@@ -649,6 +649,8 @@ export interface WorkCompletionData {
   notes: string;
   issues: string;
   photos: string[]; // Base64 or URLs
+  /** Same order as photos: 'before' or 'after' (sent by newer app versions). */
+  photoLabels?: ('before' | 'after')[];
   signature: string; // Base64
   clockInTime: string;
   /** Instant when staff clocked in (ISO 8601) — for admin audit. */
